@@ -39,8 +39,9 @@ export const V = {
 };
 
 /** Start a fork. Returns { url, provider, rpc, stop }. */
-export async function startFork(port = 18545 + Math.floor(Math.random() * 1000)) {
-  const proc = spawn(ANVIL, ['--fork-url', FORK_URL, '--fork-block-number', String(FORK_BLOCK), '--port', String(port), '--silent'], {
+export async function startFork(port = 18545 + Math.floor(Math.random() * 1000), { url: forkUrl = FORK_URL, block = FORK_BLOCK } = {}) {
+  const args = ['--fork-url', forkUrl, '--port', String(port), '--silent', ...(block ? ['--fork-block-number', String(block)] : [])];
+  const proc = spawn(ANVIL, args, {
     stdio: 'ignore',
   });
   const url = 'http://127.0.0.1:' + port;

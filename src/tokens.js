@@ -2,8 +2,8 @@
 // mainnet; balances are read in one Multicall3 aggregate3. Symbols are not unique:
 // the UI always shows the token address next to them.
 import { bytes, cd, strip, word } from './abi.js';
-import { CHAINS } from './chains.js';
-import { call } from './rpc.js';
+import { MAINNET, SAFE } from './chains.js';
+import { call, rpc } from './rpc.js';
 import { S } from './sel.js';
 
 const W = (h, i) => BigInt('0x' + (h.slice(i * 64, i * 64 + 64) || '0'));
@@ -14,7 +14,7 @@ export const clean = (s, n = 24) => s.replace(/[^\x20-\x7e]/g, '').trim().slice(
 /** Listed, deployed ERC-20s for `chainId`. The registry lives on mainnet only. */
 export async function listed(chainId) {
   if (chainId !== 1) return [];
-  const h = strip(await call(CHAINS[1].tokenList, cd(S.summariesPaged, 0, 256)));
+  const h = strip(await call(MAINNET.tokenList, cd(S.summariesPaged, 0, 256)));
   const base = Number(W(h, 0)) / 32, n = Number(W(h, base)), out = [];
   for (let i = 0; i < n; i++) {
     const t = base + 1 + Number(W(h, base + 1 + i)) / 32, g = (k) => W(h, t + k);
@@ -32,15 +32,18 @@ export async function listed(chainId) {
   return out;
 }
 
-/** Multicall3 aggregate3 with allowFailure = true. Returns [{ok, data}] in order. */
+/** Multicall3 aggregate3 with allowFailure = true. Returns [{ok, data}] in order.
+ *  Where Multicall3 is not deployed, falls back to one eth_call per entry. */
 export async function multicall(calls) {
+  if ((await rpc('eth_getCode', [SAFE.multicall3, 'latest'])) === '0x')
+    return Promise.all(calls.map(({ to, data }) => call(to, data).then((d) => ({ ok: true, data: d }), () => ({ ok: false, data: '0x' }))));
   const enc = calls.map(({ to, data }) => {
     const d = strip(data);
     return word(to) + word(1) + word(0x60) + word(d.length / 2) + d.padEnd(Math.ceil(d.length / 64) * 64, '0');
   });
   let head = '', off = calls.length * 32;
   for (const e of enc) (head += word(off)), (off += e.length / 2);
-  const h = strip(await call(CHAINS[1].multicall3, '0x' + S.aggregate3 + word(0x20) + word(calls.length) + head + enc.join('')));
+  const h = strip(await call(SAFE.multicall3, '0x' + S.aggregate3 + word(0x20) + word(calls.length) + head + enc.join('')));
   const base = Number(W(h, 0)) / 32;
   return calls.map((_, i) => {
     const t = base + 1 + Number(W(h, base + 1 + i)) / 32, at = t + Number(W(h, t + 1)) / 32;

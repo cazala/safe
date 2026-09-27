@@ -1,6 +1,6 @@
 // safe.wei — app shell, routing and views.
 import { cd, fmt, isAddr, isHex, parse, strip } from './abi.js';
-import { CHAINS } from './chains.js';
+import { chainInfo, label } from './chains.js';
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review } from './review.js';
 import * as rpc from './rpc.js';
@@ -44,21 +44,21 @@ const rev = (x) => {
   return el;
 };
 const main = $('main');
-const chain = () => CHAINS[st.chainId];
+const chain = () => st.chain;
 
 // ---- wallet ----
 let wallet = null; // { key, name, provider } in use, or null
 
 async function refreshWallet() {
   if (!wallet) {
-    st.chainId = st.account = null;
+    st.chainId = st.account = st.chain = null;
     put($('net'), h('span.mut', list().length ? 'Not connected' : 'No wallet detected'));
     $('connect').textContent = 'Connect';
     return;
   }
   [st.chainId, [st.account = null] = []] = await Promise.all([rpc.chainId(), rpc.accounts()]);
-  const c = chain();
-  put($('net'), c ? c.name + ' (' + st.chainId + ')' : h('b.bad', 'Unsupported chain ' + st.chainId));
+  if (!st.chain || st.chain.id !== st.chainId) st.chain = await chainInfo(st.chainId);
+  put($('net'), st.chain.name + ' (' + st.chainId + ')');
   $('connect').textContent = st.account ? short(st.account) : 'Connect';
 }
 
@@ -137,7 +137,15 @@ function home() {
   };
   return [
     h('section', h('h2', 'Open Safe'), h('div.row', input, open), out),
-    h('section', h('h2', 'Create Safe'), h('p.mut', 'Deploy a new Safe v1.4.1 from the canonical proxy factory.'), h('button', { onclick: () => (location.hash = '/new') }, 'Create Safe')),
+    h(
+      'section',
+      h('h2', 'Create Safe'),
+      !chain()
+        ? h('p.mut', 'Connect a wallet to create a Safe.')
+        : chain().canCreate
+          ? [h('p.mut', 'Deploy a new ' + (chain().mainnet ? 'Safe' : 'SafeL2') + ' v1.4.1 on ' + chain().name + ' from the canonical proxy factory.'), h('button', { onclick: () => (location.hash = '/new') }, 'Create Safe')]
+          : h('p.mut', 'The canonical Safe v1.4.1 contracts are not deployed on ' + chain().name + ', so Safes cannot be created here. Existing Safes can still be opened.'),
+    ),
   ];
 }
 
@@ -172,7 +180,7 @@ function createView() {
           ['Chain', c.name + ' · chainId ' + st.chainId],
           ['Owners', h('ol.owners', k.owners.map((o) => h('li', named(o), o === st.account.toLowerCase() && [' ', h('b.ok', 'you')])))],
           ['Threshold', k.threshold + ' of ' + k.owners.length],
-          ['Singleton', [h('code', c.singleton), ' (Safe v1.4.1)']],
+          ['Singleton', [h('code', c.singleton), c.mainnet ? ' (Safe v1.4.1)' : ' (SafeL2 v1.4.1)']],
           ['Factory', h('code', c.factory)],
           ['Fallback', [h('code', c.fallback), ' (CompatibilityFallbackHandler)']],
           ['Salt nonce', String(k.salt)],
@@ -316,7 +324,7 @@ function assetsView(s, pre) {
       return transfer(t, r, v);
     };
     const go = button('Review', async () => showReview(newTx(s, await read())), out, '.primary');
-    const add = button('Add to batch', async () => (queue(await read()), put(form)), out);
+    const add = chain().canBatch && button('Add to batch', async () => (queue(await read()), put(form)), out);
     const link = button('Copy link', () => navigator.clipboard.writeText(deeplink('send', { to: to.value.trim(), amount: amt.value.trim(), token: tokenSpec(t) })), out);
     put(
       form,
@@ -389,13 +397,14 @@ function assetsView(s, pre) {
         'Review',
         async () => {
           const p = await need();
+          if (p.calls.length > 1 && !chain().canBatch) throw Error('MultiSendCallOnly is not deployed on ' + chain().name + ': send one transfer at a time.');
           st.named = p.names;
           await showReview(newTx(s, p.calls.length > 1 ? batch(st.chainId, p.calls) : p.calls[0]));
         },
         bout,
         '.primary',
       ),
-      button('Add to batch', async () => {
+      chain().canBatch && button('Add to batch', async () => {
         const p = await need();
         st.named = p.names;
         p.calls.forEach(queue);
@@ -492,7 +501,7 @@ function builder(s) {
     return { to: t, value: parse(value.value || '0', 18), data: d.toLowerCase(), operation: Number(op.value), nonce: n };
   };
   const btn = button('Review', async () => showReview(newTx(s, await read())), out, '.primary');
-  const add = button(
+  const add = chain().canBatch && button(
     'Add to batch',
     async () => {
       const x = await read();
@@ -699,7 +708,7 @@ function batchView(r) {
 }
 
 function txView(r) {
-  const t = r.tx, c = CHAINS[t.chainId] || {}, len = strip(t.data).length / 2;
+  const t = r.tx, c = label(t.chainId), len = strip(t.data).length / 2;
   return h(
     'section',
     h('h2', 'Transaction summary'),
@@ -733,10 +742,10 @@ async function route() {
   try {
     if (path.startsWith('tx=')) m = [0, (p = importPayload(path)).tx.safe];
     if (m && !isAddr(m[1])) m[1] = await target(decodeURIComponent(m[1]));
-    if (path === '/new') return put(main, chain() ? createView() : bad('Connect a wallet on a supported chain.'));
+    if (path === '/new') return put(main, chain() && chain().canCreate ? createView() : bad(chain() ? 'Safe v1.4.1 is not deployed on ' + chain().name + '.' : 'Connect a wallet first.'));
     if (!m) return put(main, home());
     main.replaceChildren(h('p.mut', 'Loading ' + m[1] + '…'));
-    if (!chain()) throw Error('Connect a wallet on a supported chain (' + Object.values(CHAINS).map((c) => c.name).join(', ') + ').');
+    if (!chain()) throw Error('Connect a wallet to open a Safe.');
     const s = await readSafe(m[1]);
     if (n !== seq) return;
     st.safe = s;

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { encodePacked, encodeFunctionData, parseAbi } from 'viem';
-import { CHAINS } from '../../src/chains.js';
+import { SAFE } from '../../src/chains.js';
 import { batch, pack, unpack } from '../../src/multisend.js';
 
-const MS = CHAINS[1].multiSendCallOnly;
+const MS = SAFE.multiSendCallOnly;
 const calls = [
   { to: '0x' + '11'.repeat(20), value: 5n, data: '0x' },
   { to: '0x' + '22'.repeat(20), value: 0n, data: '0xa9059cbb' + '00'.repeat(64) },

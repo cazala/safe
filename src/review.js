@@ -44,6 +44,9 @@ export async function review(tx, s, walletChain) {
   if (!s.supported) err('Unsupported Safe version "' + s.version + '".');
   if (tx.nonce < s.nonce) err('Nonce ' + tx.nonce + ' was already used (Safe nonce is ' + s.nonce + '). Rebuild the transaction.');
   if (tx.nonce > s.nonce) warn('Queued: nonce ' + tx.nonce + ' can only execute after nonce ' + s.nonce + ' has executed.');
+  // A DELEGATECALL into an address without code does nothing, yet succeeds and burns the nonce.
+  if (tx.operation === 1 && (await rpc('eth_getCode', [tx.to, 'latest']).catch(() => '0x')) === '0x')
+    err('DELEGATECALL target ' + tx.to + ' has no code on this chain: the Safe would do nothing and still consume the nonce.' + (batch ? ' MultiSendCallOnly is not deployed here.' : ''));
   if (tx.operation === 1 && !batch) r.danger.push('DANGEROUS: DELEGATECALL. The target code runs with full control of the Safe (owners, modules, funds).');
   if (r.decoded) r.danger.push(...r.decoded.danger), r.warnings.push(...r.decoded.warnings);
   if (batch)
