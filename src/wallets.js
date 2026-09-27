@@ -27,12 +27,13 @@ export function discover(changed) {
     if (!info || !provider || typeof provider.request !== 'function') return;
     const key = String(info.rdns || info.uuid);
     if (found.has(key)) return;
-    const inj = found.get('injected');
-    if (inj && inj.provider === provider) found.delete('injected'); // same wallet, now properly named
+    // window.ethereum is almost always one of the announced wallets, often behind a proxy
+    // object, so once any wallet announces itself the unnamed fallback is dropped.
+    found.delete('injected');
     found.set(key, { key, name: String(info.name || key).slice(0, 40), provider });
     changed();
   });
   window.dispatchEvent(new Event('eip6963:requestProvider'));
   const eth = window.ethereum;
-  if (eth && !list().some((w) => w.provider === eth)) found.set('injected', { key: 'injected', name: 'Browser wallet', provider: eth });
+  if (eth && !found.size) found.set('injected', { key: 'injected', name: 'Browser wallet', provider: eth });
 }
