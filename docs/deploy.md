@@ -52,8 +52,13 @@ Do not skip ahead: pointing `safe.wei` is the only step that changes what users 
    cast keccak "$(cat safe.wei.html)"   # equals contentHash() and deploy/1.json
    ```
 7. **Test through gateways:** `https://<app>.w4eth.io/` (ERC-8244) and `https://<app>.1.w3link.io/` (ERC-5219). Connect a wallet, open a Safe, and run a small transaction end to end.
-8. **Point `safe.wei`** at the app contract (manual, from the name owner's wallet), then verify that `safe.wei` resolves to `<app>` and loads through the gateway.
-9. **Record** the deployment address, `contentHash` and runtime `codeHash` in the README.
+8. **Point `safe.wei`** at the app. A `.wei` name serves the `html()` of the address it resolves to (the way `dao.wei.limo` and `zswap.wei.limo` work), so pointing is one `setAddr` from the name owner. The helper is read-only; it prints the owner, the current resolution and the exact transaction:
+   ```bash
+   node scripts/name.mjs --rpc <mainnet rpc> --app <app>
+   ```
+   As of 2026-09-27, `safe.wei` (tokenId `0x5ee9ac06…c938c62d`) is owned by `0x3107af70f278d3824f9bab4222b3361a545356c2` and resolves to that same address. Send the printed `setAddr(uint256,address)` from that wallet. This was rehearsed on a mainnet fork by impersonating the owner.
+9. **Verify resolution:** re-run `node scripts/name.mjs --rpc <rpc> --app <app>` (it must say "already points at the app" and "html() matches"), then open `https://safe.wei.limo/` and run a small transaction.
+10. **Record** the deployment address, `contentHash` and runtime `codeHash` in the README.
 
 ## Using safe.wei without any gateway or DNS
 
