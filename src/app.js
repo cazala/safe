@@ -131,7 +131,12 @@ $('connect').onclick = () => {
 function home() {
   const input = h('input', { placeholder: 'Safe address 0x… or name.eth / name.wei', id: 'safeIn', spellcheck: 'false' });
   const out = h('div');
-  const open = button('Open', async () => (location.hash = '/' + (await target(input.value))), out);
+  // Keep a name in the URL (readable, shareable); it is resolved again on every load.
+  const open = button('Open', async () => {
+    const v = input.value.trim();
+    await target(v);
+    location.hash = '/' + (isAddr(v) ? v.toLowerCase() : v);
+  }, out);
   input.onkeydown = (e) => {
     if (e.key === 'Enter') open.click(); // never return false here: that would cancel every keystroke
   };
@@ -205,37 +210,83 @@ function createView() {
   );
 }
 
-function safeView(s) {
-  const c = chain();
-  const me = st.account && s.owners.includes(st.account.toLowerCase());
-  return [
+// ---- Safe page: header, tabs, batch bar ----
+const TABS = [
+  ['assets', 'Assets'],
+  ['send', 'Send'],
+  ['transactions', 'Transactions'],
+  ['custom', 'Custom'],
+  ['setup', 'Setup'],
+];
+const link = (tab, q) => '#/' + st.ref + (tab && tab !== 'assets' ? '/' + tab : '') + (q ? '?' + new URLSearchParams(q) : '');
+const chip = (text, cls = '') => h('span.chip' + cls, text);
+
+/** `back`: [href, text] for the single back link; defaults to Home. */
+function safeHeader(s, back = ['#', '‹ Home']) {
+  const c = chain(), me = st.account && s.owners.includes(st.account.toLowerCase());
+  const title = h('h1', st.safeName || 'Safe ' + short(s.address));
+  if (!st.safeName)
+    nameOf(s.address, st.chainId).then((n) => n && ((st.safeName = n), put(title, n)), () => {});
+  return h(
+    'div.safehead',
+    h('a.back', { href: back[0] }, back[1]),
+    title,
+    h('div.sub', h('code', s.address), ' ', h('button.link', { onclick: () => navigator.clipboard.writeText(s.address) }, 'copy')),
     h(
-      'section',
-      h('h2', 'Safe'),
-      kv([
-        ['Address', addr(s.address)],
-        ['Chain', (c ? c.name : 'unknown') + ' · chainId ' + s.chainId],
-        ['Version', s.version || '(unreadable)'],
-        ['Balance', fmt(s.balance) + ' ' + (c ? c.sym : '')],
-        ['Threshold', s.threshold + ' of ' + s.owners.length],
-        ['Nonce', String(s.nonce)],
-        ['Singleton', h('code', s.singleton)],
-        ['Fallback', s.fallback ? h('code', s.fallback) : 'none'],
-        ['Guard', s.guard ? h('b.bad', s.guard) : 'none'],
-      ]),
-      !s.supported && warn('Unsupported Safe version "' + s.version + '". Only 1.3.0 and 1.4.1 are supported; signing is disabled.'),
-      s.guard && warn('This Safe has a transaction guard. It can block or alter the execution of any transaction.'),
+      'div.chips',
+      chip(c.name),
+      chip(s.threshold + ' of ' + s.owners.length + ' owners'),
+      chip('v' + (s.version || '?'), s.supported ? '' : '.bad'),
+      chip(fmt(s.balance) + ' ' + c.sym),
+      me ? chip('You are an owner', '.ok') : st.account && chip('Not an owner'),
     ),
-    h(
-      'section',
-      h('h2', 'Owners'),
-      h('ol.owners', s.owners.map((o) => h('li', addr(o, [st.account && o === st.account.toLowerCase() && h('b.ok', 'you'), rev(o)])))),
-      st.account && !me && h('p.mut', 'The connected wallet is not an owner of this Safe.'),
-    ),
-  ];
+    !s.supported && bad('Unsupported Safe version "' + s.version + '". Only 1.3.0 and 1.4.1 are supported; signing is disabled.'),
+    s.guard && warn('This Safe has a transaction guard (' + s.guard + '). It can block or alter the execution of any transaction.'),
+  );
 }
 
-// ---- assets ----
+function tabBar(tab) {
+  const n = st.pending ? st.pending.found.length : 0;
+  return h(
+    'nav.tabs',
+    TABS.map(([id, text]) => h('a', { href: link(id), class: id === tab ? 'on' : null, 'aria-current': id === tab ? 'page' : null }, text, id === 'transactions' && n > 0 && h('span.badge', String(n)))),
+  );
+}
+
+/** Renders the Safe page shell and returns the content element. */
+function page(s, tab, ...content) {
+  put(main, st.flash && h('p.ok', st.flash), safeHeader(s), tabBar(tab), h('div.tab', ...content), bq);
+  st.flash = null;
+  renderBatch();
+}
+
+// ---- data shared across tabs (cached per Safe) ----
+async function loadBalances(s) {
+  if (st.balFor === s.address) return st.bal;
+  const list = [...(await listed(st.chainId).catch(() => [])), ...saved(st.chainId)];
+  for (const t of list) st.tokens[t.address] = st.tokens[t.address] || t;
+  const tokens = Object.values(st.tokens), b = await balances(s.address, tokens);
+  st.bal = {};
+  tokens.forEach((t, i) => (st.bal[t.address] = b[i]));
+  st.balFor = s.address;
+  return st.bal;
+}
+const balanceOf = (t) => (t ? st.bal && st.bal[t.address] : st.safe.balance);
+const held = () => Object.values(st.tokens).filter((t) => (st.bal && st.bal[t.address]) || !t.listed);
+
+function loadPending(s) {
+  if (st.pendingFor === s.address) return st.pendingJob;
+  st.pendingFor = s.address;
+  st.pending = null;
+  return (st.pendingJob = scan(s).then((r) => {
+    st.pending = r;
+    const badge = document.querySelector('.tabs a[href$="/transactions"]');
+    if (badge && r.found.length && !badge.querySelector('.badge')) badge.append(h('span.badge', String(r.found.length)));
+    return r;
+  }));
+}
+
+// ---- tabs ----
 const tokenOf = (addr) => st.tokens[addr];
 const tokenLabel = (t) => [h('b', t.symbol), ' ', h('code', t.address), ' ', t.listed ? h('span.mut', '(zOrg TokenList)') : h('b.bad', '(unlisted)')];
 
@@ -253,48 +304,33 @@ async function findToken(spec) {
 }
 const tokenSpec = (t) => (t ? (t.listed ? t.symbol : t.address) : '');
 const transfer = (t, to, v) => (t ? { to: t.address, value: 0n, data: cd(S.transfer, to, v) } : { to, value: v, data: '0x' });
-/** A deeplink into this Safe: #/<safe>/<view>?<params>. */
-const deeplink = (view, params) => location.href.split('#')[0] + '#/' + st.safe.address + '/' + view + '?' + new URLSearchParams(params);
+const abs = (hash) => location.href.split('#')[0] + hash;
 const prefilled = () => warn('Prefilled from a link. Check every recipient, amount and token before reviewing.');
 
-function assetsView(s, pre) {
-  const c = chain();
-  const rows = h('div', h('p.mut', 'Loading token balances…'));
-  const form = h('div');
-  const bal = {}; // token address → Safe balance
-  const load = async () => {
-    const list = [...(await listed(st.chainId).catch(() => [])), ...saved(st.chainId)];
-    for (const t of list) st.tokens[t.address] = st.tokens[t.address] || t;
-    const tokens = Object.values(st.tokens);
-    (await balances(s.address, tokens)).forEach((b, i) => (bal[tokens[i].address] = b));
-    const held = tokens.filter((t) => bal[t.address] || !t.listed);
+function assetsTab(s) {
+  const c = chain(), rows = h('div', h('p.mut', 'Loading balances…')), pend = h('div');
+  const draw = () =>
     put(
       rows,
       h(
-        'table.kv',
-        h('tr', h('th', c.sym), h('td', fmt(s.balance)), h('td', ''), h('td', h('button.link', { onclick: () => sendForm(null) }, 'send'))),
-        held.map((t) =>
+        'table.assets',
+        h('tr', h('th', 'Asset'), h('th.num', 'Balance'), h('th', '')),
+        h('tr', h('td', h('b', c.sym), h('div.mut', 'Native')), h('td.num', fmt(s.balance)), h('td.act', h('a.btn', { href: link('send') }, 'Send'))),
+        held().map((t) =>
           h(
             'tr',
-            h('th', t.symbol),
-            h('td', bal[t.address] == null ? h('span.mut', 'unreadable') : fmt(bal[t.address], t.decimals)),
-            h('td', h('code', t.address), !t.listed && [' ', h('b.bad', 'unlisted')]),
-            h('td', h('button.link', { onclick: () => sendForm(t) }, 'send')),
+            h('td', h('b', t.symbol), !t.listed && [' ', h('span.chip.bad', 'unlisted')], h('div', h('code.mut', t.address))),
+            h('td.num', st.bal[t.address] == null ? h('span.mut', 'unreadable') : fmt(st.bal[t.address], t.decimals)),
+            h('td.act', h('a.btn', { href: link('send', { token: tokenSpec(t) }) }, 'Send')),
           ),
         ),
       ),
-      h(
-        'p.mut',
-        st.chainId === 1
-          ? tokens.filter((t) => t.listed).length + ' tokens from the zOrg TokenList checked; zero balances are hidden.'
-          : 'The zOrg TokenList lives on Ethereum mainnet; add tokens by address on this chain.',
-      ),
+      h('p.mut', c.mainnet ? Object.values(st.tokens).filter((t) => t.listed).length + ' tokens from the zOrg TokenList checked; zero balances are hidden.' : 'The zOrg TokenList lives on Ethereum mainnet; add tokens on this chain by address.'),
     );
-  };
-  const balanceOf = (t) => (t ? bal[t.address] : s.balance);
+  loadBalances(s).then(draw, (e) => put(rows, warn('Could not read token balances: ' + e.message)));
+  loadPending(s).then((r) => r.found.length && put(pend, h('a.callout', { href: link('transactions') }, h('b', r.found.length + ' pending transaction' + (r.found.length > 1 ? 's' : '')), ' published onchain · Review ›')), () => {});
 
-  const addIn = h('input', { placeholder: 'Token address 0x…', spellcheck: 'false' });
-  const addOut = h('div');
+  const addIn = h('input', { placeholder: 'Token address 0x…', spellcheck: 'false' }), addOut = h('div');
   const add = button(
     'Add token',
     async () => {
@@ -303,49 +339,89 @@ function assetsView(s, pre) {
       const t = await meta(a);
       save(st.chainId, [...saved(st.chainId).filter((x) => x.address !== a), t]);
       st.tokens[a] = st.tokens[a] || t;
+      st.balFor = null;
       addIn.value = '';
-      await load();
+      await loadBalances(s);
+      draw();
     },
     addOut,
   );
+  return [pend, rows, h('details', h('summary', 'Add a token by address'), h('div.row', addIn, add), addOut)];
+}
 
-  const sendForm = (t, fill) => {
-    const to = h('input', { placeholder: 'Recipient 0x… or name.eth / name.wei', spellcheck: 'false' });
-    const amt = h('input', { placeholder: '0.0', inputmode: 'decimal' });
-    const dec = t ? t.decimals : 18, max = balanceOf(t);
-    const out = h('div');
-    if (fill) (to.value = fill.to || ''), (amt.value = fill.amount || '');
-    const read = async () => {
-      st.named = {};
-      const r = await target(to.value);
-      const v = parse(amt.value, dec);
-      if (!v) throw Error('Amount must be greater than zero.');
-      if (max != null && v > max) throw Error('Amount exceeds the Safe balance.');
-      return transfer(t, r, v);
-    };
-    const go = button('Review', async () => showReview(newTx(s, await read())), out, '.primary');
-    const add = chain().canBatch && button('Add to batch', async () => (queue(await read()), put(form)), out);
-    const link = button('Copy link', () => navigator.clipboard.writeText(deeplink('send', { to: to.value.trim(), amount: amt.value.trim(), token: tokenSpec(t) })), out);
-    put(
-      form,
-      h(
-        'div.card',
-        h('b', 'Send ', t ? tokenLabel(t) : c.sym),
-        fill && prefilled(),
-        h('label', 'Recipient'),
-        to,
-        h('label', 'Amount'),
-        h('div.row', amt, max != null && h('button', { onclick: () => (amt.value = fmt(max, dec)) }, 'Max')),
-        h('div.actions', go, add, link),
-        out,
-      ),
-    );
-    if (!fill) to.focus();
+function sendTab(s, bulkMode, q) {
+  const c = chain();
+  const seg = h(
+    'div.seg',
+    h('a', { href: link('send'), class: bulkMode ? null : 'on' }, 'One recipient'),
+    h('a', { href: link('batch'), class: bulkMode ? 'on' : null }, 'Many (CSV)'),
+  );
+  const body = h('div', h('p.mut', 'Loading balances…'));
+  loadBalances(s).then(
+    () => put(body, bulkMode ? bulkForm(s, q) : sendForm(s, q)),
+    (e) => put(body, warn('Could not read token balances: ' + e.message), bulkMode ? bulkForm(s, q) : sendForm(s, q)),
+  );
+  return [seg, body];
+}
+
+function sendForm(s, q) {
+  const c = chain(), fromLink = q.has('to') || q.has('amount');
+  const assets = [null, ...held()];
+  const sel = h('select', assets.map((t, i) => h('option', { value: i }, t ? t.symbol + ' · ' + short(t.address) + (t.listed ? '' : ' (unlisted)') : c.sym + ' (native)')));
+  const to = h('input', { placeholder: '0x… or name.eth / name.wei', spellcheck: 'false', value: q.get('to') || null });
+  const amt = h('input', { placeholder: '0.0', inputmode: 'decimal', value: q.get('amount') || null });
+  const avail = h('span.mut'), out = h('div');
+  const asset = () => assets[Number(sel.value)];
+  const showAvail = () => {
+    const t = asset(), b = balanceOf(t);
+    put(avail, b == null ? '' : 'Available: ' + (t ? fmt(b, t.decimals) + ' ' + t.symbol : fmt(b) + ' ' + c.sym));
   };
+  sel.onchange = showAvail;
+  const read = async () => {
+    st.named = {};
+    const t = asset(), r = await target(to.value), v = parse(amt.value, t ? t.decimals : 18), b = balanceOf(t);
+    if (!v) throw Error('Amount must be greater than zero.');
+    if (b != null && v > b) throw Error('Amount exceeds the Safe balance.');
+    return transfer(t, r, v);
+  };
+  const form = h(
+    'div.form',
+    fromLink && prefilled(),
+    h('label', 'Asset'),
+    sel,
+    h('label', 'Recipient'),
+    to,
+    h('label', 'Amount'),
+    h('div.row', amt, h('button', { onclick: () => {
+      const t = asset(), b = balanceOf(t);
+      if (b != null) amt.value = fmt(b, t ? t.decimals : 18);
+    } }, 'Max')),
+    avail,
+    h(
+      'div.actions',
+      button('Review', async () => showReview(newTx(s, await read())), out, '.primary'),
+      chain().canBatch && button('Add to batch', async () => (queue(await read()), (to.value = amt.value = '')), out),
+      button('Copy link', () => navigator.clipboard.writeText(abs(link('send', { to: to.value.trim(), amount: amt.value.trim(), token: tokenSpec(asset()) }))), out),
+    ),
+    out,
+  );
+  if (q.has('token'))
+    findToken(q.get('token')).then(
+      (t) => {
+        if (t && !assets.includes(t)) assets.push(t), sel.append(h('option', { value: assets.length - 1 }, t.symbol + ' · ' + short(t.address)));
+        sel.value = String(assets.indexOf(t));
+        showAvail();
+      },
+      (e) => form.prepend(bad('Link: ' + e.message)),
+    );
+  showAvail();
+  return form;
+}
 
-  // ---- bulk send (CSV) ----
-  const csv = h('textarea', { placeholder: 'One transfer per line: recipient,amount[,token]\n0x1234…,1.5,USDC\nvitalik.eth,0.1\ntreasury.wei,250,0xa0b8…', spellcheck: 'false', rows: 6 });
-  const preview = h('div');
+function bulkForm(s, q) {
+  const c = chain();
+  const csv = h('textarea', { placeholder: 'One transfer per line: recipient,amount[,token]\n0x1234…,1.5,USDC\nvitalik.eth,0.1\ntreasury.wei,250,0xa0b8…', spellcheck: 'false', rows: 7 }, q.get('csv') || '');
+  const preview = h('div'), out = h('div');
   let parsed = null;
   const check = async () => {
     parsed = null;
@@ -371,28 +447,29 @@ function assetsView(s, pre) {
     }
     put(
       preview,
-      h(
-        'table.kv',
-        h('tr', h('th', '#'), h('th', 'Recipient'), h('th', 'Amount')),
-        lines.map((x) => h('tr', h('td', String(x.r.line)), h('td', named(x.to)), h('td', x.t ? fmt(x.v, x.t.decimals) + ' ' + x.t.symbol : fmt(x.v) + ' ' + c.sym))),
-      ),
+      lines.length > 0 &&
+        h(
+          'table.assets',
+          h('tr', h('th', 'Line'), h('th', 'Recipient'), h('th.num', 'Amount')),
+          lines.map((x) => h('tr', h('td', String(x.r.line)), h('td', named(x.to)), h('td.num', x.t ? fmt(x.v, x.t.decimals) + ' ' + x.t.symbol : fmt(x.v) + ' ' + c.sym))),
+        ),
       sums.size > 0 && h('p', h('b', 'Totals: '), [...sums.values()].map(({ t, v }) => (t ? fmt(v, t.decimals) + ' ' + t.symbol : fmt(v) + ' ' + c.sym)).join(' · ')),
       errs.map((e) => bad(e)),
     );
     if (errs.length) throw Error('Fix the rows above before continuing.');
-    parsed = { calls: lines.map((x) => transfer(x.t, x.to, x.v)), names: { ...st.named } };
-    return parsed;
+    return (parsed = { calls: lines.map((x) => transfer(x.t, x.to, x.v)), names: { ...st.named } });
   };
-  const bout = h('div');
   const need = async () => parsed || check();
-  const bulk = h(
-    'details',
-    h('summary', 'Bulk send (CSV)'),
-    h('p.mut', 'Paste rows of recipient,amount[,token]. The token is a TokenList symbol or a token address; leave it empty for ' + c.sym + '. All transfers run in one Safe transaction (MultiSendCallOnly).'),
+  csv.oninput = () => ((parsed = null), put(preview));
+  if (q.get('csv')) setTimeout(() => check().catch(() => {}));
+  return h(
+    'div.form',
+    q.get('csv') && prefilled(),
+    h('p.mut', 'One transfer per line: recipient,amount[,token]. The token is a TokenList symbol or a token address; leave it empty for ' + c.sym + '. All rows run in one Safe transaction.'),
     csv,
     h(
       'div.actions',
-      button('Preview', check, bout),
+      button('Preview', check, out),
       button(
         'Review',
         async () => {
@@ -401,77 +478,100 @@ function assetsView(s, pre) {
           st.named = p.names;
           await showReview(newTx(s, p.calls.length > 1 ? batch(st.chainId, p.calls) : p.calls[0]));
         },
-        bout,
+        out,
         '.primary',
       ),
       chain().canBatch && button('Add to batch', async () => {
         const p = await need();
         st.named = p.names;
         p.calls.forEach(queue);
-      }, bout),
-      button('Copy link', () => navigator.clipboard.writeText(deeplink('batch', { csv: toCSV(parseCSV(csv.value).rows) })), bout),
+      }, out),
+      button('Copy link', () => navigator.clipboard.writeText(abs(link('batch', { csv: toCSV(parseCSV(csv.value).rows) }))), out),
     ),
     preview,
-    bout,
+    out,
   );
-  csv.oninput = () => ((parsed = null), put(preview));
-
-  load()
-    .then(async () => {
-      // Deeplinks prefill, never submit.
-      if (pre && pre.view === 'send') {
-        let t;
-        try {
-          t = await findToken(pre.q.get('token'));
-        } catch (e) {
-          return put(form, bad('Link: ' + e.message));
-        }
-        sendForm(t, { to: pre.q.get('to'), amount: pre.q.get('amount') });
-        form.scrollIntoView({ behavior: 'smooth' });
-      }
-      if (pre && pre.view === 'batch') {
-        csv.value = pre.q.get('csv') || '';
-        bulk.open = true;
-        bulk.querySelector('summary').after(prefilled());
-        bulk.scrollIntoView({ behavior: 'smooth' });
-        await check().catch(() => {});
-      }
-    })
-    .catch((e) => put(rows, warn('Could not read token balances: ' + e.message)));
-  return h('section', h('h2', 'Assets'), rows, form, bulk, h('details', h('summary', 'Add token by address'), h('div.row', addIn, add), addOut));
 }
 
-// ---- batch (MultiSendCallOnly) ----
+function transactionsTab(s) {
+  const list = h('div'), status = h('p.mut', 'Scanning recent ApproveHash events…'), seen = new Set();
+  const draw = (r) => {
+    for (const p of r.found) {
+      if (seen.has(p.hash)) continue;
+      seen.add(p.hash);
+      const d = decode(p.tx), c = chain();
+      list.append(
+        h(
+          'div.card.txrow',
+          h('div', h('b', 'Nonce ' + p.tx.nonce), p.tx.nonce > s.nonce ? chip('queued') : chip('next', '.ok')),
+          h('div', d ? d.label : p.tx.data === '0x' ? fmt(p.tx.value) + ' ' + c.sym + ' transfer' : 'Contract call', ' → ', h('code', short(p.tx.to))),
+          h('div.mut', 'Proposed by ', h('code', short(p.proposer)), ' · ', h('code', short(p.hash))),
+          h('button', { onclick: () => ((st.named = {}), showReview(p.tx)) }, 'Review'),
+        ),
+      );
+    }
+    put(status, r.error ? warn('The wallet RPC stopped the scan at block ' + r.next + ': ' + r.error.slice(0, 200)) : [seen.size ? '' : 'No pending transactions found', r.next >= 0 ? ' (scanned back to block ' + (r.next + 1) + ').' : ' (scanned to genesis).']);
+    more.disabled = r.next < 0;
+  };
+  const more = button('Scan older blocks', async () => draw((st.pending = await scan(s, { end: st.pending.next }))), status);
+  more.disabled = true; // until the first scan finishes
+  loadPending(s).then(draw, (e) => put(status, warn('Could not scan logs through the wallet RPC: ' + e.message)));
+  return [
+    st.review && st.review.tx.safe === s.address && st.review.tx.nonce >= s.nonce &&
+      h('a.callout', { href: '#' + fragment(st.review.tx, st.sigs) }, h('b', 'In progress: '), 'nonce ' + st.review.tx.nonce + ' · ' + short(st.review.local) + ' · Continue ›'),
+    h('h2', 'Pending'),
+    h('p.mut', 'Transactions a proposer published onchain together with its approval. Transactions shared only by link are not listed; import them below.'),
+    list,
+    status,
+    h('div.actions', more),
+    h('h2', 'Import'),
+    importer(),
+  ];
+}
+
+function setupTab(s) {
+  const me = st.account && st.account.toLowerCase();
+  return [
+    h('h2', 'Owners'),
+    h('p.mut', s.threshold + ' of ' + s.owners.length + ' owners must approve each transaction.'),
+    h('ol.owners', s.owners.map((o) => h('li', addr(o, [o === me && h('b.ok', 'you'), rev(o)])))),
+    h('h2', 'Configuration'),
+    kv([
+      ['Version', s.version || '(unreadable)'],
+      ['Nonce', String(s.nonce) + ' (next transaction)'],
+      ['Singleton', h('code', s.singleton)],
+      ['Fallback handler', s.fallback ? h('code', s.fallback) : 'none'],
+      ['Guard', s.guard ? h('b.bad', s.guard) : 'none'],
+      ['Chain', chain().name + ' · chainId ' + s.chainId],
+    ]),
+    h('p.mut', 'To change owners or the threshold, build the call in Custom with this Safe as the target; the review decodes it.'),
+  ];
+}
+
+// ---- batch bar (MultiSendCallOnly) ----
 const bq = h('div');
 const queue = (call) => {
   Object.assign(st.batchNames, st.named);
   st.batch.push(call);
-  renderBatch();
-  bq.scrollIntoView({ behavior: 'smooth' });
+  renderBatch(true);
 };
-function renderBatch() {
-  const c = chain(), out = h('div');
+function renderBatch(open) {
+  const out = h('div'), n = st.batch.length;
+  const prev = bq.querySelector('details');
   put(
     bq,
-    st.batch.length > 0 &&
+    n > 0 &&
       h(
-        'section',
-        h('h2', 'Batch · ' + st.batch.length + ' call' + (st.batch.length > 1 ? 's' : '')),
-        h('p.mut', 'Executed atomically, in order, through the canonical MultiSendCallOnly. If one call fails, none happen.'),
+        'div.batchbar',
         h(
-          'ol',
-          st.batch.map((x, i) =>
-            h(
-              'li',
-              callLabel(x),
-              ' ',
-              h('button.link', { onclick: () => (st.batch.splice(i, 1), renderBatch()) }, 'remove'),
-            ),
-          ),
+          'details',
+          { open: open || (prev && prev.open) || null },
+          h('summary', h('b', 'Batch · ' + n + ' call' + (n > 1 ? 's' : '')), h('span.mut', ' runs atomically in one Safe transaction')),
+          h('ol', st.batch.map((x, i) => h('li', callLabel(x), ' ', h('button.link', { onclick: () => (st.batch.splice(i, 1), renderBatch(true)) }, 'remove')))),
         ),
         h(
           'div.actions',
-          button('Review batch', async () => ((st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(st.chainId, st.batch)))), out, '.primary'),
+          n > 1 ? button('Review batch', async () => ((st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(st.chainId, st.batch)))), out, '.primary') : h('span.mut', 'Add at least one more call to batch'),
           h('button', { onclick: () => ((st.batch = []), (st.batchNames = {}), renderBatch()) }, 'Clear'),
         ),
         out,
@@ -484,6 +584,7 @@ const callLabel = (x) => {
     ? [d.label, tok ? ' ' + amount(d.args.at(-1).value, tok) : '', ' → ', named((d.args.find((a) => a.name === 'to' || a.name === 'spender') || d.args[0]).value, st.batchNames), tok ? '' : [' on ', named(x.to, st.batchNames)]]
     : [fmt(x.value || 0n) + ' ' + chain().sym + ' → ', named(x.to, st.batchNames), x.data && x.data !== '0x' ? ' with ' + (x.data.length - 2) / 2 + ' bytes of calldata' : ''];
 };
+
 
 function builder(s) {
   const sym = chain().sym;
@@ -500,7 +601,6 @@ function builder(s) {
     if (!/^\d+$/.test(n)) throw Error('Nonce: must be a whole number.');
     return { to: t, value: parse(value.value || '0', 18), data: d.toLowerCase(), operation: Number(op.value), nonce: n };
   };
-  const btn = button('Review', async () => showReview(newTx(s, await read())), out, '.primary');
   const add = chain().canBatch && button(
     'Add to batch',
     async () => {
@@ -511,8 +611,8 @@ function builder(s) {
     out,
   );
   return h(
-    'section',
-    h('h2', 'Custom transaction'),
+    'div.form',
+    h('p.mut', 'Any call from the Safe: a contract interaction with raw calldata, or a plain transfer. Known calls are decoded in the review.'),
     h('label', 'To'),
     to,
     h('label', 'Value (' + sym + ')'),
@@ -520,17 +620,16 @@ function builder(s) {
     h('label', 'Data'),
     data,
     h('details', h('summary', 'Advanced'), h('label', 'Operation'), op, h('label', 'Nonce'), nonce),
-    h('div.actions', btn, add),
+    h('div.actions', button('Review', async () => showReview(newTx(s, await read())), out, '.primary'), add),
     out,
   );
 }
 
 function importer() {
-  const ta = h('textarea', { placeholder: 'Paste a safe.wei link, a tx= fragment, or transaction JSON', spellcheck: 'false' });
+  const ta = h('textarea', { placeholder: 'Paste a safe.wei link, a tx= fragment, or transaction JSON from another owner', spellcheck: 'false' });
   const out = h('div');
-  const btn = h('button', 'Import');
-  btn.onclick = act(
-    btn,
+  const btn = button(
+    'Import',
     async () => {
       const p = importPayload(ta.value);
       st.named = {};
@@ -541,11 +640,17 @@ function importer() {
     },
     out,
   );
-  return h('details', h('summary', 'Import transaction'), ta, h('div.actions', btn), out);
+  return h('div.form', ta, h('div.actions', btn), out);
 }
 
+// ---- review screen ----
 const rv = h('div');
-async function showReview(tx, sigs = []) {
+/** Review a transaction on its own screen. `nav`: 'push' (from a form), 'replace' (refresh), 'none' (from the URL). */
+async function showReview(tx, sigs = [], nav = 'push') {
+  // One back link: to the screen that opened this review, else the Transactions tab.
+  if (nav === 'push') st.backTo = location.hash && !location.hash.startsWith('#tx=') ? location.hash : null;
+  else if (nav === 'none') st.backTo = null;
+  put(main, safeHeader(st.safe, [st.backTo || link('transactions'), '‹ Back']), rv);
   put(rv, h('p.mut', 'Checking the transaction…'));
   const r = await review(tx, st.safe, st.chainId);
   const c = await checkSigs(st.safe, r.local, sigs);
@@ -553,10 +658,12 @@ async function showReview(tx, sigs = []) {
   st.off = c.valid;
   st.sigs = c.valid.map((x) => x.sig); // only valid signatures are kept and re-shared
   st.rejected = c.rejected;
-  // Keep the transaction in the URL so a reload returns to this review (no hashchange fires).
-  if (r.ok) history.replaceState(null, '', '#' + fragment(tx, sigs));
+  // The URL carries the transaction, so reloading or sharing the address bar returns here.
+  const h2 = '#' + fragment(tx, st.sigs);
+  if (nav === 'push') history.pushState(null, '', h2);
+  else if (nav === 'replace') history.replaceState(null, '', h2);
   put(rv, txView(r), r.ok ? [actionsView(r), shareView(r)] : bad('All actions are disabled until the errors above are resolved.'));
-  rv.scrollIntoView({ behavior: 'smooth' });
+  scrollTo(0, 0);
 }
 
 const button = (label, fn, out, cls = '') => {
@@ -578,14 +685,16 @@ function actionsView(r) {
     const publish = h('input', { type: 'checkbox' });
     const done = (msg) => async (rc) => {
       st.safe = await readSafe(s.address);
-      await showReview(t, st.sigs);
+      st.pendingFor = null;
+      await showReview(t, st.sigs, 'replace');
       rv.append(h('p.ok', msg + ' ', h('code', rc.transactionHash)));
     };
     const executed = async (rc) => {
       if (r.batch) (st.batch = []), (st.batchNames = {});
-      history.replaceState(null, '', '#/' + s.address);
-      await route();
-      main.prepend(h('p.ok', '✓ Executed nonce ' + t.nonce + ' in ', h('code', rc.transactionHash)));
+      st.stale = true;
+      st.review = null;
+      st.flash = '✓ Executed nonce ' + t.nonce + ' in ' + rc.transactionHash;
+      location.hash = link('assets');
     };
     put(
       box,
@@ -608,57 +717,14 @@ function actionsView(r) {
       h(
         'div.actions',
         owner && !mine && button('Approve onchain', () => recheck().then(() => approve(t, me, publish.checked ? compact(t) : '0x')).then(done('Approved.')), out),
-        owner && !mine && button('Sign offchain', async () => (await recheck(), showReview(t, [...st.sigs, await sign(t, me)])), out),
+        owner && !mine && button('Sign offchain', async () => (await recheck(), showReview(t, [...st.sigs, await sign(t, me)], 'replace')), out),
         me && ready && current && button(owner && !mine ? 'Approve and execute' : 'Execute', () => recheck().then(() => execute(t, me, st.sigs)).then(executed), out, '.primary'),
-        button('Refresh', () => showReview(t, st.sigs), out),
+        button('Refresh', () => showReview(t, st.sigs, 'replace'), out),
       ),
       out,
     );
   })().catch((e) => box.replaceChildren(bad(e.message)));
   return box;
-}
-
-function pendingView(s) {
-  const list = h('div'), status = h('p.mut', 'Scanning recent ApproveHash events…'), seen = new Set();
-  let next;
-  const run = async (end) => {
-    const r = await scan(s, { end });
-    next = r.next;
-    for (const p of r.found) {
-      if (seen.has(p.hash)) continue;
-      seen.add(p.hash);
-      const d = decode(p.tx), c = chain();
-      list.append(
-        h(
-          'div.card',
-          kv([
-            ['Nonce', String(p.tx.nonce) + (p.tx.nonce > s.nonce ? ' (queued)' : '')],
-            ['Action', d ? d.label : p.tx.data === '0x' ? 'Native transfer' : 'Unknown calldata'],
-            ['To', h('code', p.tx.to)],
-            ['Value', fmt(p.tx.value) + ' ' + c.sym],
-            ['SafeTx hash', h('code', p.hash)],
-            ['Proposed by', h('code', p.proposer)],
-          ]),
-          h('button', { onclick: () => ((st.named = {}), showReview(p.tx)) }, 'Review'),
-        ),
-      );
-    }
-    put(
-      status,
-      r.error ? warn('The wallet RPC stopped the scan at block ' + next + ': ' + r.error.slice(0, 200)) : [seen.size ? 'Scanned' : 'None found', next >= 0 ? ' back to block ' + (next + 1) + '.' : ' (to genesis).'],
-    );
-    more.disabled = next < 0;
-  };
-  const more = button('Scan older blocks', () => run(next), status);
-  run().catch((e) => put(status, warn('Could not scan logs through the wallet RPC: ' + e.message)));
-  return h(
-    'section',
-    h('h2', 'Pending transactions published onchain'),
-    h('p.mut', 'Transactions that a proposer published together with its approval. Transactions shared only by link do not appear here.'),
-    list,
-    status,
-    h('div.actions', more),
-  );
 }
 
 function shareView(r) {
@@ -732,28 +798,40 @@ function txView(r) {
 }
 
 // ---- routing ----
+// #/                         home          #/new                create a Safe
+// #/<safe>[/<tab>][?params]  Safe page     #tx=<payload>        review a shared transaction
+// <safe> is a 0x address or a .eth/.wei name; tabs: assets (default), send, batch (send, CSV), transactions, custom, setup.
 let seq = 0;
 async function route() {
   const n = ++seq;
   const path = location.hash.slice(1);
-  // #/<safe>[/send|/batch][?params]; <safe> is a 0x address or a .eth/.wei name.
-  let m = /^\/([^/?]+)(?:\/(send|batch))?(?:\?(.*))?$/.exec(path), p;
+  let m = /^\/([^/?]+)(?:\/([a-z]+))?(?:\?(.*))?$/.exec(path), p;
   if (m && m[1] === 'new') m = null;
   try {
-    if (path.startsWith('tx=')) m = [0, (p = importPayload(path)).tx.safe];
-    if (m && !isAddr(m[1])) m[1] = await target(decodeURIComponent(m[1]));
     if (path === '/new') return put(main, chain() && chain().canCreate ? createView() : bad(chain() ? 'Safe v1.4.1 is not deployed on ' + chain().name + '.' : 'Connect a wallet first.'));
+    if (path.startsWith('tx=')) (p = importPayload(path)), (m = [0, p.tx.safe, 'review']);
     if (!m) return put(main, home());
-    main.replaceChildren(h('p.mut', 'Loading ' + m[1] + '…'));
     if (!chain()) throw Error('Connect a wallet to open a Safe.');
-    const s = await readSafe(m[1]);
-    if (n !== seq) return;
-    st.safe = s;
-    rv.replaceChildren();
-    if (!st.batch.length || st.batchSafe !== s.address) (st.batch = []), (st.batchNames = {}), (st.batchSafe = s.address);
-    main.replaceChildren(...safeView(s), rv, assetsView(s, m[2] && { view: m[2], q: new URLSearchParams(m[3] || '') }), bq, pendingView(s), builder(s), h('section', importer()));
-    renderBatch();
-    if (p) await showReview(p.tx, p.sigs);
+    const ref = decodeURIComponent(m[1]), tab = m[2] || 'assets', q = new URLSearchParams(m[3] || '');
+    const address = isAddr(ref) ? ref.toLowerCase() : await target(ref);
+    if (!st.safe || st.safe.address !== address || st.stale) {
+      if (!st.safe || st.safe.address !== address) put(main, h('p.mut', 'Loading ' + ref + '…'));
+      const s = await readSafe(address);
+      if (n !== seq) return;
+      if (!st.safe || st.safe.address !== s.address) st.safeName = isAddr(ref) ? null : ref;
+      st.safe = s;
+      st.stale = false;
+      st.balFor = st.pendingFor = null;
+      if (st.batchSafe !== s.address) (st.batch = []), (st.batchNames = {}), (st.batchSafe = s.address);
+    }
+    // How this Safe is addressed in links: the name it was opened by, else its address.
+    if (!p) st.ref = isAddr(ref) ? st.safe.address : ref;
+    else if (st.ref !== st.safe.address && st.ref !== st.safeName) st.ref = st.safe.address;
+    const s = st.safe;
+    if (p) return showReview(p.tx, p.sigs, 'none');
+    const tabs = { assets: assetsTab, send: sendTab, batch: sendTab, transactions: transactionsTab, custom: builder, setup: setupTab };
+    if (!tabs[tab]) return (location.hash = link('assets'));
+    page(s, tab === 'batch' ? 'send' : tab, tab === 'send' || tab === 'batch' ? sendTab(s, tab === 'batch', q) : tabs[tab](s));
   } catch (e) {
     if (n === seq) put(main, bad(e.message), home());
   }

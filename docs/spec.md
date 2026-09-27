@@ -561,38 +561,33 @@ Preferred structure:
 - Open Safe
 - Create Safe
 
-### Safe view
+### Safe page
 
-Header:
+Modeled on how Safe Wallet and wallet UIs split the same content (identity, assets, activity, settings), using tabs instead of a sidebar.
 
-- Safe address
-- chain
-- native balance
-- threshold
-- nonce
+Safe header (always visible):
 
-Owners section:
+- back to Home
+- title: the name the Safe was opened by (`treasury.wei`), else its reverse name, else "Safe 0x1234…abcd"
+- full address with copy
+- chips: chain, "M of N owners", version, native balance, whether the connected wallet is an owner
+- banners for an unsupported version or a guard
 
-- owner address
-- reverse-resolved name if available (§25)
-- current wallet indicator
-- approval state for current transaction
+The app brand is a distinct logo mark in the top bar, so it cannot be mistaken for a Safe named `safe.wei`.
 
-Balances section (post-MVP, §24):
+Tabs (each has its own URL, so Back and links work):
 
-- native balance
-- listed ERC-20 balances
-- "add token by address"
-- send action per asset
+- **Assets** (default): balances with a Send action per asset; add a token by address; a callout when pending transactions exist
+- **Send**: one recipient (asset picker, recipient, amount, Max) or Many (CSV)
+- **Transactions**: the review in progress, pending transactions found onchain (count badge on the tab), import a shared link
+- **Custom**: raw transaction builder
+- **Setup**: owners, threshold, nonce, singleton, fallback handler, guard
 
-Transaction builder:
+Review is its own screen (`#tx=…`) with a single back link to wherever it was opened from. Executing returns to Assets with a confirmation.
 
-- To
-- Value
-- Data
-- Advanced operation
+Batch: a sticky bar at the bottom of every tab while calls are queued (expand to list/remove, Review batch, Clear).
 
-Transaction summary:
+Transaction summary (review screen):
 
 - Safe
 - chain
