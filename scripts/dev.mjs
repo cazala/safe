@@ -8,6 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { str } from '../src/abi.js';
+import { shim } from './shim.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 const i = process.argv.indexOf('--anvil');
@@ -20,15 +21,6 @@ const page = async () => {
   const r = await fetch(anvil, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: app, data: '0x33c34ac3' }, 'latest'] }) }).then((r) => r.json());
   return str(r.result); // html()
 };
-
-const shim = (url) => `<script>(()=>{
-let id=0;const L={};
-const rpc=async(method,params=[])=>{const r=await fetch(${JSON.stringify(url)},{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:++id,method,params})}).then(r=>r.json());if(r.error)throw Object.assign(Error(r.error.message),r.error);return r.result};
-const n=Number(new URLSearchParams(location.search).get('acct')||0);
-window.ethereum={isDevAnvil:true,
-request:async({method,params})=>{if(method==='eth_requestAccounts'||method==='eth_accounts'){const a=await rpc('eth_accounts');return[a[n]]}return rpc(method,params)},
-on:(e,f)=>(L[e]=L[e]||[]).push(f),removeListener(){}};
-})()</script>`;
 
 createServer(async (req, res) => {
   if (req.url === '/favicon.ico') return res.writeHead(404).end();

@@ -36,6 +36,11 @@ Do not skip ahead: pointing `safe.wei` is the only step that changes what users 
    node scripts/deploy.mjs --rpc <mainnet rpc> --plan
    ```
    Each step is a plain transaction to the CREATE2 deployer, so it can be sent from any wallet, including from a Safe through safe.wei itself (a CALL to the deployer with that calldata).
+   **Or use the LAN deployer page** when the deploying wallet is on another computer:
+   ```bash
+   node scripts/deployer/serve.mjs          # prints http://<lan-ip>:8080/
+   ```
+   It rebuilds `dist/index.html`, embeds the exact plan, and deploys from the browser wallet with one button: missing steps only, gas pinned under the EIP-7825 cap, then `html()` verified against `contentHash`. It prints the `setAddr` transaction for the name owner and the `deploy/<chainId>.json` record to commit. Rehearse with `--anvil http://127.0.0.1:8545` (test wallet on a fork) or on Sepolia (same addresses).
 4. **Deploy to mainnet** with a funded key (or send the planned transactions by hand):
    ```bash
    PRIVATE_KEY=0x… node scripts/deploy.mjs --rpc <mainnet rpc>
