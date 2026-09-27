@@ -17,6 +17,7 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | 12 multisend | 44,066 | 17,342 | 41,482 | 2,253 | batch queue, MultiSendCallOnly encode/strict decode, per-call review |
 | 13 safe apps + mobile | 51,813 | 20,125 | 48,280 | 3,181 | Safe Apps SDK host, app mode, responsive layout |
 | Safe Apps removed | 44,431 | 17,484 | 41,604 | 2,496 | host dropped (docs/safe-apps.md); mobile layout kept |
+| bulk send + deeplinks | 48,566 | 19,111 | 45,739 | 2,496 | CSV bulk transfers, send/batch deeplinks, Safe by name |
 
 ## Major contributors
 

@@ -12,6 +12,7 @@ import { balances, listed, meta, save, saved } from './tokens.js';
 import { S } from './sel.js';
 import { nameOf, resolveName } from './names.js';
 import { batch } from './multisend.js';
+import { parseCSV, toCSV } from './csv.js';
 import { $, act, addr, bad, h, kv, put, short, warn } from './ui.js';
 
 const st = { account: null, chainId: null, safe: null, tokens: {}, named: {}, batch: [], batchNames: {} };
@@ -165,28 +166,47 @@ function safeView(s) {
 const tokenOf = (addr) => st.tokens[addr];
 const tokenLabel = (t) => [h('b', t.symbol), ' ', h('code', t.address), ' ', t.listed ? h('span.mut', '(zOrg TokenList)') : h('b.bad', '(unlisted)')];
 
-function assetsView(s) {
+/** Token by CSV/link spec: '' or the native symbol → null (native); a TokenList symbol; or a token address. */
+async function findToken(spec) {
+  const c = chain(), v = (spec || '').trim();
+  if (!v || v.toUpperCase() === c.sym) return null;
+  if (isAddr(v)) {
+    const a = v.toLowerCase();
+    return (st.tokens[a] = st.tokens[a] || (await meta(a)));
+  }
+  const hits = Object.values(st.tokens).filter((t) => t.listed && t.symbol.toLowerCase() === v.toLowerCase());
+  if (hits.length !== 1) throw Error(hits.length ? 'Symbol "' + v + '" is ambiguous; use the token address.' : 'Unknown token "' + v + '"; use a TokenList symbol or the token address.');
+  return hits[0];
+}
+const tokenSpec = (t) => (t ? (t.listed ? t.symbol : t.address) : '');
+const transfer = (t, to, v) => (t ? { to: t.address, value: 0n, data: cd(S.transfer, to, v) } : { to, value: v, data: '0x' });
+/** A deeplink into this Safe: #/<safe>/<view>?<params>. */
+const deeplink = (view, params) => location.href.split('#')[0] + '#/' + st.safe.address + '/' + view + '?' + new URLSearchParams(params);
+const prefilled = () => warn('Prefilled from a link. Check every recipient, amount and token before reviewing.');
+
+function assetsView(s, pre) {
   const c = chain();
   const rows = h('div', h('p.mut', 'Loading token balances…'));
   const form = h('div');
+  const bal = {}; // token address → Safe balance
   const load = async () => {
     const list = [...(await listed(st.chainId).catch(() => [])), ...saved(st.chainId)];
     for (const t of list) st.tokens[t.address] = st.tokens[t.address] || t;
     const tokens = Object.values(st.tokens);
-    const bal = await balances(s.address, tokens);
-    const held = tokens.map((t, i) => ({ ...t, bal: bal[i] })).filter((t) => t.bal || !t.listed);
+    (await balances(s.address, tokens)).forEach((b, i) => (bal[tokens[i].address] = b));
+    const held = tokens.filter((t) => bal[t.address] || !t.listed);
     put(
       rows,
       h(
         'table.kv',
-        h('tr', h('th', c.sym), h('td', fmt(s.balance)), h('td', ''), h('td', h('button.link', { onclick: () => sendForm(s, null) }, 'send'))),
+        h('tr', h('th', c.sym), h('td', fmt(s.balance)), h('td', ''), h('td', h('button.link', { onclick: () => sendForm(null) }, 'send'))),
         held.map((t) =>
           h(
             'tr',
             h('th', t.symbol),
-            h('td', t.bal == null ? h('span.mut', 'unreadable') : fmt(t.bal, t.decimals)),
+            h('td', bal[t.address] == null ? h('span.mut', 'unreadable') : fmt(bal[t.address], t.decimals)),
             h('td', h('code', t.address), !t.listed && [' ', h('b.bad', 'unlisted')]),
-            h('td', h('button.link', { onclick: () => sendForm(s, t, t.bal) }, 'send')),
+            h('td', h('button.link', { onclick: () => sendForm(t) }, 'send')),
           ),
         ),
       ),
@@ -198,6 +218,8 @@ function assetsView(s) {
       ),
     );
   };
+  const balanceOf = (t) => (t ? bal[t.address] : s.balance);
+
   const addIn = h('input', { placeholder: 'Token address 0x…', spellcheck: 'false' });
   const addOut = h('div');
   const add = button(
@@ -213,38 +235,136 @@ function assetsView(s) {
     },
     addOut,
   );
-  load().catch((e) => put(rows, warn('Could not read token balances: ' + e.message)));
-  const sendForm = (s, t, bal) => {
+
+  const sendForm = (t, fill) => {
     const to = h('input', { placeholder: 'Recipient 0x… or name.eth / name.wei', spellcheck: 'false' });
     const amt = h('input', { placeholder: '0.0', inputmode: 'decimal' });
-    const dec = t ? t.decimals : 18, max = t ? bal : s.balance;
+    const dec = t ? t.decimals : 18, max = balanceOf(t);
     const out = h('div');
+    if (fill) (to.value = fill.to || ''), (amt.value = fill.amount || '');
     const read = async () => {
       st.named = {};
       const r = await target(to.value);
       const v = parse(amt.value, dec);
       if (!v) throw Error('Amount must be greater than zero.');
       if (max != null && v > max) throw Error('Amount exceeds the Safe balance.');
-      return t ? { to: t.address, value: 0n, data: cd(S.transfer, r, v) } : { to: r, value: v, data: '0x' };
+      return transfer(t, r, v);
     };
     const go = button('Review', async () => showReview(newTx(s, await read())), out, '.primary');
     const add = button('Add to batch', async () => (queue(await read()), put(form)), out);
+    const link = button('Copy link', () => navigator.clipboard.writeText(deeplink('send', { to: to.value.trim(), amount: amt.value.trim(), token: tokenSpec(t) })), out);
     put(
       form,
       h(
         'div.card',
         h('b', 'Send ', t ? tokenLabel(t) : c.sym),
+        fill && prefilled(),
         h('label', 'Recipient'),
         to,
         h('label', 'Amount'),
         h('div.row', amt, max != null && h('button', { onclick: () => (amt.value = fmt(max, dec)) }, 'Max')),
-        h('div.actions', go, add),
+        h('div.actions', go, add, link),
         out,
       ),
     );
-    to.focus();
+    if (!fill) to.focus();
   };
-  return h('section', h('h2', 'Assets'), rows, form, h('details', h('summary', 'Add token by address'), h('div.row', addIn, add), addOut));
+
+  // ---- bulk send (CSV) ----
+  const csv = h('textarea', { placeholder: 'One transfer per line: recipient,amount[,token]\n0x1234…,1.5,USDC\nvitalik.eth,0.1\ntreasury.wei,250,0xa0b8…', spellcheck: 'false', rows: 6 });
+  const preview = h('div');
+  let parsed = null;
+  const check = async () => {
+    parsed = null;
+    const { rows: rs, errors } = parseCSV(csv.value);
+    if (!rs.length && !errors.length) throw Error('Paste at least one row.');
+    st.named = {};
+    const lines = [], errs = errors.map((e) => (e.line ? 'Line ' + e.line + ': ' : '') + e.error), sums = new Map();
+    for (const r of rs) {
+      try {
+        const t = await findToken(r.token), to = await target(r.to), v = parse(r.amount, t ? t.decimals : 18);
+        if (!v) throw Error('amount must be greater than zero');
+        const k = t ? t.address : '';
+        sums.set(k, { t, v: ((sums.get(k) || {}).v || 0n) + v });
+        lines.push({ r, t, to, v });
+      } catch (e) {
+        errs.push('Line ' + r.line + ': ' + e.message);
+      }
+    }
+    errs.sort((x, y) => (+(/\d+/.exec(x) || [0])[0]) - (+(/\d+/.exec(y) || [0])[0]));
+    for (const { t, v } of sums.values()) {
+      const b = balanceOf(t);
+      if (b != null && v > b) errs.push('Total ' + (t ? fmt(v, t.decimals) + ' ' + t.symbol : fmt(v) + ' ' + c.sym) + ' exceeds the Safe balance (' + (t ? fmt(b, t.decimals) : fmt(b)) + ').');
+    }
+    put(
+      preview,
+      h(
+        'table.kv',
+        h('tr', h('th', '#'), h('th', 'Recipient'), h('th', 'Amount')),
+        lines.map((x) => h('tr', h('td', String(x.r.line)), h('td', named(x.to)), h('td', x.t ? fmt(x.v, x.t.decimals) + ' ' + x.t.symbol : fmt(x.v) + ' ' + c.sym))),
+      ),
+      sums.size && h('p', h('b', 'Totals: '), [...sums.values()].map(({ t, v }) => (t ? fmt(v, t.decimals) + ' ' + t.symbol : fmt(v) + ' ' + c.sym)).join(' · ')),
+      errs.map((e) => bad(e)),
+    );
+    if (errs.length) throw Error('Fix the rows above before continuing.');
+    parsed = { calls: lines.map((x) => transfer(x.t, x.to, x.v)), names: { ...st.named } };
+    return parsed;
+  };
+  const bout = h('div');
+  const need = async () => parsed || check();
+  const bulk = h(
+    'details',
+    h('summary', 'Bulk send (CSV)'),
+    h('p.mut', 'Paste rows of recipient,amount[,token]. The token is a TokenList symbol or a token address; leave it empty for ' + c.sym + '. All transfers run in one Safe transaction (MultiSendCallOnly).'),
+    csv,
+    h(
+      'div.actions',
+      button('Preview', check, bout),
+      button(
+        'Review',
+        async () => {
+          const p = await need();
+          st.named = p.names;
+          await showReview(newTx(s, p.calls.length > 1 ? batch(st.chainId, p.calls) : p.calls[0]));
+        },
+        bout,
+        '.primary',
+      ),
+      button('Add to batch', async () => {
+        const p = await need();
+        st.named = p.names;
+        p.calls.forEach(queue);
+      }, bout),
+      button('Copy link', () => navigator.clipboard.writeText(deeplink('batch', { csv: toCSV(parseCSV(csv.value).rows) })), bout),
+    ),
+    preview,
+    bout,
+  );
+  csv.oninput = () => ((parsed = null), put(preview));
+
+  load()
+    .then(async () => {
+      // Deeplinks prefill, never submit.
+      if (pre && pre.view === 'send') {
+        let t;
+        try {
+          t = await findToken(pre.q.get('token'));
+        } catch (e) {
+          return put(form, bad('Link: ' + e.message));
+        }
+        sendForm(t, { to: pre.q.get('to'), amount: pre.q.get('amount') });
+        form.scrollIntoView({ behavior: 'smooth' });
+      }
+      if (pre && pre.view === 'batch') {
+        csv.value = pre.q.get('csv') || '';
+        bulk.open = true;
+        bulk.querySelector('summary').after(prefilled());
+        bulk.scrollIntoView({ behavior: 'smooth' });
+        await check().catch(() => {});
+      }
+    })
+    .catch((e) => put(rows, warn('Could not read token balances: ' + e.message)));
+  return h('section', h('h2', 'Assets'), rows, form, bulk, h('details', h('summary', 'Add token by address'), h('div.row', addIn, add), addOut));
 }
 
 // ---- batch (MultiSendCallOnly) ----
@@ -542,9 +662,12 @@ let seq = 0;
 async function route() {
   const n = ++seq;
   const path = location.hash.slice(1);
-  let m = /^\/(0x[0-9a-fA-F]{40})$/.exec(path), p;
+  // #/<safe>[/send|/batch][?params]; <safe> is a 0x address or a .eth/.wei name.
+  let m = /^\/([^/?]+)(?:\/(send|batch))?(?:\?(.*))?$/.exec(path), p;
+  if (m && m[1] === 'new') m = null;
   try {
     if (path.startsWith('tx=')) m = [0, (p = importPayload(path)).tx.safe];
+    if (m && !isAddr(m[1])) m[1] = await target(decodeURIComponent(m[1]));
     if (path === '/new') return put(main, chain() ? createView() : bad('Connect a wallet on a supported chain.'));
     if (!m) return put(main, home());
     main.replaceChildren(h('p.mut', 'Loading ' + m[1] + '…'));
@@ -554,7 +677,7 @@ async function route() {
     st.safe = s;
     rv.replaceChildren();
     if (!st.batch.length || st.batchSafe !== s.address) (st.batch = []), (st.batchNames = {}), (st.batchSafe = s.address);
-    main.replaceChildren(...safeView(s), rv, assetsView(s), bq, pendingView(s), builder(s), h('section', importer()));
+    main.replaceChildren(...safeView(s), rv, assetsView(s, m[2] && { view: m[2], q: new URLSearchParams(m[3] || '') }), bq, pendingView(s), builder(s), h('section', importer()));
     renderBatch();
     if (p) await showReview(p.tx, p.sigs);
   } catch (e) {

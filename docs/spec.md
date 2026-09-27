@@ -1270,6 +1270,25 @@ Display:
 
 No logos, no fiat values.
 
+### Bulk send (CSV)
+
+Paste one transfer per line: `recipient,amount[,token]`.
+
+- separators: comma, semicolon, tab or spaces; an optional header row and `#` comments are ignored
+- recipient: 0x address or `.eth` / `.wei` name (§25)
+- token: empty or the native symbol for ETH, a TokenList symbol (must be unambiguous), or a token address (unlisted tokens are labeled)
+- every row is validated with its line number; per-token totals are checked against the Safe balance
+- the rows become one MultiSendCallOnly batch (§26), or a plain transfer for a single row; at most 200 rows per transaction
+
+### Deeplinks
+
+Links prefill forms; they never approve, sign or submit anything, and a prefilled form says so.
+
+- `#/<safe>/send?to=<address|name>&amount=<decimal>&token=<symbol|address>` opens the send form (`token` omitted = native)
+- `#/<safe>/batch?csv=<url-encoded CSV>` opens the bulk-send panel with the rows and previews them
+- `<safe>` may be a 0x address or a `.eth` / `.wei` name
+- the send form and the bulk panel have "Copy link" to produce these
+
 ---
 
 ## 25. Post-MVP — ENS and `.wei` name resolution
