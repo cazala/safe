@@ -52,14 +52,13 @@ let wallet = null; // { key, name, provider } in use, or null
 async function refreshWallet() {
   if (!wallet) {
     st.chainId = st.account = st.chain = null;
-    put($('net'), h('span.mut', list().length ? 'Not connected' : 'No wallet detected'));
-    $('connect').textContent = 'Connect';
+    put($('connect'), list().length ? 'Connect' : 'No wallet');
     return;
   }
   [st.chainId, [st.account = null] = []] = await Promise.all([rpc.chainId(), rpc.accounts()]);
   if (!st.chain || st.chain.id !== st.chainId) st.chain = await chainInfo(st.chainId);
-  put($('net'), st.chain.name + ' (' + st.chainId + ')');
-  $('connect').textContent = st.account ? short(st.account) : 'Connect';
+  // The connected chain lives on the account button, subtly, and in its menu.
+  put($('connect'), st.account ? [h('span.net', { title: st.chain.name + ' · chain ' + st.chainId }, st.chain.name), short(st.account)] : 'Connect');
 }
 
 // Any wallet change invalidates everything loaded so far (spec §15).
@@ -105,7 +104,7 @@ function popover(view) {
   const err = h('div');
   const item = (label, fn) => h('button', { onclick: () => fn().catch((e) => put(err, h('p.bad', e.message || String(e)))) }, label);
   if (view === 'menu')
-    return put(drop, h('div.dropdown', h('div.head', wallet.name), item('Switch wallet', async () => popover('pick')), item('Disconnect', async () => (closeDrop(), disconnect())), err));
+    return put(drop, h('div.dropdown', h('div.head', h('div', h('b', wallet.name), h('div', chain().name + ' · chain ' + st.chainId))), item('Switch wallet', async () => popover('pick')), item('Disconnect', async () => (closeDrop(), disconnect())), err));
   // Wallet list: every wallet except the one already connected.
   const ws = list().filter((w) => !st.account || w.key !== wallet.key);
   put(
@@ -510,10 +509,17 @@ function transactionsTab(s) {
         ),
       );
     }
-    put(status, r.error ? warn('The wallet RPC stopped the scan at block ' + r.next + ': ' + r.error.slice(0, 200)) : [seen.size ? '' : 'No pending transactions found', r.next >= 0 ? ' (scanned back to block ' + (r.next + 1) + ').' : ' (scanned to genesis).']);
-    more.disabled = r.next < 0;
+    // Wallet RPCs often refuse old or wide log ranges: say how far back we looked, keep the raw error out of the way.
+    const head = r.head, back = r.next + 1, blocks = head - back + 1;
+    put(
+      status,
+      seen.size ? '' : 'No pending transactions found',
+      blocks > 0 ? (seen.size ? 'Searched' : ' in') + ' the last ' + blocks.toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.') : '',
+      r.error && [blocks > 0 ? ' This wallet’s RPC does not serve older logs.' : ' This wallet’s RPC could not be searched for pending transactions.', h('details.err', h('summary', 'Details'), h('code', r.error.slice(0, 300)))],
+    );
+    more.disabled = r.next < 0 || !!r.error;
   };
-  const more = button('Scan older blocks', async () => draw((st.pending = await scan(s, { end: st.pending.next }))), status);
+  const more = button('Scan older blocks', async () => draw((st.pending = { ...(await scan(s, { end: st.pending.next })), head: st.pending.head })), status);
   more.disabled = true; // until the first scan finishes
   loadPending(s).then(draw, (e) => put(status, warn('Could not scan logs through the wallet RPC: ' + e.message)));
   return [
