@@ -1,10 +1,10 @@
 // safe.wei — app shell, routing and views.
-import { cd, fmt, fmtShort, hex, isAddr, isHex, keccakText, parse, strip, utf8 } from './abi.js';
+import { cd, fmt, fmtShort, hex, isAddr, isHex, keccakText, parse, strip, utf8, ZERO } from './abi.js';
 import { chainInfo, label } from './chains.js';
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review } from './review.js';
 import * as rpc from './rpc.js';
-import { create, createCall, newTx, predict, readSafe, safeTxHash } from './safe.js';
+import { create, createCall, modules, newTx, predict, readSafe, safeTxHash, SENTINEL } from './safe.js';
 import { compact, fragment, importPayload, toJSON } from './share.js';
 import { payloadGas, scan } from './pending.js';
 import { decode } from './decode.js';
@@ -216,7 +216,7 @@ const TABS = [
   ['send', 'Send'],
   ['transactions', 'Transactions'],
   ['custom', 'Custom'],
-  ['setup', 'Setup'],
+  ['settings', 'Settings'],
 ];
 const link = (tab, q) => '#/' + st.ref + (tab && tab !== 'assets' ? '/' + tab : '') + (q ? '?' + new URLSearchParams(q) : '');
 const chip = (text, cls = '') => h('span.chip' + cls, text);
@@ -545,22 +545,102 @@ function transactionsTab(s) {
   ];
 }
 
-function setupTab(s) {
-  const me = st.account && st.account.toLowerCase();
+function settingsTab(s) {
+  const me = st.account && st.account.toLowerCase(), n = s.owners.length;
+  const self = (data) => ({ to: s.address, value: 0n, data });
+  const prevOf = (o) => (s.owners.indexOf(o) === 0 ? SENTINEL : s.owners[s.owners.indexOf(o) - 1]);
+  /** Review / Add to batch for a Safe self-call built by `mk` (async, may throw). */
+  const acts = (mk, out) =>
+    h('div.actions', button('Review', async () => showReview(newTx(s, self(await mk()))), out, '.primary'), chain().canBatch && button('Add to batch', async () => queue(self(await mk())), out));
+  const thPick = (max, cur) => h('select.th', Array.from({ length: max }, (_, i) => h('option', { value: i + 1, selected: i + 1 === cur ? '' : null }, String(i + 1))));
+  const open = (el, panel) => (el.firstChild ? put(el) : put(el, panel));
+
+  // Owners: one row each, with Replace / Remove opening an inline panel.
+  const rows = s.owners.map((o) => {
+    const panel = h('div');
+    const remove = () => {
+      const th = thPick(n - 1, Math.min(Number(s.threshold), n - 1)), out = h('div');
+      return h('div.card', h('b', 'Remove owner'), h('div.row.inline', 'New threshold:', th, 'of ' + (n - 1) + ' owners'), acts(async () => {
+        if (n < 2) throw Error('A Safe needs at least one owner.');
+        return cd(S.removeOwner, prevOf(o), o, BigInt(th.value));
+      }, out), out);
+    };
+    const replace = () => {
+      const input = h('input', { placeholder: 'New owner 0x… or name.eth / name.wei', spellcheck: 'false' }), out = h('div');
+      return h('div.card', h('b', 'Replace owner'), input, acts(async () => {
+        st.named = {};
+        const nw = await target(input.value);
+        if (s.owners.includes(nw)) throw Error('That address is already an owner.');
+        return cd(S.swapOwner, prevOf(o), o, nw);
+      }, out), out);
+    };
+    return h(
+      'li',
+      h('div.owner', addr(o, [o === me && h('b.ok', 'you'), rev(o)]), h('span.links', h('button.link', { onclick: () => open(panel, replace()) }, 'replace'), n > 1 && h('button.link', { onclick: () => open(panel, remove()) }, 'remove'))),
+      panel,
+    );
+  });
+  const addIn = h('input', { placeholder: 'New owner 0x… or name.eth / name.wei', spellcheck: 'false' }), addTh = thPick(n + 1, Number(s.threshold)), addOut = h('div');
+  const add = h('details', h('summary', 'Add owner'), addIn, h('div.row.inline', 'New threshold:', addTh, 'of ' + (n + 1) + ' owners'), acts(async () => {
+    st.named = {};
+    const nw = await target(addIn.value);
+    if (s.owners.includes(nw)) throw Error('That address is already an owner.');
+    return cd(S.addOwnerWithThreshold, nw, BigInt(addTh.value));
+  }, addOut), addOut);
+
+  // Threshold
+  const th = thPick(n, Number(s.threshold)), thOut = h('div');
+  const thActs = acts(async () => cd(S.changeThreshold, BigInt(th.value)), thOut);
+  // Nothing to submit until a different threshold is picked.
+  const syncTh = () => thActs.querySelectorAll('button').forEach((b) => (b.disabled = BigInt(th.value) === s.threshold));
+  th.onchange = syncTh;
+  syncTh();
+  const threshold = [h('div.row.inline', 'Any transaction requires', th, 'out of ' + n + ' owner' + (n > 1 ? 's' : '') + ' to approve.'), thActs, thOut];
+
+  // Modules: can execute transactions without any owner signature.
+  const mods = h('div', h('p.mut', 'Loading modules…'));
+  modules(s.address).then(
+    (ms) =>
+      put(
+        mods,
+        ms.length
+          ? [
+              warn('Enabled modules can execute any transaction from this Safe without owner approval. Keep only modules you trust.'),
+              h('ul.owners', ms.map((m, i) => {
+                const out = h('div');
+                return h('li', h('div.owner', h('code', m), h('span.links', button('disable', async () => showReview(newTx(s, self(cd(S.disableModule, i ? ms[i - 1] : SENTINEL, m)))), out, '.link'))), out);
+              })),
+            ]
+          : h('p.mut', 'No modules enabled. Only owner-approved transactions can move funds.'),
+      ),
+    (e) => put(mods, warn('Could not read modules: ' + e.message)),
+  );
+  const modIn = h('input', { placeholder: 'Module contract 0x…', spellcheck: 'false' }), modOut = h('div');
+  const enable = h('details', h('summary', 'Enable a module (dangerous)'), h('p.bad', 'A module gets unrestricted control of this Safe: it can move every asset without the owners. Only enable audited modules you fully understand.'), modIn, acts(async () => cd(S.enableModule, await target(modIn.value)), modOut), modOut);
+
+  // Guard and fallback handler
+  const gOut = h('div');
   return [
     h('h2', 'Owners'),
-    h('p.mut', s.threshold + ' of ' + s.owners.length + ' owners must approve each transaction.'),
-    h('ol.owners', s.owners.map((o) => h('li', addr(o, [o === me && h('b.ok', 'you'), rev(o)])))),
-    h('h2', 'Configuration'),
+    h('ol.owners', rows),
+    add,
+    h('h2', 'Threshold'),
+    threshold,
+    h('h2', 'Modules'),
+    mods,
+    enable,
+    h('h2', 'Guard'),
+    s.guard
+      ? [warn('A guard checks every transaction and can block any of them, including removing it. Current guard: ', h('code', s.guard)), h('div.actions', button('Remove guard', async () => showReview(newTx(s, self(cd(S.setGuard, ZERO)))), gOut)), gOut]
+      : h('p.mut', 'No guard. A guard is an optional contract that checks every transaction before and after execution.'),
+    h('h2', 'Contract'),
     kv([
       ['Version', s.version || '(unreadable)'],
       ['Nonce', String(s.nonce) + ' (next transaction)'],
       ['Singleton', h('code', s.singleton)],
-      ['Fallback handler', s.fallback ? h('code', s.fallback) : 'none'],
-      ['Guard', s.guard ? h('b.bad', s.guard) : 'none'],
+      ['Fallback handler', s.fallback ? [h('code', s.fallback), h('div.mut', 'Handles calls the Safe itself does not implement, such as EIP-1271 signature checks and token callbacks.')] : 'none'],
       ['Chain', chain().name + ' · chainId ' + s.chainId],
     ]),
-    h('p.mut', 'To change owners or the threshold, build the call in Custom with this Safe as the target; the review decodes it.'),
   ];
 }
 
@@ -596,6 +676,9 @@ function renderBatch(open) {
 }
 const callLabel = (x) => {
   const d = decode({ ...x, safe: st.safe.address }), tok = d && d.label.startsWith('ERC-20') && tokenOf(x.to);
+  // Safe settings: "Change threshold · threshold 3", "Add owner · owner vitalik.eth → 0x…, threshold 2"
+  if (d && x.to === st.safe.address)
+    return [d.label, ' · ', d.args.map((a, i) => [i ? ', ' : '', a.name + ' ', a.type === 'address' ? named(a.value, st.batchNames) : String(a.value)])];
   return d
     ? [d.label, tok ? ' ' + amount(d.args.at(-1).value, tok) : '', ' → ', named((d.args.find((a) => a.name === 'to' || a.name === 'spender') || d.args[0]).value, st.batchNames), tok ? '' : [' on ', named(x.to, st.batchNames)]]
     : [fmt(x.value || 0n) + ' ' + chain().sym + ' → ', named(x.to, st.batchNames), x.data && x.data !== '0x' ? ' with ' + (x.data.length - 2) / 2 + ' bytes of calldata' : ''];
@@ -603,23 +686,6 @@ const callLabel = (x) => {
 
 
 // ---- transaction builder (Custom tab), in the spirit of Etherscan's "Write Contract" ----
-const SAFE_ABI = [
-  'addOwnerWithThreshold(address owner, uint256 _threshold)',
-  'removeOwner(address prevOwner, address owner, uint256 _threshold)',
-  'swapOwner(address prevOwner, address oldOwner, address newOwner)',
-  'changeThreshold(uint256 _threshold)',
-  'enableModule(address module)',
-  'disableModule(address prevModule, address module)',
-  'setGuard(address guard)',
-  'setFallbackHandler(address handler)',
-];
-const KNOWN_ABIS = {
-  erc20: ['ERC-20 token', 'transfer(address to, uint256 amount)\napprove(address spender, uint256 amount)\ntransferFrom(address from, address to, uint256 amount)'],
-  erc721: ['ERC-721 NFT', 'transferFrom(address from, address to, uint256 tokenId)\nsafeTransferFrom(address from, address to, uint256 tokenId)\napprove(address to, uint256 tokenId)\nsetApprovalForAll(address operator, bool approved)'],
-  erc1155: ['ERC-1155', 'safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes data)\nsafeBatchTransferFrom(address from, address to, uint256[] ids, uint256[] amounts, bytes data)\nsetApprovalForAll(address operator, bool approved)'],
-  weth: ['WETH (wrapped native)', 'deposit() payable\nwithdraw(uint256 wad)'],
-  safe: ['This Safe (owners, threshold, modules)', SAFE_ABI.join('\n')],
-};
 const abiKey = (addr) => 'safe.wei:abi:' + st.chainId + ':' + addr;
 const loadAbi = (addr) => {
   try {
@@ -641,45 +707,35 @@ const noteView = (data) => {
 };
 
 function builder(s) {
-  const mode = h('select', Object.entries(KNOWN_ABIS).map(([k, [name]]) => h('option', { value: k }, name)), h('option', { value: 'paste' }, 'Paste or upload an ABI…'), h('option', { value: 'raw' }, 'Raw calldata (no ABI)'));
-  const to = h('input', { placeholder: 'Contract address 0x… or name.eth / name.wei', spellcheck: 'false' });
-  const abiText = h('textarea', { placeholder: 'JSON ABI (or a Hardhat/Foundry artifact), or one signature per line:\nfunction stake(uint256 amount, address to)', spellcheck: 'false', rows: 5 });
+  const mode = h('select', h('option', { value: 'abi' }, 'Custom ABI'), h('option', { value: 'raw' }, 'Raw calldata'));
+  const to = h('input', { spellcheck: 'false' });
+  const abiText = h('textarea', { placeholder: '[{"type":"function","name":"stake","inputs":[…]}]  (a Hardhat/Foundry artifact, or one function signature per line, also works)', spellcheck: 'false', rows: 5 });
   const file = h('input', { type: 'file', accept: '.json,application/json' });
-  const pasteBox = h('div', abiText, h('label', 'Or upload a .json file'), file);
-  const methods = h('div'), out = h('div'), toLabel = h('label', 'Contract');
+  const abiBox = h('div', h('label', 'Paste JSON ABI'), abiText, h('label', 'Or upload a .json file'), file);
+  const methods = h('div'), out = h('div'), toLabel = h('label');
   let contract = null;
 
-  let picked = false; // once the user chooses an ABI, never switch it for them
-  const pickDefault = (addr) => {
-    if (picked) return;
-    if (addr === s.address) mode.value = 'safe';
-    else if (loadAbi(addr)) (mode.value = 'paste'), (abiText.value = loadAbi(addr));
-    else if (tokenOf(addr)) mode.value = 'erc20';
-  };
   const render = async () => {
-    put(out);
+    const raw = mode.value === 'raw';
+    put(toLabel, raw ? 'To' : 'Contract');
+    to.placeholder = (raw ? 'Address' : 'Contract address') + ' 0x… or name.eth / name.wei';
+    abiBox.hidden = raw;
     put(methods);
-    pasteBox.hidden = mode.value !== 'paste';
-    // Raw calls can go to any address (a contract or a wallet), so the field is "To" there.
-    put(toLabel, mode.value === 'raw' ? 'To' : 'Contract');
-    to.placeholder = (mode.value === 'raw' ? 'Address' : 'Contract address') + ' 0x… or name.eth / name.wei';
-    if (mode.value === 'raw') return put(methods, rawBuilder(s, to));
-    if (!contract) return put(methods, h('p.mut', 'Enter the contract to interact with.'));
-    const text = mode.value === 'paste' ? abiText.value : KNOWN_ABIS[mode.value][1];
-    if (!text.trim()) return put(methods, h('p.mut', 'Paste an ABI or upload a .json file to list the contract’s methods.'));
+    if (raw) return put(methods, rawBuilder(s, to));
+    if (!contract || !abiText.value.trim()) return;
     let fns;
     try {
-      fns = parseAbi(text).filter((f) => f.write);
+      fns = parseAbi(abiText.value).filter((f) => f.write);
     } catch (e) {
       return put(methods, bad('ABI: ' + e.message));
     }
-    if (mode.value === 'paste') storeAbi(contract, text);
+    storeAbi(contract, abiText.value);
     if (!fns.length) return put(methods, h('p.mut', 'This ABI has no write methods.'));
     const code = await rpc.rpc('eth_getCode', [contract, 'latest']).catch(() => '0x');
     put(
       methods,
       code === '0x' && warn('There is no contract at this address on ' + chain().name + '.'),
-      h('p.mut', fns.length + ' write method' + (fns.length > 1 ? 's' : '') + '. Open one to fill in its parameters.'),
+      h('h3', 'Write methods'),
       fns.map((f, i) => methodCard(s, contract, f, i + 1)),
     );
   };
@@ -689,14 +745,14 @@ function builder(s) {
       st.named = {};
       await loadBalances(s).catch(() => {}); // token metadata, for decimals-aware amount inputs
       contract = to.value.trim() ? await target(to.value) : null;
-      if (contract) pickDefault(contract);
+      if (contract && !abiText.value.trim() && loadAbi(contract)) abiText.value = loadAbi(contract); // remembered for this contract
     } catch (e) {
       contract = null;
       put(out, bad(e.message));
     }
-    render();
+    if (mode.value !== 'raw') render();
   };
-  mode.onchange = () => ((picked = true), render());
+  mode.onchange = render;
   abiText.oninput = () => clearTimeout(abiText.t) || (abiText.t = setTimeout(render, 300));
   file.onchange = async () => {
     const f = file.files[0];
@@ -705,13 +761,13 @@ function builder(s) {
   render();
   return h(
     'div.form.wide',
-    h('p.mut', 'Build calls to any contract from its ABI, then review them or add several to a batch. The ABI is only used here to encode calldata; nothing is fetched.'),
-    h('label', 'ABI'),
+    h('p.mut', 'Call any contract from its ABI, or send raw calldata. Review each call, or add several to a batch. Nothing is fetched: the ABI is only used here to encode the call.'),
+    h('label', 'Type'),
     mode,
-    pasteBox,
     toLabel,
     to,
     out,
+    abiBox,
     methods,
   );
 }
@@ -760,16 +816,6 @@ function paramField(s, contract, f, p) {
 
   if (type === 'address') {
     read = async () => parseValue(p, await target(input.value));
-    // Safe owner lists are linked lists: fill prevOwner/prevModule from the owner being removed.
-    if (contract === s.address && /^prev(Owner|Module)$/.test(p.name)) {
-      help.append(h('button.link', { onclick: () => {
-        const other = f.inputs.findIndex((q) => /^(owner|oldOwner)$/.test(q.name));
-        const el = [...help.closest('details').querySelectorAll('input')][other];
-        const o = el && el.value.trim().toLowerCase(), i = s.owners.indexOf(o);
-        input.value = i < 0 ? '' : i === 0 ? '0x0000000000000000000000000000000000000001' : s.owners[i - 1];
-        put(note, i < 0 ? 'Enter the owner first; it must be a current owner.' : 'Previous entry in the owner list.');
-      } }, 'fill from owner list'));
-    }
   } else if (/^u?int\d*$/.test(type)) {
     // Etherscan-style "add zeros": type a decimal amount and pick the unit.
     const tok = tokenOf(contract);
@@ -1064,7 +1110,7 @@ async function route() {
     else if (st.ref !== st.safe.address && st.ref !== st.safeName) st.ref = st.safe.address;
     const s = st.safe;
     if (p) return showReview(p.tx, p.sigs, 'none');
-    const tabs = { assets: assetsTab, send: sendTab, batch: sendTab, transactions: transactionsTab, custom: builder, setup: setupTab };
+    const tabs = { assets: assetsTab, send: sendTab, batch: sendTab, transactions: transactionsTab, custom: builder, settings: settingsTab, setup: settingsTab };
     if (!tabs[tab]) return (location.hash = link('assets'));
     page(s, tab === 'batch' ? 'send' : tab, tab === 'send' || tab === 'batch' ? sendTab(s, tab === 'batch', q) : tabs[tab](s));
   } catch (e) {

@@ -23,6 +23,7 @@ export const S = {
   disableModule: 'e009cfde',
   setGuard: 'e19a9dd9',
   setFallbackHandler: 'f08a0323',
+  getModulesPaginated: 'cc2f8452',
   multiSend: '8d80ff0a',
   balanceOf: '70a08231',
   decimals: '313ce567',

@@ -50,7 +50,7 @@ p.bad, p.warn { padding: 8px 10px; border-radius: 4px; }
 p.bad { background: var(--badbg); font-weight: 600; }
 p.warn { background: var(--warnbg); }
 label { display: block; margin: 8px 0 2px; color: var(--mut); font-size: 13px; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
 p.danger { font-size: 16px; border: 2px solid var(--bad); }
 label.check { display: flex; gap: 8px; align-items: flex-start; color: var(--fg); }
@@ -140,3 +140,10 @@ details.method .chip { margin-left: 8px; }
 .helpers:empty { display: none; }
 .small { font-size: 12px; }
 .small:empty { display: none; }
+h3 { font-size: 14px; margin: 18px 0 6px; }
+.owner { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.owner .links { display: flex; gap: 12px; }
+ol.owners > li, ul.owners > li { margin: 6px 0; }
+.row.inline { flex-wrap: wrap; margin: 10px 0 0; }
+.row.inline select.th { width: auto; }
+.card > b:first-child { display: block; margin-bottom: 6px; }
