@@ -442,6 +442,21 @@ Solidity ignores calldata bytes past the ABI-encoded arguments. The proposing ow
 
 The Safe only reads the hash. The payload is stored permanently in that transaction's input, with no extra contract.
 
+The onchain payload uses a compact binary encoding, not the Layer 1 JSON. Fields the transaction already carries are omitted: chainId (the transaction's chain), Safe address (the transaction's `to`), and the SafeTx hash (the `approveHash` argument).
+
+```text
+magic      2 bytes   0x5357 ("SW")
+version    1 byte    0x01
+flags      1 byte    bit0 = DELEGATECALL, bit1 = non-default gas fields present
+to         20 bytes
+nonce      uint      1-byte length + big-endian bytes (no leading zeros)
+value      uint      same
+data       3-byte big-endian length + bytes
+if bit1:   safeTxGas, baseGas, gasPrice as uint; gasToken 20 bytes; refundReceiver 20 bytes
+```
+
+Cost is roughly 16 gas per non-zero calldata byte: about 1k gas extra for an ETH send, about 2k for an ERC-20 transfer, versus ~47k for the `approveHash` itself. Only the proposer pays it. The UI offers it as a checkbox on the proposer's approval, showing the extra byte count. Layer 1 remains the default.
+
 Discovery ("pending transactions" for a Safe):
 
 1. `eth_getLogs` for `ApproveHash` on the Safe address, scanning backwards in bounded block windows because wallet RPCs cap log ranges
