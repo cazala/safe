@@ -6,6 +6,8 @@ import { review } from '../../src/review.js';
 import { use } from '../../src/rpc.js';
 import { newTx, readSafe } from '../../src/safe.js';
 import { S } from '../../src/sel.js';
+import { SAFE } from '../../src/chains.js';
+const CHAINS_MS = SAFE.multiSendCallOnly; // a contract that is not a token
 import { balances, listed, meta, multicall } from '../../src/tokens.js';
 import { ACCOUNTS, deploySafe, startFork, tx } from './anvil.mjs';
 
@@ -53,7 +55,9 @@ test('unlisted token metadata: string and bytes32 symbols; non-tokens rejected',
   assert.deepEqual(await meta(USDC), { address: USDC, decimals: 6, symbol: 'USDC', listed: false });
   const mkr = await meta('0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2'); // MKR returns bytes32
   assert.equal(mkr.symbol, 'MKR');
-  await assert.rejects(meta('0x' + '42'.repeat(20)), /Not an ERC-20/);
+  await assert.rejects(meta('0x' + '42'.repeat(20)), /no contract/);
+  await assert.rejects(meta(CHAINS_MS), /does not look like an ERC-20/);
+  assert.equal((await meta('0x0F5D2fB29fb7d3CFeE444a200298f468908cC942')).symbol, 'MANA'); // mixed-case input
 });
 
 test('multicall reports failures per call', async () => {

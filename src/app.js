@@ -296,7 +296,7 @@ async function findToken(spec) {
   if (!v || v.toUpperCase() === c.sym) return null;
   if (isAddr(v)) {
     const a = v.toLowerCase();
-    return (st.tokens[a] = st.tokens[a] || (await meta(a)));
+    return (st.tokens[a] = st.tokens[a] || (await meta(a, chain().name)));
   }
   const hits = Object.values(st.tokens).filter((t) => t.listed && t.symbol.toLowerCase() === v.toLowerCase());
   if (hits.length !== 1) throw Error(hits.length ? 'Symbol "' + v + '" is ambiguous; use the token address.' : 'Unknown token "' + v + '"; use a TokenList symbol or the token address.');
@@ -319,7 +319,12 @@ function assetsTab(s) {
         held().map((t) =>
           h(
             'tr',
-            h('td', h('b', t.symbol), !t.listed && [' ', h('span.chip.bad', 'unlisted')], h('div', h('code.mut', t.address))),
+            h(
+              'td',
+              h('b', t.symbol),
+              !t.listed && [' ', h('span.chip.bad', 'unlisted'), ' ', h('button.link', { onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), delete st.tokens[t.address], draw()), title: 'Remove from your token list' }, 'remove')],
+              h('div', h('code.mut', t.address)),
+            ),
             h('td.num', st.bal[t.address] == null ? h('span.mut', 'unreadable') : fmt(st.bal[t.address], t.decimals)),
             h('td.act', h('a.btn', { href: link('send', { token: tokenSpec(t) }) }, 'Send')),
           ),
@@ -336,7 +341,7 @@ function assetsTab(s) {
     async () => {
       const a = addIn.value.trim().toLowerCase();
       if (!isAddr(a)) throw Error('Enter a token contract address.');
-      const t = await meta(a);
+      const t = await meta(a, chain().name);
       save(st.chainId, [...saved(st.chainId).filter((x) => x.address !== a), t]);
       st.tokens[a] = st.tokens[a] || t;
       st.balFor = null;
@@ -346,7 +351,7 @@ function assetsTab(s) {
     },
     addOut,
   );
-  return [pend, rows, h('details', h('summary', 'Add a token by address'), h('div.row', addIn, add), addOut)];
+  return [pend, rows, h('details', h('summary', 'Add a token by address'), h('p.mut', 'Added tokens are saved in this browser for every Safe on ' + c.name + '.'), h('div.row', addIn, add), addOut)];
 }
 
 function sendTab(s, bulkMode, q) {
