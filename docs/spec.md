@@ -197,11 +197,15 @@ Output:
 - deployment transaction
 - confirmed Safe address
 
-Target Safe version:
+Target Safe version for creation:
 
 - Safe v1.4.1
 
 Use canonical Safe singleton/proxy factory deployments for supported chains.
+
+Always set the canonical `CompatibilityFallbackHandler` in `setup(...)`, matching Safes created by Safe Wallet. It is required for EIP-1271 and expected by Safe Apps.
+
+Predict the Safe address by simulating `createProxyWithNonce(...)` with `eth_call` rather than shipping proxy creation bytecode and CREATE2 code. After deployment, confirm the deployed address equals the prediction.
 
 Do not deploy custom Safe implementations.
 
@@ -222,7 +226,7 @@ Input:
 Read directly from chain:
 
 - code existence
-- Safe version if practical
+- Safe version via `VERSION()`
 - owners
 - threshold
 - nonce
@@ -261,6 +265,8 @@ Delegatecall should either:
 - be omitted completely in v1
 
 If delegatecall support exists, display a strong warning.
+
+Exception (post-MVP, §26): delegatecall to the hardcoded canonical `MultiSendCallOnly` address is the standard batching mechanism. It is allowed without the advanced control, but every inner call must be decoded and displayed individually. Delegatecall to any other address keeps the full warning.
 
 Signed Safe transaction fields should default to:
 
@@ -307,6 +313,8 @@ Before a user signs or approves a Safe transaction:
 
 This protects against frontend encoding mistakes and makes signing behavior auditable.
 
+It does NOT protect against a malicious RPC: both the Safe state and the `getTransactionHash` result come through the wallet's RPC. The local hash computation and the displayed transaction summary are the real protection. Hardware wallets that display the EIP-712 hash give an independent check.
+
 The UI must display the final SafeTx hash prominently.
 
 ---
@@ -331,6 +339,8 @@ Once enough owners have approved:
 - sort signatures by signer address
 - call `execTransaction(...)`
 
+The executing owner does NOT need to call `approveHash` first. Safe's `checkNSignatures` accepts a v=1 signature for an owner when `msg.sender == owner`. The executor therefore adds its own prevalidated signature and executes in a single transaction. A 1-of-1 Safe executes with exactly one transaction. The final approver of an n-of-m Safe should be offered "Approve and execute".
+
 Prevalidated Safe signature format:
 
 - `r` = owner address left-padded to 32 bytes
@@ -341,16 +351,15 @@ Advantages:
 
 - no backend
 - no transaction service
-- no mailbox
 - no signature sharing
-- no URL fragments
 - no IPFS/Swarm
 - approvals are discoverable directly from chain
 - easiest possible recovery UX
 
-Tradeoff:
+Tradeoffs:
 
-- every signer pays gas for `approveHash`
+- every non-executing signer pays gas for `approveHash`
+- approvals alone do NOT reveal what is being approved: `approveHash` and the `ApproveHash` event carry only the hash. Other owners need the transaction contents, see §7.3.
 
 This is acceptable for MVP.
 
@@ -396,6 +405,71 @@ The chain remains the source of truth.
 
 Do not build decentralized messaging/storage in MVP.
 
+### 7.3 Transaction sharing
+
+A Safe transaction is identified by its SafeTx hash. Another owner can only approve or sign it if they can reconstruct every field that produces that hash. Sharing the transaction itself is therefore required for ANY multi-owner flow, including Mode A. It ships in Phase 3, not Phase 5.
+
+The transaction payload contains:
+
+- chainId
+- Safe address
+- to, value, data, operation
+- safeTxGas, baseGas, gasPrice, gasToken, refundReceiver
+- nonce
+- optionally: offchain signatures collected so far (Mode B)
+
+A payload is ALWAYS untrusted input. On import the app must:
+
+1. recompute the SafeTx hash locally
+2. verify it against `getTransactionHash` (§6)
+3. check the nonce against the Safe's current nonce
+4. display the full transaction summary before any action
+
+A tampered payload simply produces a different hash and a different summary. The sharing channel never needs to be trusted.
+
+#### Layer 1 — offchain payload (default)
+
+- URL fragment: `#tx=<base64url(payload)>`. A fragment is never sent to a server.
+- copy/paste JSON
+
+Owners exchange it over any channel they like.
+
+#### Layer 2 — onchain payload in `approveHash` calldata (optional)
+
+Solidity ignores calldata bytes past the ABI-encoded arguments. The proposing owner may send:
+
+`approveHash(safeTxHash) ‖ encodedPayload`
+
+The Safe only reads the hash. The payload is stored permanently in that transaction's input, with no extra contract.
+
+The onchain payload uses a compact binary encoding, not the Layer 1 JSON. Fields the transaction already carries are omitted: chainId (the transaction's chain), Safe address (the transaction's `to`), and the SafeTx hash (the `approveHash` argument).
+
+```text
+magic      2 bytes   0x5357 ("SW")
+version    1 byte    0x01
+flags      1 byte    bit0 = DELEGATECALL, bit1 = non-default gas fields present
+to         20 bytes
+nonce      uint      1-byte length + big-endian bytes (no leading zeros)
+value      uint      same
+data       3-byte big-endian length + bytes
+if bit1:   safeTxGas, baseGas, gasPrice as uint; gasToken 20 bytes; refundReceiver 20 bytes
+```
+
+Cost is roughly 16 gas per non-zero calldata byte: about 1k gas extra for an ETH send, about 2k for an ERC-20 transfer, versus ~47k for the `approveHash` itself. Only the proposer pays it. The UI offers it as a checkbox on the proposer's approval, showing the extra byte count. Layer 1 remains the default.
+
+Discovery ("pending transactions" for a Safe):
+
+1. `eth_getLogs` for `ApproveHash` on the Safe address, scanning backwards in bounded block windows because wallet RPCs cap log ranges
+2. `eth_getTransactionByHash` for each log to read its input
+3. decode the trailing payload
+4. accept a payload only if its recomputed hash equals the approved hash AND its nonce equals the Safe's current nonce
+
+Constraints:
+
+- must be tested against both Safe v1.3.0 and v1.4.1 (trailing calldata accepted, approval recorded)
+- owners that are smart contract wallets may not be able to append calldata; Layer 1 remains available
+- the extra calldata costs gas (16 gas per non-zero byte)
+
 ---
 
 ## 8. Execution
@@ -413,6 +487,13 @@ Before sending execution transaction:
 - re-read owners and threshold if cheap
 - recompute / verify SafeTx hash again
 - verify enough valid approvals/signatures exist
+
+Before proposing, approving, or executing, simulate the inner call with `eth_call({from: safe, to, value, data})`:
+
+- a revert must be displayed prominently
+- for recognized ERC-20 `transfer`/`transferFrom`/`approve`, a `false` return value must be displayed prominently. Some tokens return `false` without reverting, and the Safe would report `ExecutionSuccess` even though nothing moved.
+
+This is a warning, not a hard block: state may change between simulation and execution.
 
 If nonce changed:
 
@@ -490,8 +571,16 @@ Header:
 Owners section:
 
 - owner address
+- reverse-resolved name if available (§25)
 - current wallet indicator
 - approval state for current transaction
+
+Balances section (post-MVP, §24):
+
+- native balance
+- listed ERC-20 balances
+- "add token by address"
+- send action per asset
 
 Transaction builder:
 
@@ -514,7 +603,10 @@ Transaction summary:
 
 Actions:
 
+- Share transaction (link / JSON)
+- Import transaction
 - Approve onchain
+- Approve and execute (when this approval reaches threshold)
 - Sign offchain
 - Import signature
 - Execute
@@ -638,6 +730,8 @@ Preferred progression:
 
 Return HTML stored directly in contract bytecode/constants.
 
+Only viable for payloads well under the EIP-170 limit (24,576 bytes of runtime code). At the 50–100 KB targets in §19, expect SSTORE2 chunks from the start.
+
 ### Medium payload
 
 Store HTML chunks in SSTORE2-style data contracts.
@@ -727,11 +821,26 @@ Add a build check that fails if output HTML contains:
 - `http://`
 - `https://`
 
-Exception:
+Exceptions:
 
-plain text links inside documentation/UI are okay only if they are not fetched as dependencies.
+- the SVG namespace string `http://www.w3.org/2000/svg` (allow-list it exactly, or check only fetchable contexts: `src=`, `href=`, `url(`, `import`, `fetch(`)
+- plain text links inside documentation/UI are okay only if they are not fetched as dependencies
+
+The only runtime-loaded remote content permitted is a Safe App URL explicitly entered by the user (§27). It is rendered in a sandboxed iframe and never executes in the parent document.
 
 Prefer zero external links in the deployed document itself.
+
+### Wallet events
+
+On `chainChanged` or `accountsChanged`, discard all loaded Safe state and any in-progress transaction, then reload from chain.
+
+### Infrastructure-free access path
+
+ERC-8244 gateways such as `w4eth.io` still depend on DNS, and most injected wallets do not inject into `file://` pages. The README must document a fallback that needs only an RPC:
+
+1. fetch `html()` directly, e.g. `cast call <app> "html()(string)"`
+2. verify the result against the recorded artifact hash
+3. serve it from `localhost` with any static server
 
 ---
 
@@ -739,14 +848,17 @@ Prefer zero external links in the deployed document itself.
 
 MVP:
 
-- Safe v1.4.1
+- create: Safe v1.4.1 only
+- open / approve / sign / execute: Safe v1.3.0 and v1.4.1, including their `SafeL2` variants
+
+Most existing mainnet Safes are v1.3.0. Between v1.3.0 and v1.4.1 the SafeTx typehash, the EIP-712 domain (including chainId), `approveHash`, `approvedHashes`, `getTransactionHash` and `execTransaction` are identical, so supporting both costs almost nothing. Tests must cover both versions.
 
 When opening a Safe:
 
-- detect version if cheap
-- if unsupported version is detected, show a clear warning
+- read `VERSION()`
+- if the version is neither 1.3.0 nor 1.4.1, show a clear warning and disable signing
 
-Do not attempt broad backwards compatibility in v1.
+Do not attempt compatibility with versions older than v1.3.0.
 
 The architecture should isolate ABI/version-specific behavior so support can be added later.
 
@@ -764,10 +876,19 @@ For each supported chain store only:
 
 - chain ID
 - name
-- Safe singleton
+- Safe singleton (v1.4.1, for creation)
 - Safe proxy factory
-- fallback handler if needed
-- MultiSend only if MultiSend is shipped
+- CompatibilityFallbackHandler
+- MultiSendCallOnly (once MultiSend ships)
+- Multicall3 (once balances ship)
+
+Mainnet-only registries (read only when connected to chain 1):
+
+- ENS registry
+- WNS `NameNFT`: `0x0000000000696760E15f265e828DB644A0c242EB`
+- zOrg TokenList: `0x0000006013dF75A31678B786061C2B54bf531524`
+
+Verify every address from its authoritative source (Safe deployments repo, ENS docs, wei-names repo, zFi repo) before hardcoding.
 
 Start with Ethereum mainnet.
 
@@ -795,7 +916,16 @@ Required tests:
 - 2-of-3 with onchain `approveHash`
 - 2-of-3 with EIP-712 signatures
 - mixed prevalidated + ECDSA signatures if supported
+- executor's own prevalidated signature without `approveHash` (1-of-1 and final approver)
 - nonce mismatch rejection
+- all of the above against both Safe v1.3.0 and v1.4.1
+
+### Transaction sharing
+
+- payload export → import round trip reproduces the same SafeTx hash
+- tampered payload produces a different hash and is shown as a different transaction
+- `approveHash` with trailing payload calldata succeeds and records the approval (v1.3.0 and v1.4.1)
+- onchain discovery ignores payloads whose hash does not match the approved hash, or whose nonce is stale
 
 ### Deployment
 
@@ -811,6 +941,16 @@ Required tests:
 - non-owner signature rejected
 - duplicate signature rejected
 - insufficient signatures cannot execute
+
+### Post-MVP features
+
+- ERC-20 amount parsing: decimal string ↔ bigint round trips, no floating point
+- token list filtering excludes foreign-chain, non-ERC-20 and undeployed listings
+- ENS and `.wei` resolution against forked mainnet
+- names with non-`[a-z0-9-]` labels are rejected
+- CCIP-read (`OffchainLookup`) names are reported as unsupported, never silently resolved
+- MultiSend encoding round trip; each inner call decoded
+- Safe Apps `rpcCall` rejects non-allow-listed methods
 
 ### Build
 
@@ -921,8 +1061,11 @@ Implement:
 - query owner approvals
 - build prevalidated signatures
 - threshold detection
+- executor's own prevalidated signature ("Approve and execute")
 - `execTransaction`
 - nonce revalidation
+- inner-call `eth_call` simulation
+- transaction payload export/import (§7.3 Layer 1)
 
 This is the first complete usable release.
 
@@ -985,6 +1128,31 @@ After full verification:
 - point `safe.wei`
 - document contract address/code hash
 
+### Phase 9 — onchain transaction discovery
+
+Implement §7.3 Layer 2:
+
+- optional trailing payload on `approveHash`
+- pending-transaction discovery from `ApproveHash` logs
+
+### Phase 10 — tokens
+
+Implement §24.
+
+### Phase 11 — names
+
+Implement §25.
+
+### Phase 12 — MultiSend
+
+Implement §26.
+
+### Phase 13 — Safe Apps
+
+Spike first (§27.1). Only implement if the spike shows enough apps work.
+
+Each post-MVP phase ships as a new immutable deployment and a `safe.wei` update.
+
 ---
 
 ## 21. Non-goals for MVP
@@ -993,13 +1161,16 @@ Do NOT implement:
 
 - Safe Transaction Service integration
 - transaction history indexing
-- automatic token lists
+- token lists other than the zOrg TokenList (§24)
+- token logos
 - NFT display
 - DeFi positions
 - fiat values
 - ENS avatar lookup
+- ENS CCIP-read / offchain names
+- bundled ENSIP-15 normalization library
 - WalletConnect SDK
-- Safe Apps
+- Safe Apps message signing (`signMessage`, `signTypedMessage`)
 - module marketplace
 - guard marketplace
 - Zodiac UI
@@ -1060,40 +1231,147 @@ MVP is complete when a user can:
 6. see all transaction fields
 7. see locally computed SafeTx hash
 8. see that hash verified against `getTransactionHash`
-9. approve the transaction onchain from multiple owners
-10. observe approval threshold
-11. execute the transaction through the Safe
-12. create a new Safe
-13. repeat the above with the newly created Safe
-14. build a self-contained HTML artifact
-15. deploy that artifact through an ERC-8244 `html()` contract
-16. load and operate the app from the onchain deployment
+9. share the transaction with other owners and import it on their side
+10. approve the transaction onchain from multiple owners
+11. observe approval threshold
+12. execute the transaction through the Safe, with the executor's approval included in the same transaction
+13. create a new Safe
+14. repeat the above with the newly created Safe
+15. build a self-contained HTML artifact
+16. deploy that artifact through an ERC-8244 `html()` contract
+17. load and operate the app from the onchain deployment
 
 After that, add offchain EIP-712 signature sharing.
 
 ---
 
-## 24. Future work
+## 24. Post-MVP — Token balances and sends
+
+Source: zOrg TokenList on mainnet (`0x0000006013dF75A31678B786061C2B54bf531524`), the same registry zSwap reads.
+
+Read:
+
+- one `summariesPaged(0, 256)` call. It returns id, account, chainId, decimals, kind, standard, deployed, name and symbol without logos.
+- keep only entries with `kind == EVM`, `standard ∈ {NATIVE, ERC20}`, `deployed == true`, `chainId == connected chain`
+- one Multicall3 `aggregate3` (allowFailure) of `balanceOf(safe)` over the filtered list
+
+Also support "add token by address". It reads `decimals()` and `symbol()` from the token and labels it "unlisted". A Safe's visible balances must not depend solely on a third party's curation.
+
+Send:
+
+- native: a CALL with `value`
+- ERC-20: a CALL to the token with `transfer(to, amount)`, through the normal transaction flow (§5–8)
+- amounts are parsed from decimal strings into bigint using the token's decimals. Never use floating point.
+- "max" uses the exact balance
+
+Display:
+
+- always show the token address next to its symbol in balances and in the transaction summary. Symbols are not unique and can be spoofed.
+- the decoder (§9) uses listed decimals and symbol for known tokens; unknown tokens show raw amounts
+
+No logos, no fiat values.
+
+---
+
+## 25. Post-MVP — ENS and `.wei` name resolution
+
+Wherever the app accepts an address (recipient, owner, `to`, Safe address), also accept a `.eth` or `.wei` name.
+
+### `.wei` (WNS)
+
+- tokenId = `keccak256(WEI_NODE ‖ keccak256(label))`, applied per label for subnames
+- `WEI_NODE = 0xa82820059d5df798546bcc2985157a77c3eef25eba9ba01899927333efacbd6f`
+- `resolve(uint256 tokenId)` on `NameNFT`. Expired names resolve to empty; treat that as "not found".
+
+### ENS
+
+- `registry.resolver(namehash)` → `resolver.addr(namehash)`
+- fallback: ENSIP-10 `resolve(dnsEncode(name), addr(namehash))` for wildcard resolvers
+- do not depend on the Universal Resolver, whose address has changed over time
+- if the resolver reverts with `OffchainLookup` (CCIP-read), report "this name's records are off chain; safe.wei reads only onchain state". Never make the gateway HTTP request.
+
+### Input restrictions
+
+Do not bundle an ENSIP-15 normalization library. Accept only lowercase labels matching `[a-z0-9-]+`, separated by `.`, and reject anything else with a clear message. This also rules out lookalike-character (homograph) names.
+
+### Security
+
+- names are a UX convenience. The SafeTx always commits to the resolved address.
+- the transaction summary shows `name → 0x…`
+- re-resolve immediately before signing or approving, and warn if the result changed since input
+
+### Reverse resolution (display only)
+
+- WNS: `reverseResolve(address)`, which already verifies the forward record
+- ENS: reverse record plus an explicit forward check; show the name only if it resolves back to the same address
+
+Used for owner lists and the connected wallet. Never used as input to transaction construction.
+
+---
+
+## 26. Post-MVP — MultiSend
+
+Required before Safe Apps: most apps submit batches (for example approve + swap).
+
+- use only the canonical `MultiSendCallOnly` (v1.4.1) address from §17
+- the outer Safe transaction is a DELEGATECALL to that address. Display it as "Batch of N calls", not as a dangerous delegatecall, and only for that exact address.
+- decode and display every inner call (to, value, data, decoded action) with the same warnings as single calls
+- `MultiSendCallOnly` rejects nested delegatecalls by design; never use the plain `MultiSend` contract
+
+---
+
+## 27. Post-MVP — Safe Apps
+
+Open a user-entered URL as a Safe App: a full-screen iframe below a fixed top bar that shows safe.wei identity, connected wallet, Safe address, chain, the app URL, and pending requests.
+
+### 27.1 Compatibility spike (do this first)
+
+Risks that may make most apps unusable:
+
+- wagmi's `safe()` connector and many Safe Apps SDK integrations only accept `app.safe.global` / `gnosis-safe.io` as the parent origin by default. Apps configured this way will not detect safe.wei as their host.
+- apps may send `frame-ancestors` / `X-Frame-Options` headers that forbid embedding
+- the ERC-8244 gateway may serve `html()` with a CSP that blocks iframes
+
+Test at least CowSwap, Uniswap, Aave, Lido and Morpho, through an actual ERC-8244 gateway and through localhost. Record which work in `docs/safe-apps.md`. Continue only if the result justifies the byte cost.
+
+### 27.2 Protocol surface
+
+Implement the Safe Apps SDK `postMessage` protocol, minimally:
+
+- `getSafeInfo`, `getChainInfo`, `getEnvironmentInfo`
+- `getSafeBalances`, served from §24
+- `rpcCall`, forwarded to the wallet provider ONLY for an allow-list of read methods (`eth_call`, `eth_getBalance`, `eth_getCode`, `eth_getStorageAt`, `eth_blockNumber`, `eth_getBlockByNumber`, `eth_getTransactionReceipt`, `eth_getTransactionByHash`, `eth_getLogs`, `eth_estimateGas`, `eth_chainId`). Reject everything else.
+- `sendTransactions`: a single tx or a MultiSend batch (§26), fed into the normal review flow. Returns the SafeTx hash.
+- `getTxBySafeTxHash`: answered from local state plus onchain state (approvals, nonce, `ExecutionSuccess`)
+- reject `signMessage` and `signTypedMessage` in v1
+
+### 27.3 Security
+
+- accept messages only from the iframe's `contentWindow`. Reply only to the app's exact origin, never `*`.
+- `sandbox="allow-scripts allow-same-origin allow-forms allow-popups"` and nothing more
+- transaction review happens in the parent with the iframe hidden, so the app cannot overlay or imitate it
+- the review shows the requesting app's origin
+- the iframe never covers the top bar
+
+---
+
+## 28. Future work
 
 Only after MVP:
 
 - compact QR signature exchange
-- URL-fragment transaction/signature sharing
-- MultiSend
 - owner management UI
 - threshold management UI
 - module management
 - custom RPC selector
-- broader chain support
-- minimal transaction simulation using `eth_call`
+- broader chain support (ENS, WNS and TokenList live on mainnet; using them from other chains needs an L1 read path, which conflicts with the wallet-RPC-only rule)
 - hardware-wallet-specific UX
-- ENS / `.wei` address display
 - ERC-5219 compatibility if useful
 - alternate fully onchain compression/storage techniques
 
 ---
 
-## 25. Final guiding principle
+## 29. Final guiding principle
 
 If there is a choice between:
 
