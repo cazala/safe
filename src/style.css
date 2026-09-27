@@ -54,16 +54,6 @@ label { display: block; margin: 8px 0 2px; color: var(--mut); font-size: 13px; }
 p.danger { font-size: 16px; border: 2px solid var(--bad); }
 label.check { display: flex; gap: 8px; align-items: flex-start; color: var(--fg); }
 label.check input { width: auto; margin-top: 3px; }
-#appv { display: none; }
-body.appmode > header, body.appmode > main { display: none; }
-body.appmode #appv { display: flex; flex-direction: column; position: fixed; inset: 0; background: var(--bg); }
-.bar { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 6px 12px; border-bottom: 2px solid var(--fg); font-size: 13px; }
-.bar .url { flex-basis: 100%; font-size: 12px; color: var(--mut); }
-.bar button { margin-left: auto; padding: 4px 10px; }
-#appv iframe { flex: 1; width: 100%; border: 0; background: #fff; }
-#appv .panel { display: none; overflow: auto; padding: 12px 16px 48px; max-width: 820px; width: 100%; box-sizing: border-box; margin: 0 auto; }
-#appv.review iframe { display: none; }
-#appv.review .panel { display: block; }
 @media (max-width: 600px) {
   body { padding: 8px 12px 48px; }
   input, textarea, select { font-size: 16px; }
@@ -72,5 +62,4 @@ body.appmode #appv { display: flex; flex-direction: column; position: fixed; ins
   .kv th { padding-right: 8px; }
   .row { flex-wrap: wrap; }
   .row > button { flex: 1; }
-  .bar { gap: 4px 8px; padding: 6px 8px; }
 }

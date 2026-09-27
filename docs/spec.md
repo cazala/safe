@@ -203,7 +203,7 @@ Target Safe version for creation:
 
 Use canonical Safe singleton/proxy factory deployments for supported chains.
 
-Always set the canonical `CompatibilityFallbackHandler` in `setup(...)`, matching Safes created by Safe Wallet. It is required for EIP-1271 and expected by Safe Apps.
+Always set the canonical `CompatibilityFallbackHandler` in `setup(...)`, matching Safes created by Safe Wallet. It is required for EIP-1271.
 
 Predict the Safe address by simulating `createProxyWithNonce(...)` with `eth_call` rather than shipping proxy creation bytecode and CREATE2 code. After deployment, confirm the deployed address equals the prediction.
 
@@ -828,8 +828,6 @@ Exceptions:
 - the SVG namespace string `http://www.w3.org/2000/svg` (allow-list it exactly, or check only fetchable contexts: `src=`, `href=`, `url(`, `import`, `fetch(`)
 - plain text links inside documentation/UI are okay only if they are not fetched as dependencies
 
-The only runtime-loaded remote content permitted is a Safe App URL explicitly entered by the user (§27). It is rendered in a sandboxed iframe and never executes in the parent document.
-
 Prefer zero external links in the deployed document itself.
 
 ### Wallet events
@@ -952,7 +950,6 @@ Required tests:
 - names with non-`[a-z0-9-]` labels are rejected
 - CCIP-read (`OffchainLookup`) names are reported as unsupported, never silently resolved
 - MultiSend encoding round trip; each inner call decoded
-- Safe Apps `rpcCall` rejects non-allow-listed methods
 
 ### Build
 
@@ -1149,9 +1146,9 @@ Implement §25.
 
 Implement §26.
 
-### Phase 13 — Safe Apps
+### Phase 13 — Safe Apps (dropped)
 
-Spike first (§27.1). Only implement if the spike shows enough apps work.
+Built, spiked, and removed: no major app accepts a non-Safe host (§27).
 
 Each post-MVP phase ships as a new immutable deployment and a `safe.wei` update.
 
@@ -1172,7 +1169,7 @@ Do NOT implement:
 - ENS CCIP-read / offchain names
 - bundled ENSIP-15 normalization library
 - WalletConnect SDK
-- Safe Apps message signing (`signMessage`, `signTypedMessage`)
+- Safe Apps (§27)
 - module marketplace
 - guard marketplace
 - Zodiac UI
@@ -1313,7 +1310,7 @@ Used for owner lists and the connected wallet. Never used as input to transactio
 
 ## 26. Post-MVP — MultiSend
 
-Required before Safe Apps: most apps submit batches (for example approve + swap).
+Batches let one Safe transaction do several things atomically (for example approve + swap, or many token transfers).
 
 - use only the canonical `MultiSendCallOnly` (v1.4.1) address from §17
 - the outer Safe transaction is a DELEGATECALL to that address. Display it as "Batch of N calls", not as a dangerous delegatecall, and only for that exact address.
@@ -1322,40 +1319,11 @@ Required before Safe Apps: most apps submit batches (for example approve + swap)
 
 ---
 
-## 27. Post-MVP — Safe Apps
+## 27. Safe Apps — dropped
 
-Open a user-entered URL as a Safe App: a full-screen iframe below a fixed top bar that shows safe.wei identity, connected wallet, Safe address, chain, the app URL, and pending requests.
+A Safe Apps host was built and tested (Phase 13), then removed. The compatibility spike (docs/safe-apps.md) found that none of the major apps work outside `app.safe.global`: some forbid framing, the rest ignore replies from any other parent origin. A feature that works with no real app is not worth its bytes or its attack surface.
 
-### 27.1 Compatibility spike (do this first)
-
-Results: docs/safe-apps.md.
-
-Risks that may make most apps unusable:
-
-- wagmi's `safe()` connector and many Safe Apps SDK integrations only accept `app.safe.global` / `gnosis-safe.io` as the parent origin by default. Apps configured this way will not detect safe.wei as their host.
-- apps may send `frame-ancestors` / `X-Frame-Options` headers that forbid embedding
-- the ERC-8244 gateway may serve `html()` with a CSP that blocks iframes
-
-Test at least CowSwap, Uniswap, Aave, Lido and Morpho, through an actual ERC-8244 gateway and through localhost. Record which work in `docs/safe-apps.md`. Continue only if the result justifies the byte cost.
-
-### 27.2 Protocol surface
-
-Implement the Safe Apps SDK `postMessage` protocol, minimally:
-
-- `getSafeInfo`, `getChainInfo`, `getEnvironmentInfo`
-- `getSafeBalances`, served from §24
-- `rpcCall`, forwarded to the wallet provider ONLY for an allow-list of read methods (`eth_call`, `eth_getBalance`, `eth_getCode`, `eth_getStorageAt`, `eth_blockNumber`, `eth_getBlockByNumber`, `eth_getBlockByHash`, `eth_getTransactionReceipt`, `eth_getTransactionByHash`, `eth_getTransactionCount`, `eth_getLogs`, `eth_estimateGas`, `eth_gasPrice`, `eth_chainId`). `safe_setSettings` is acknowledged without effect. Reject everything else.
-- `sendTransactions`: a single tx or a MultiSend batch (§26), fed into the normal review flow. Returns the SafeTx hash.
-- `getTxBySafeTxHash`: answered from local state plus onchain state (approvals, nonce, `ExecutionSuccess`)
-- reject `signMessage` and `signTypedMessage` in v1
-
-### 27.3 Security
-
-- accept messages only from the iframe's `contentWindow`. Reply only to the app's exact origin, never `*`.
-- `sandbox="allow-scripts allow-same-origin allow-forms allow-popups"` and nothing more
-- transaction review happens in the parent with the iframe hidden, so the app cannot overlay or imitate it
-- the review shows the requesting app's origin
-- the iframe never covers the top bar
+Raw calldata, batches and the share link remain the way to act on any protocol.
 
 ---
 

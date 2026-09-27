@@ -1,6 +1,6 @@
 # Safe Apps compatibility (spec §27.1)
 
-safe.wei can host a Safe App: a user-entered URL in a sandboxed full-screen iframe under a fixed top bar. It answers the Safe Apps SDK `postMessage` protocol (`src/apps.js`). Tested 2026-09-27.
+**Status: removed.** A Safe Apps host (sandboxed iframe + SDK `postMessage` protocol) was built in Phase 13 (PR #15) and removed because no major app works with it. This page records why. The implementation is in git history (`src/apps.js` at commit 6c89860). Tested 2026-09-27.
 
 ## Protocol check with the real SDK
 
@@ -34,9 +34,9 @@ Gateways: neither `*.wei.limo` nor `*.w4eth.io` sends a CSP or `X-Frame-Options`
 
 None of the five major apps work today. They are pinned to Safe's own origin, either by frame headers or by SDK origin checks, and nothing on the safe.wei side can change that. The host works for any app that uses the SDK with default settings (or wagmi's `safe()` connector without `allowedDomains`), including self-hosted and internal tools.
 
-It is shipped because it is small (about 7 KB of the 51 KB page) and fully isolated: the app never gets signing access, and every proposed transaction goes through the normal review. Removing it would mean dropping `src/apps.js` and the Safe Apps section in `src/app.js`.
+Decision: removed. It worked only for apps nobody uses in practice, and it added about 7 KB plus an iframe/message attack surface.
 
-## Security properties
+## Security properties of the removed host
 
 - Messages are accepted only from the iframe's `contentWindow` and exact origin; replies go only to that origin.
 - `sandbox="allow-scripts allow-same-origin allow-forms allow-popups"`, `referrerpolicy="no-referrer"`.

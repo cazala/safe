@@ -1,5 +1,5 @@
 // safe.wei — app shell, routing and views.
-import { cd, checksum, fmt, isAddr, isHex, parse, strip } from './abi.js';
+import { cd, fmt, isAddr, isHex, parse, strip } from './abi.js';
 import { CHAINS } from './chains.js';
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review } from './review.js';
@@ -12,8 +12,6 @@ import { balances, listed, meta, save, saved } from './tokens.js';
 import { S } from './sel.js';
 import { nameOf, resolveName } from './names.js';
 import { batch } from './multisend.js';
-import { appURL, handle, SDK_VERSION } from './apps.js';
-import { T } from './sel.js';
 import { $, act, addr, bad, h, kv, put, short, warn } from './ui.js';
 
 const st = { account: null, chainId: null, safe: null, tokens: {}, named: {}, batch: [], batchNames: {} };
@@ -362,7 +360,7 @@ async function showReview(tx, sigs = []) {
   st.sigs = c.valid.map((x) => x.sig); // only valid signatures are kept and re-shared
   st.rejected = c.rejected;
   // Keep the transaction in the URL so a reload returns to this review (no hashchange fires).
-  if (r.ok && !app) history.replaceState(null, '', '#' + fragment(tx, sigs));
+  if (r.ok) history.replaceState(null, '', '#' + fragment(tx, sigs));
   put(rv, txView(r), r.ok ? [actionsView(r), shareView(r)] : bad('All actions are disabled until the errors above are resolved.'));
   rv.scrollIntoView({ behavior: 'smooth' });
 }
@@ -388,15 +386,9 @@ function actionsView(r) {
       st.safe = await readSafe(s.address);
       await showReview(t, st.sigs);
       rv.append(h('p.ok', msg + ' ', h('code', rc.transactionHash)));
-      appDone(r.local);
     };
     const executed = async (rc) => {
       if (r.batch) (st.batch = []), (st.batchNames = {});
-      if (app) {
-        app.executed[r.local] = rc.transactionHash;
-        st.safe = await readSafe(s.address);
-        if (appDone(r.local, true)) return;
-      }
       history.replaceState(null, '', '#/' + s.address);
       await route();
       main.prepend(h('p.ok', '✓ Executed nonce ' + t.nonce + ' in ', h('code', rc.transactionHash)));
@@ -422,7 +414,7 @@ function actionsView(r) {
       h(
         'div.actions',
         owner && !mine && button('Approve onchain', () => recheck().then(() => approve(t, me, publish.checked ? compact(t) : '0x')).then(done('Approved.')), out),
-        owner && !mine && button('Sign offchain', async () => (await recheck(), await showReview(t, [...st.sigs, await sign(t, me)]), appDone(r.local)), out),
+        owner && !mine && button('Sign offchain', async () => (await recheck(), showReview(t, [...st.sigs, await sign(t, me)])), out),
         me && ready && current && button(owner && !mine ? 'Approve and execute' : 'Execute', () => recheck().then(() => execute(t, me, st.sigs)).then(executed), out, '.primary'),
         button('Refresh', () => showReview(t, st.sigs), out),
       ),
@@ -545,166 +537,12 @@ function txView(r) {
   );
 }
 
-// ---- Safe Apps ----
-const appv = $('appv');
-let app = null;
-
-function appsView(s) {
-  const input = h('input', { placeholder: 'App URL, e.g. swap.cow.fi', spellcheck: 'false' });
-  const out = h('div');
-  const open = button('Open app', async () => (location.hash = '/' + s.address + '/app/' + encodeURIComponent(appURL(input.value).href)), out);
-  input.onkeydown = (e) => e.key === 'Enter' && open.click();
-  return h(
-    'section',
-    h('h2', 'Safe Apps'),
-    h(
-      'p.mut',
-      'Load a Safe App in a sandboxed frame. It can read chain data through your wallet but never sign: every transaction it proposes is reviewed here first. Apps that only allow app.safe.global to embed them will not load.',
-    ),
-    h('div.row', input, open),
-    out,
-  );
-}
-
-function openApp(s, href) {
-  const u = appURL(href);
-  closeApp();
-  const frame = h('iframe', { src: u.href, sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups', allow: 'clipboard-write', referrerpolicy: 'no-referrer', title: 'Safe App' });
-  const pend = h('button.link'), head = h('div.card');
-  app = { origin: u.origin, frame, pend, head, reqs: [], cur: null, known: {}, executed: {} };
-  put(
-    appv,
-    h(
-      'div.bar',
-      h('b', 'safe.wei'),
-      h('span', { title: s.address }, 'Safe ', h('code', short(s.address))),
-      h('span', chain().name),
-      h('span', { title: st.account || '' }, st.account ? ['wallet ', h('code', short(st.account))] : h('b.bad', 'no wallet')),
-      pend,
-      h('button', { onclick: () => (location.hash = '/' + s.address) }, 'Close app'),
-      h('span.url', 'App ', h('code', u.href)),
-    ),
-    frame,
-    h('div.panel', head, rv),
-  );
-  document.body.classList.add('appmode');
-  pending();
-}
-
-function closeApp() {
-  if (!app) return;
-  for (const q of [app.cur, ...app.reqs]) q && q.reject(Error('The Safe App was closed.'));
-  app = null;
-  put(appv);
-  appv.classList.remove('review');
-  document.body.classList.remove('appmode');
-}
-
-/** Update the pending-request indicator in the app bar. */
-function pending() {
-  const n = app.reqs.length + (app.cur ? 1 : 0);
-  put(app.pend, n ? n + ' pending request' + (n > 1 ? 's' : '') + ': review' : '');
-  app.pend.onclick = () => nextReq();
-}
-
-async function nextReq() {
-  if (!app.cur) app.cur = app.reqs.shift();
-  const q = app.cur;
-  if (!q) return appv.classList.remove('review'), pending();
-  appv.classList.add('review');
-  put(
-    app.head,
-    h('b', 'Transaction request from ', h('code', app.origin)),
-    h('p.mut', 'The app is hidden while you review. Approving, signing or executing returns the SafeTx hash to the app.'),
-    h(
-      'div.actions',
-      h('button', { onclick: () => (q.reject(Error('Transaction was rejected')), (app.cur = null), nextReq()) }, 'Reject'),
-      h('button', { onclick: () => (appv.classList.remove('review'), pending()) }, 'Back to app'),
-    ),
-  );
-  pending();
-  st.named = {};
-  await showReview(q.tx);
-}
-
-/** The user acted on `hash`: answer the app. `back` returns to the app view. */
-function appDone(hash, back) {
-  const q = app && app.cur;
-  if (!q || q.hash !== hash) return false;
-  q.resolve(hash);
-  app.cur = null;
-  put(app.head, h('p.ok', '✓ Sent the SafeTx hash to the app.'), h('div.actions', h('button.primary', { onclick: () => nextReq() }, 'Back to app')));
-  if (back) nextReq();
-  pending();
-  return true;
-}
-
-async function appBalances() {
-  const s = st.safe, tokens = Object.values(st.tokens), bal = await balances(s.address, tokens);
-  const item = (type, address, decimals, symbol, name, b) => ({ tokenInfo: { type, address, decimals, symbol, name, logoUri: '' }, balance: String(b), fiatBalance: '0', fiatConversion: '0' });
-  return {
-    fiatTotal: '0',
-    items: [
-      item('NATIVE_TOKEN', '0x' + '0'.repeat(40), 18, chain().sym, 'Ether', (await readSafe(s.address)).balance),
-      ...tokens.map((t, i) => bal[i] && item('ERC20', checksum(t.address), t.decimals, t.symbol, t.symbol, bal[i])).filter(Boolean),
-    ],
-  };
-}
-
-async function txStatus(hash) {
-  const t = app.known[hash];
-  if (!t) throw Error('Unknown safeTxHash.');
-  const base = { txId: hash, safeTxHash: hash, safeAddress: checksum(t.safe) };
-  if (app.executed[hash]) return { ...base, txStatus: 'SUCCESS', txHash: app.executed[hash], executedAt: Date.now() };
-  const s = await readSafe(t.safe);
-  if (s.nonce > t.nonce) {
-    // Executed elsewhere? Look for ExecutionSuccess with this hash in recent blocks.
-    const head = Number(await rpc.rpc('eth_blockNumber'));
-    const logs = await rpc
-      .rpc('eth_getLogs', [{ address: t.safe, topics: [T.ExecutionSuccess], fromBlock: '0x' + Math.max(0, head - 2000).toString(16), toBlock: 'latest' }])
-      .catch(() => []);
-    const l = logs.find((l) => l.topics[1] === hash || strip(l.data).startsWith(strip(hash)));
-    return l ? { ...base, txStatus: 'SUCCESS', txHash: l.transactionHash } : { ...base, txStatus: 'CANCELLED' };
-  }
-  const { sigs } = await collect(s, hash, null, []);
-  return { ...base, txStatus: BigInt(sigs.length) >= s.threshold ? 'AWAITING_EXECUTION' : 'AWAITING_CONFIRMATIONS' };
-}
-
-window.addEventListener('message', async (e) => {
-  const a = app;
-  if (!a || e.source !== a.frame.contentWindow || e.origin !== a.origin) return;
-  const d = e.data;
-  if (!d || typeof d.id !== 'string' || typeof d.method !== 'string') return;
-  const reply = (m) => a.frame.contentWindow && a.frame.contentWindow.postMessage({ id: d.id, version: SDK_VERSION, ...m }, a.origin);
-  try {
-    const data = await handle(d.method, d.params, {
-      safe: st.safe,
-      account: st.account,
-      origin: location.origin,
-      rpc: rpc.rpc,
-      balances: appBalances,
-      txStatus,
-      propose: (tx, hash) =>
-        new Promise((resolve, reject) => {
-          a.known[hash] = tx;
-          a.reqs.push({ tx, hash, resolve, reject });
-          if (!a.cur) nextReq();
-          else pending();
-        }),
-    });
-    reply({ success: true, data });
-  } catch (err) {
-    reply({ success: false, error: (err && err.message) || String(err) });
-  }
-});
-
 // ---- routing ----
 let seq = 0;
 async function route() {
   const n = ++seq;
   const path = location.hash.slice(1);
-  let m = /^\/(0x[0-9a-fA-F]{40})(?:\/app\/(.+))?$/.exec(path), p;
-  if (!(m && m[2])) closeApp();
+  let m = /^\/(0x[0-9a-fA-F]{40})$/.exec(path), p;
   try {
     if (path.startsWith('tx=')) m = [0, (p = importPayload(path)).tx.safe];
     if (path === '/new') return put(main, chain() ? createView() : bad('Connect a wallet on a supported chain.'));
@@ -716,9 +554,8 @@ async function route() {
     st.safe = s;
     rv.replaceChildren();
     if (!st.batch.length || st.batchSafe !== s.address) (st.batch = []), (st.batchNames = {}), (st.batchSafe = s.address);
-    main.replaceChildren(...safeView(s), rv, assetsView(s), bq, pendingView(s), appsView(s), builder(s), h('section', importer()));
+    main.replaceChildren(...safeView(s), rv, assetsView(s), bq, pendingView(s), builder(s), h('section', importer()));
     renderBatch();
-    if (m[2]) openApp(s, decodeURIComponent(m[2]));
     if (p) await showReview(p.tx, p.sigs);
   } catch (e) {
     if (n === seq) put(main, bad(e.message), home());
