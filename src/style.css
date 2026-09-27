@@ -127,3 +127,16 @@ select { appearance: none; -webkit-appearance: none; padding-right: 36px; backgr
 details.err { display: inline; border: 0; margin: 0; }
 details.err summary { display: inline-flex; padding: 0 0 0 8px; font-size: 12px; color: var(--mut); }
 details.err code { display: block; margin-top: 4px; font-size: 11px; color: var(--mut); }
+.form.wide { max-width: 720px; }
+details.method { border: 1px solid var(--line); border-radius: 6px; margin: 8px 0; padding: 0 12px; }
+details.method[open] { padding-bottom: 12px; }
+details.method > summary { font-family: ui-monospace, Menlo, monospace; font-size: 14px; }
+details.method .chip { margin-left: 8px; }
+.sig { font-family: ui-monospace, Menlo, monospace; font-size: 12px; margin-bottom: 4px; overflow-wrap: anywhere; }
+.param { margin-top: 6px; }
+.param .row > select.unit { width: auto; flex: none; }
+.param .row > input.dec { width: 90px; flex: none; }
+.helpers { display: flex; gap: 12px; }
+.helpers:empty { display: none; }
+.small { font-size: 12px; }
+.small:empty { display: none; }
