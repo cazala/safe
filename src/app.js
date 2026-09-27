@@ -69,7 +69,9 @@ function home() {
   const input = h('input', { placeholder: 'Safe address 0x… or name.eth / name.wei', id: 'safeIn', spellcheck: 'false' });
   const out = h('div');
   const open = button('Open', async () => (location.hash = '/' + (await target(input.value))), out);
-  input.onkeydown = (e) => e.key === 'Enter' && open.click();
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') open.click(); // never return false here: that would cancel every keystroke
+  };
   return [
     h('section', h('h2', 'Open Safe'), h('div.row', input, open), out),
     h('section', h('h2', 'Create Safe'), h('p.mut', 'Deploy a new Safe v1.4.1 from the canonical proxy factory.'), h('button', { onclick: () => (location.hash = '/new') }, 'Create Safe')),
