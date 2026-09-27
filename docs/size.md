@@ -5,6 +5,7 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | Phase | raw | gzip | js | css | notes |
 | --- | --- | --- | --- | --- | --- |
 | 0 spike | 4,186 | 2,408 | 3,389 | 475 | keccak + ABI helpers + Safe reads |
+| 1 read-only | 8,864 | 4,491 | 6,448 | 2,085 | UI shell, routing, Safe view, dark mode |
 
 ## Major contributors
 
