@@ -21,6 +21,7 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | wallet picker | 50,904 | 19,928 | 47,502 | 3,047 | EIP-6963 discovery, connect/switch/disconnect, chevrons |
 | wallet dropdown | 51,710 | 20,218 | 47,841 | 3,469 | account dropdown (switch / disconnect), dedupe injected wallet |
 | any chain | 53,698 | 20,959 | 49,465 | 3,857 | runtime contract probing, popover, chain labels |
+| tabs + builder | 74,212 | 27,773 | 64,938 | 8,266 | Safe page tabs, ABI encoder + transaction builder |
 
 ## Major contributors
 

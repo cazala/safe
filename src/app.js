@@ -1,5 +1,5 @@
 // safe.wei — app shell, routing and views.
-import { cd, fmt, isAddr, isHex, parse, strip } from './abi.js';
+import { cd, fmt, hex, isAddr, isHex, keccakText, parse, strip, utf8 } from './abi.js';
 import { chainInfo, label } from './chains.js';
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review } from './review.js';
@@ -13,6 +13,7 @@ import { S } from './sel.js';
 import { nameOf, resolveName } from './names.js';
 import { batch } from './multisend.js';
 import { parseCSV, toCSV } from './csv.js';
+import { canonical, encodeCall, parseAbi, parseValue } from './abicoder.js';
 import { $, act, addr, bad, h, kv, put, short, warn } from './ui.js';
 import { discover, get, list, remember, remembered } from './wallets.js';
 
@@ -592,9 +593,225 @@ const callLabel = (x) => {
 };
 
 
+// ---- transaction builder (Custom tab), in the spirit of Etherscan's "Write Contract" ----
+const SAFE_ABI = [
+  'addOwnerWithThreshold(address owner, uint256 _threshold)',
+  'removeOwner(address prevOwner, address owner, uint256 _threshold)',
+  'swapOwner(address prevOwner, address oldOwner, address newOwner)',
+  'changeThreshold(uint256 _threshold)',
+  'enableModule(address module)',
+  'disableModule(address prevModule, address module)',
+  'setGuard(address guard)',
+  'setFallbackHandler(address handler)',
+];
+const KNOWN_ABIS = {
+  erc20: ['ERC-20 token', 'transfer(address to, uint256 amount)\napprove(address spender, uint256 amount)\ntransferFrom(address from, address to, uint256 amount)'],
+  erc721: ['ERC-721 NFT', 'transferFrom(address from, address to, uint256 tokenId)\nsafeTransferFrom(address from, address to, uint256 tokenId)\napprove(address to, uint256 tokenId)\nsetApprovalForAll(address operator, bool approved)'],
+  erc1155: ['ERC-1155', 'safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes data)\nsafeBatchTransferFrom(address from, address to, uint256[] ids, uint256[] amounts, bytes data)\nsetApprovalForAll(address operator, bool approved)'],
+  weth: ['WETH (wrapped native)', 'deposit() payable\nwithdraw(uint256 wad)'],
+  safe: ['This Safe (owners, threshold, modules)', SAFE_ABI.join('\n')],
+};
+const abiKey = (addr) => 'safe.wei:abi:' + st.chainId + ':' + addr;
+const loadAbi = (addr) => {
+  try {
+    return localStorage.getItem(abiKey(addr));
+  } catch {
+    return null;
+  }
+};
+const storeAbi = (addr, text) => {
+  try {
+    localStorage.setItem(abiKey(addr), text);
+  } catch {}
+};
+/** What the builder encoded, so the review can show it (clearly marked as coming from the user's ABI). */
+st.notes = {};
+const noteView = (data) => {
+  const n = st.notes[strip(data).toLowerCase()];
+  return n && [h('b', n.sig), h('div.mut', 'Encoded here from the ABI you provided; safe.wei did not decode this independently.'), kv(n.args)];
+};
+
 function builder(s) {
+  const mode = h('select', Object.entries(KNOWN_ABIS).map(([k, [name]]) => h('option', { value: k }, name)), h('option', { value: 'paste' }, 'Paste or upload an ABI…'), h('option', { value: 'raw' }, 'Raw calldata (no ABI)'));
+  const to = h('input', { placeholder: 'Contract address 0x… or name.eth / name.wei', spellcheck: 'false' });
+  const abiText = h('textarea', { placeholder: 'JSON ABI (or a Hardhat/Foundry artifact), or one signature per line:\nfunction stake(uint256 amount, address to)', spellcheck: 'false', rows: 5 });
+  const file = h('input', { type: 'file', accept: '.json,application/json' });
+  const pasteBox = h('div', abiText, h('label', 'Or upload a .json file'), file);
+  const methods = h('div'), out = h('div');
+  let contract = null;
+
+  const pickDefault = (addr) => {
+    if (addr === s.address) mode.value = 'safe';
+    else if (loadAbi(addr)) (mode.value = 'paste'), (abiText.value = loadAbi(addr));
+    else if (tokenOf(addr)) mode.value = 'erc20';
+  };
+  const render = async () => {
+    put(out);
+    put(methods);
+    pasteBox.hidden = mode.value !== 'paste';
+    if (mode.value === 'raw') return put(methods, rawBuilder(s, contract));
+    if (!contract) return put(methods, h('p.mut', 'Enter the contract to interact with.'));
+    const text = mode.value === 'paste' ? abiText.value : KNOWN_ABIS[mode.value][1];
+    if (!text.trim()) return put(methods, h('p.mut', 'Paste an ABI or upload a .json file to list the contract’s methods.'));
+    let fns;
+    try {
+      fns = parseAbi(text).filter((f) => f.write);
+    } catch (e) {
+      return put(methods, bad('ABI: ' + e.message));
+    }
+    if (mode.value === 'paste') storeAbi(contract, text);
+    if (!fns.length) return put(methods, h('p.mut', 'This ABI has no write methods.'));
+    const code = await rpc.rpc('eth_getCode', [contract, 'latest']).catch(() => '0x');
+    put(
+      methods,
+      code === '0x' && warn('There is no contract at this address on ' + chain().name + '.'),
+      h('p.mut', fns.length + ' write method' + (fns.length > 1 ? 's' : '') + '. Open one to fill in its parameters.'),
+      fns.map((f, i) => methodCard(s, contract, f, i + 1)),
+    );
+  };
+  to.onchange = async () => {
+    put(out);
+    try {
+      st.named = {};
+      await loadBalances(s).catch(() => {}); // token metadata, for decimals-aware amount inputs
+      contract = to.value.trim() ? await target(to.value) : null;
+      if (contract) pickDefault(contract);
+    } catch (e) {
+      contract = null;
+      put(out, bad(e.message));
+    }
+    render();
+  };
+  mode.onchange = render;
+  abiText.oninput = () => clearTimeout(abiText.t) || (abiText.t = setTimeout(render, 300));
+  file.onchange = async () => {
+    const f = file.files[0];
+    if (f) (abiText.value = await f.text()), render();
+  };
+  render();
+  return h(
+    'div.form.wide',
+    h('p.mut', 'Build calls to any contract from its ABI, then review them or add several to a batch. The ABI is only used here to encode calldata; nothing is fetched.'),
+    h('label', 'Contract'),
+    to,
+    out,
+    h('label', 'ABI'),
+    mode,
+    pasteBox,
+    methods,
+  );
+}
+
+function methodCard(s, contract, f, n) {
+  const fields = f.inputs.map((p) => paramField(s, contract, f, p));
+  const value = f.payable && h('input', { placeholder: '0', inputmode: 'decimal' });
+  const out = h('div'), preview = h('div');
+  const read = async () => {
+    st.named = {};
+    const vals = [];
+    for (const x of fields) vals.push(await x.read());
+    const data = encodeCall(f, vals);
+    st.notes[strip(data)] = {
+      sig: f.name + '(' + f.inputs.map((p) => canonical(p) + ' ' + p.name).join(', ') + ')',
+      args: f.inputs.map((p, i) => [p.name, show(p, vals[i])]),
+    };
+    put(preview, h('div.mut', 'Calldata · ' + (data.length - 2) / 2 + ' bytes'), h('code.mono', data));
+    return { to: contract, value: value ? parse(value.value || '0', 18) : 0n, data };
+  };
+  return h(
+    'details.method',
+    h('summary', n + '. ' + f.name, f.payable && chip('payable')),
+    h('div.mut.sig', f.sig),
+    fields.map((x) => x.el),
+    value && [h('label', 'Value (' + chain().sym + ')'), value],
+    h(
+      'div.actions',
+      chain().canBatch && button('Add to batch', async () => queue(await read()), out, '.primary'),
+      button('Review', async () => showReview(newTx(s, await read())), out, chain().canBatch ? '' : '.primary'),
+      button('Show calldata', read, out),
+    ),
+    out,
+    preview,
+  );
+}
+
+const show = (p, v) => (Array.isArray(v) ? JSON.stringify(v, (_, x) => (typeof x === 'bigint' ? x.toString() : x)) : typeof v === 'bigint' ? v.toString() : String(v));
+
+/** One parameter input with helpers by type. Returns { el, read() → parsed value }. */
+function paramField(s, contract, f, p) {
+  const type = p.type, head = h('label', p.name, ' ', h('span.mut', type));
+  const input = /\[|tuple/.test(type) ? h('textarea', { rows: 2, spellcheck: 'false', placeholder: shape(p) }) : h('input', { spellcheck: 'false', placeholder: hint(type) });
+  const help = h('div.helpers'), note = h('div.mut.small');
+  let read = async () => parseValue(p, input.value);
+
+  if (type === 'address') {
+    read = async () => parseValue(p, await target(input.value));
+    // Safe owner lists are linked lists: fill prevOwner/prevModule from the owner being removed.
+    if (contract === s.address && /^prev(Owner|Module)$/.test(p.name)) {
+      help.append(h('button.link', { onclick: () => {
+        const other = f.inputs.findIndex((q) => /^(owner|oldOwner)$/.test(q.name));
+        const el = [...help.closest('details').querySelectorAll('input')][other];
+        const o = el && el.value.trim().toLowerCase(), i = s.owners.indexOf(o);
+        input.value = i < 0 ? '' : i === 0 ? '0x0000000000000000000000000000000000000001' : s.owners[i - 1];
+        put(note, i < 0 ? 'Enter the owner first; it must be a current owner.' : 'Previous entry in the owner list.');
+      } }, 'fill from owner list'));
+    }
+  } else if (/^u?int\d*$/.test(type)) {
+    // Etherscan-style "add zeros": type a decimal amount and pick the unit.
+    const tok = tokenOf(contract);
+    const unit = h('select.unit', [['0', '× 1 (raw)'], ['6', '× 10^6'], ['8', '× 10^8'], ['9', '× 10^9 (gwei)'], ['18', '× 10^18 (ether)']].map(([v, t]) => h('option', { value: v }, t)), h('option', { value: 'c' }, 'custom…'));
+    const custom = h('input.dec', { placeholder: 'decimals', inputmode: 'numeric', hidden: true });
+    if (tok && /amount|value|wad|qty/i.test(p.name)) {
+      if (![...unit.options].some((o) => o.value === String(tok.decimals))) unit.prepend(h('option', { value: String(tok.decimals) }, '× 10^' + tok.decimals + ' (' + tok.symbol + ')'));
+      unit.value = String(tok.decimals);
+    }
+    const dec = () => (unit.value === 'c' ? Number(custom.value || 0) : Number(unit.value));
+    read = async () => {
+      const v = input.value.trim();
+      return parseValue(p, dec() && !/^0x/i.test(v) ? parse(v, dec()).toString() : v);
+    };
+    const upd = () => {
+      custom.hidden = unit.value !== 'c';
+      input.placeholder = dec() ? '0.0 (decimal amount)' : type;
+      read().then((v) => put(note, dec() ? '= ' + v + ' (raw)' : ''), () => put(note));
+    };
+    input.oninput = unit.onchange = custom.oninput = upd;
+    input.placeholder = dec() ? '0.0 (decimal amount)' : type;
+    const row = h('div.row', input, unit, custom);
+    if (type.startsWith('uint')) help.append(h('button.link', { onclick: () => ((unit.value = '0'), (input.value = String((1n << BigInt(/\d+/.exec(type) ? /\d+/.exec(type)[0] : 256)) - 1n)), upd()) }, 'max'));
+    return { el: h('div.param', head, row, help, note), read };
+  } else if (type === 'bool') {
+    const sel = h('select', h('option', 'false'), h('option', 'true'));
+    return { el: h('div.param', head, sel), read: async () => sel.value === 'true' };
+  } else if (/^bytes\d*$/.test(type)) {
+    const n = /\d+/.exec(type);
+    const text = () => input.value;
+    if (type === 'bytes32') help.append(h('button.link', { onclick: () => ((input.value = keccakText(text())), put(note, 'keccak256 of the text')) }, 'keccak256(text)'));
+    help.append(
+      h('button.link', { onclick: () => {
+        const b = strip(hex(utf8(text())));
+        if (n && b.length / 2 > Number(n[0])) return put(note, 'Text is longer than ' + n[0] + ' bytes.');
+        input.value = '0x' + (n ? b.padEnd(Number(n[0]) * 2, '0') : b);
+        put(note, 'UTF-8 text as hex');
+      } }, 'text → hex'),
+    );
+  }
+  return { el: h('div.param', head, input, help, note), read };
+}
+const hint = (t) => (t === 'address' ? '0x… or name.eth / name.wei' : t === 'string' ? 'text' : /^bytes\d+$/.test(t) ? '0x… (' + /\d+/.exec(t)[0] + ' bytes)' : t === 'bytes' ? '0x…' : t);
+function shape(p) {
+  const ex = (q) => {
+    const m = /^(.*)\[(\d*)\]$/.exec(q.type);
+    if (m) return '[' + ex({ ...q, type: m[1] }) + (m[2] === '' ? ', …' : '') + ']';
+    if (q.type === 'tuple') return '[' + q.components.map(ex).join(', ') + ']';
+    return q.type === 'address' ? '"0x…"' : q.type === 'bool' ? 'true' : /int/.test(q.type) ? '"1"' : '"…"';
+  };
+  return 'JSON, e.g. ' + ex(p);
+}
+
+function rawBuilder(s, contract) {
   const sym = chain().sym;
-  const to = h('input', { placeholder: '0x… or name.eth / name.wei', spellcheck: 'false' });
+  const to = h('input', { placeholder: '0x… or name.eth / name.wei', spellcheck: 'false', value: contract || null });
   const value = h('input', { placeholder: '0', inputmode: 'decimal' });
   const data = h('textarea', { placeholder: '0x (calldata, optional)', spellcheck: 'false' });
   const op = h('select', h('option', { value: 0 }, 'CALL'), h('option', { value: 1 }, 'DELEGATECALL (dangerous)'));
@@ -618,7 +835,6 @@ function builder(s) {
   );
   return h(
     'div.form',
-    h('p.mut', 'Any call from the Safe: a contract interaction with raw calldata, or a plain transfer. Known calls are decoded in the review.'),
     h('label', 'To'),
     to,
     h('label', 'Value (' + sym + ')'),
@@ -771,7 +987,7 @@ function batchView(r) {
         kv([
           ['To', named(c.to)],
           ['Value', fmt(c.value) + ' ' + chain().sym],
-          ['Action', c.decoded ? actionView(c.decoded, c) : c.data !== '0x' ? 'Unknown calldata' : c.value ? 'Native transfer' : 'Empty call'],
+          ['Action', c.decoded ? actionView(c.decoded, c) : c.data !== '0x' ? noteView(c.data) || 'Unknown calldata' : c.value ? 'Native transfer' : 'Empty call'],
           c.data !== '0x' && ['Data', h('code', c.data)],
         ]),
       ),
@@ -792,7 +1008,7 @@ function txView(r) {
       ['To', st.named[t.to] ? named(t.to) : [h('code', t.to), rev(t.to)]],
       ['Value', fmt(t.value) + ' ' + (c.sym || '') + ' (' + t.value + ' wei)'],
       ['Operation', t.operation ? (r.batch ? 'DELEGATECALL into MultiSendCallOnly (batch)' : h('b.bad', 'DELEGATECALL')) : 'CALL'],
-      ['Action', r.batch ? batchView(r) : r.decoded ? actionView(r.decoded, t) : len ? 'Unknown calldata (not decoded; check the raw data)' : t.value ? 'Native transfer' : 'Empty call'],
+      ['Action', r.batch ? batchView(r) : r.decoded ? actionView(r.decoded, t) : len ? noteView(t.data) || 'Unknown calldata (not decoded; check the raw data)' : t.value ? 'Native transfer' : 'Empty call'],
       ['Data', len ? [h('div', 'selector ', h('code', t.data.slice(0, 10)), ' · ' + len + ' bytes'), h('code.mono', t.data)] : 'none'],
       ['Gas fields', 'safeTxGas ' + t.safeTxGas + ' · baseGas ' + t.baseGas + ' · gasPrice ' + t.gasPrice + ' · gasToken ' + t.gasToken + ' · refundReceiver ' + t.refundReceiver],
       ['SafeTx hash', h('b', h('code', r.local))],
