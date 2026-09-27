@@ -3,3 +3,4 @@ dist/
 cache/
 out/
 .env
+deploy/local-*.json

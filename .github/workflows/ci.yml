@@ -19,3 +19,4 @@ jobs:
       - run: npm run test:fork
         env:
           ANVIL: anvil
+          FORGE: forge

@@ -25,3 +25,17 @@ node scripts/dev.mjs --anvil http://127.0.0.1:8545      # http://localhost:5173
 ```
 
 `FORK_URL` and `FORK_BLOCK` override the fork source (default: publicnode, pinned block).
+
+## Deploy
+
+See [docs/deploy.md](docs/deploy.md): deterministic CREATE2 deployment of the ERC-8244 contract, verification, gateway tests and pointing `safe.wei`.
+
+## Use it without a gateway
+
+```bash
+cast call <app> "html()(string)" --rpc-url <rpc> > safe.wei.html   # then serve it from localhost
+```
+
+## Deployments
+
+Not yet deployed to mainnet.
