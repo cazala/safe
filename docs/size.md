@@ -19,7 +19,7 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | Safe Apps removed | 44,431 | 17,484 | 41,604 | 2,496 | host dropped (docs/safe-apps.md); mobile layout kept |
 | bulk send + deeplinks | 48,566 | 19,111 | 45,739 | 2,496 | CSV bulk transfers, send/batch deeplinks, Safe by name |
 | wallet picker | 50,904 | 19,928 | 47,502 | 3,047 | EIP-6963 discovery, connect/switch/disconnect, chevrons |
-| wallet dropdown | 51,710 | 20,202 | 47,980 | 3,375 | account dropdown (switch / disconnect), dedupe injected wallet |
+| wallet dropdown | 51,710 | 20,218 | 47,841 | 3,469 | account dropdown (switch / disconnect), dedupe injected wallet |
 
 ## Major contributors
 
