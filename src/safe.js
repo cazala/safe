@@ -1,7 +1,7 @@
 // Safe protocol: state reads. Everything is read from the Safe contract itself.
-import { a, arr, B, cd, encode, keccakHex, str, strip, u, word, ZERO } from './abi.js';
+import { a, arr, B, cd, encode, isAddr, keccakHex, str, strip, u, word, ZERO } from './abi.js';
 import { VERSIONS } from './chains.js';
-import { call, chainId, rpc } from './rpc.js';
+import { call, chainId, rpc, send, wait } from './rpc.js';
 import { S, T } from './sel.js';
 
 // keccak256("guard_manager.guard.address") / keccak256("fallback_manager.handler.address")
@@ -91,3 +91,30 @@ export const approvedBy = async (s, hash) => {
 
 export const approveData = (hash, payload = '0x') => cd(S.approveHash, hash) + strip(payload);
 export const execData = (t, sigs) => cd(S.execTransaction, ...fields(t).slice(0, 9), B(sigs));
+
+// ---- creation (v1.4.1 only) ----
+
+/** Validate owners/threshold and build the proxy factory call. */
+export function createCall(c, owners, threshold, salt) {
+  owners = owners.map((o) => o.toLowerCase());
+  if (!owners.length) throw Error('Add at least one owner.');
+  for (const o of owners) if (!isAddr(o) || o === ZERO) throw Error('Invalid owner address: ' + o);
+  if (new Set(owners).size !== owners.length) throw Error('Duplicate owner address.');
+  threshold = BigInt(threshold);
+  if (threshold < 1n || threshold > BigInt(owners.length)) throw Error('Threshold must be between 1 and ' + owners.length + '.');
+  const init = cd(S.setup, owners, threshold, ZERO, B('0x'), c.fallback, ZERO, 0, ZERO);
+  return { to: c.factory, data: cd(S.createProxyWithNonce, c.singleton, B(init), salt), owners, threshold, salt };
+}
+
+/** Predicted Safe address: simulate createProxyWithNonce with eth_call. */
+export const predict = (k, from) => call(k.to, k.data, from).then((r) => a(r));
+
+/** Deploy and confirm the proxy landed at the predicted address with the requested setup. */
+export async function create(k, from) {
+  const at = await predict(k, from);
+  if ((await rpc('eth_getCode', [at, 'latest'])) !== '0x') throw Error('A contract already exists at ' + at + '. Choose another salt.');
+  await wait(await send(from, k.to, k.data));
+  const s = await readSafe(at);
+  if (s.owners.join() !== k.owners.join() || s.threshold !== k.threshold) throw Error('Deployed Safe at ' + at + ' does not match the requested owners/threshold.');
+  return s;
+}
