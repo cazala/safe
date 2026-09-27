@@ -10,9 +10,33 @@ import { payloadGas, scan } from './pending.js';
 import { decode } from './decode.js';
 import { balances, listed, meta, save, saved } from './tokens.js';
 import { S } from './sel.js';
+import { nameOf, resolveName } from './names.js';
 import { $, act, addr, bad, h, kv, put, short, warn } from './ui.js';
 
-const st = { account: null, chainId: null, safe: null, tokens: {} };
+const st = { account: null, chainId: null, safe: null, tokens: {}, named: {} };
+
+/** An address input: a 0x address, or a .eth / .wei name resolved onchain (remembered for display and re-checks). */
+async function target(v) {
+  v = v.trim();
+  if (isAddr(v)) return v.toLowerCase();
+  const addr = await resolveName(v, st.chainId);
+  st.named[addr] = v;
+  return addr;
+}
+/** Re-resolve every name used in the current transaction; refuse if any changed (spec §25). */
+async function recheck() {
+  for (const [addr, name] of Object.entries(st.named)) {
+    const now = await resolveName(name, st.chainId);
+    if (now !== addr) throw Error(name + ' now resolves to ' + now + ' instead of ' + addr + '. Rebuild the transaction.');
+  }
+}
+const named = (x) => (st.named[x] ? [h('b', st.named[x]), ' → ', h('code', x)] : h('code', x));
+/** Fill in a reverse name next to an address, for display only. */
+const rev = (x) => {
+  const el = h('span.mut');
+  nameOf(x, st.chainId).then((n) => n && put(el, ' ' + n), () => {});
+  return el;
+};
 const main = $('main');
 const chain = () => CHAINS[st.chainId];
 
@@ -37,18 +61,19 @@ $('connect').onclick = async () => {
 
 // ---- views ----
 function home() {
-  const input = h('input', { placeholder: 'Safe address 0x…', id: 'safeIn', spellcheck: 'false' });
-  const go = () => (isAddr(input.value.trim()) ? (location.hash = '/' + input.value.trim().toLowerCase()) : input.after(bad('Enter a 0x address (40 hex characters).')));
-  input.onkeydown = (e) => e.key === 'Enter' && go();
+  const input = h('input', { placeholder: 'Safe address 0x… or name.eth / name.wei', id: 'safeIn', spellcheck: 'false' });
+  const out = h('div');
+  const open = button('Open', async () => (location.hash = '/' + (await target(input.value))), out);
+  input.onkeydown = (e) => e.key === 'Enter' && open.click();
   return [
-    h('section', h('h2', 'Open Safe'), h('div.row', input, h('button', { onclick: go }, 'Open'))),
+    h('section', h('h2', 'Open Safe'), h('div.row', input, open), out),
     h('section', h('h2', 'Create Safe'), h('p.mut', 'Deploy a new Safe v1.4.1 from the canonical proxy factory.'), h('button', { onclick: () => (location.hash = '/new') }, 'Create Safe')),
   ];
 }
 
 function createView() {
   const c = chain();
-  const owners = h('textarea', { placeholder: 'One owner address per line', spellcheck: 'false' }, st.account || '');
+  const owners = h('textarea', { placeholder: 'One owner per line: 0x address or name.eth / name.wei', spellcheck: 'false' }, st.account || '');
   const threshold = h('input', { value: '1', inputmode: 'numeric' });
   const rand = crypto.getRandomValues(new Uint8Array(8)).reduce((n, b) => n * 256n + BigInt(b), 0n);
   const salt = h('input', { value: String(rand) });
@@ -60,11 +85,12 @@ function createView() {
       put(plan);
       if (!st.account) throw Error('Connect a wallet first.');
       if (!/^\d+$/.test(threshold.value.trim()) || !/^\d+$/.test(salt.value.trim())) throw Error('Threshold and salt must be whole numbers.');
-      const list = owners.value.split(/[\s,]+/).filter(Boolean);
+      const list = await Promise.all(owners.value.split(/[\s,]+/).filter(Boolean).map(target));
       const k = createCall(c, list, threshold.value.trim(), BigInt(salt.value.trim()));
       const at = await predict(k, st.account);
       const deploy = h('button.primary', 'Deploy Safe');
       deploy.onclick = act(deploy, async () => {
+        await recheck();
         const s = await create(k, st.account);
         location.hash = '/' + s.address;
       });
@@ -74,7 +100,7 @@ function createView() {
         kv([
           ['Predicted address', h('b', h('code', at))],
           ['Chain', c.name + ' · chainId ' + st.chainId],
-          ['Owners', h('ol.owners', k.owners.map((o) => h('li', h('code', o), o === st.account.toLowerCase() && [' ', h('b.ok', 'you')])))],
+          ['Owners', h('ol.owners', k.owners.map((o) => h('li', named(o), o === st.account.toLowerCase() && [' ', h('b.ok', 'you')])))],
           ['Threshold', k.threshold + ' of ' + k.owners.length],
           ['Singleton', [h('code', c.singleton), ' (Safe v1.4.1)']],
           ['Factory', h('code', c.factory)],
@@ -125,7 +151,7 @@ function safeView(s) {
     h(
       'section',
       h('h2', 'Owners'),
-      h('ol.owners', s.owners.map((o) => h('li', addr(o, st.account && o === st.account.toLowerCase() && h('b.ok', 'you'))))),
+      h('ol.owners', s.owners.map((o) => h('li', addr(o, [st.account && o === st.account.toLowerCase() && h('b.ok', 'you'), rev(o)])))),
       st.account && !me && h('p.mut', 'The connected wallet is not an owner of this Safe.'),
     ),
   ];
@@ -185,15 +211,15 @@ function assetsView(s) {
   );
   load().catch((e) => put(rows, warn('Could not read token balances: ' + e.message)));
   const sendForm = (s, t, bal) => {
-    const to = h('input', { placeholder: 'Recipient 0x…', spellcheck: 'false' });
+    const to = h('input', { placeholder: 'Recipient 0x… or name.eth / name.wei', spellcheck: 'false' });
     const amt = h('input', { placeholder: '0.0', inputmode: 'decimal' });
     const dec = t ? t.decimals : 18, max = t ? bal : s.balance;
     const out = h('div');
     const go = button(
       'Review',
       async () => {
-        const r = to.value.trim();
-        if (!isAddr(r)) throw Error('Recipient: enter a 0x address.');
+        st.named = {};
+        const r = await target(to.value);
         const v = parse(amt.value, dec);
         if (!v) throw Error('Amount must be greater than zero.');
         if (max != null && v > max) throw Error('Amount exceeds the Safe balance.');
@@ -222,7 +248,7 @@ function assetsView(s) {
 
 function builder(s) {
   const sym = chain().sym;
-  const to = h('input', { placeholder: '0x… recipient or contract', spellcheck: 'false' });
+  const to = h('input', { placeholder: '0x… or name.eth / name.wei', spellcheck: 'false' });
   const value = h('input', { placeholder: '0', inputmode: 'decimal' });
   const data = h('textarea', { placeholder: '0x (calldata, optional)', spellcheck: 'false' });
   const op = h('select', h('option', { value: 0 }, 'CALL'), h('option', { value: 1 }, 'DELEGATECALL (dangerous)'));
@@ -232,8 +258,8 @@ function builder(s) {
   btn.onclick = act(
     btn,
     async () => {
-      const t = to.value.trim(), d = data.value.trim() || '0x', n = nonce.value.trim();
-      if (!isAddr(t)) throw Error('To: enter a 0x address (40 hex characters).');
+      st.named = {};
+      const t = await target(to.value), d = data.value.trim() || '0x', n = nonce.value.trim();
       if (!isHex(d)) throw Error('Data: must be 0x-prefixed hex with an even number of digits.');
       if (!/^\d+$/.test(n)) throw Error('Nonce: must be a whole number.');
       await showReview(newTx(s, { to: t, value: parse(value.value || '0', 18), data: d, operation: Number(op.value), nonce: n }));
@@ -263,6 +289,7 @@ function importer() {
     btn,
     async () => {
       const p = importPayload(ta.value);
+      st.named = {};
       if (p.tx.safe !== st.safe.address || p.tx.chainId !== st.chainId) return (location.hash = fragment(p.tx, p.sigs));
       // Same transaction as the one under review: merge the imported signatures into it.
       const same = st.review && st.review.local === safeTxHash(p.tx);
@@ -334,9 +361,9 @@ function actionsView(r) {
         ),
       h(
         'div.actions',
-        owner && !mine && button('Approve onchain', () => approve(t, me, publish.checked ? compact(t) : '0x').then(done('Approved.')), out),
-        owner && !mine && button('Sign offchain', async () => showReview(t, [...st.sigs, await sign(t, me)]), out),
-        me && ready && current && button(owner && !mine ? 'Approve and execute' : 'Execute', () => execute(t, me, st.sigs).then(executed), out, '.primary'),
+        owner && !mine && button('Approve onchain', () => recheck().then(() => approve(t, me, publish.checked ? compact(t) : '0x')).then(done('Approved.')), out),
+        owner && !mine && button('Sign offchain', async () => (await recheck(), showReview(t, [...st.sigs, await sign(t, me)])), out),
+        me && ready && current && button(owner && !mine ? 'Approve and execute' : 'Execute', () => recheck().then(() => execute(t, me, st.sigs)).then(executed), out, '.primary'),
         button('Refresh', () => showReview(t, st.sigs), out),
       ),
       out,
@@ -366,7 +393,7 @@ function pendingView(s) {
             ['SafeTx hash', h('code', p.hash)],
             ['Proposed by', h('code', p.proposer)],
           ]),
-          h('button', { onclick: () => showReview(p.tx) }, 'Review'),
+          h('button', { onclick: () => ((st.named = {}), showReview(p.tx)) }, 'Review'),
         ),
       );
     }
@@ -409,7 +436,7 @@ function actionView(d, t) {
     h('b', d.label),
     kv([
       d.label.startsWith('ERC-20') && ['token', tok ? tokenLabel(tok) : [h('code', t.to), ' ', h('b.bad', '(unknown token: amount shown in raw units)')]],
-      ...d.args.map((x) => [x.name, x.type === 'address' ? h('code', x.value) : tok && x.name === 'amount' ? fmt(x.value, tok.decimals) + ' ' + tok.symbol + ' (' + x.value + ' raw)' : String(x.value)]),
+      ...d.args.map((x) => [x.name, x.type === 'address' ? named(x.value) : tok && x.name === 'amount' ? fmt(x.value, tok.decimals) + ' ' + tok.symbol + ' (' + x.value + ' raw)' : String(x.value)]),
     ]),
   ];
 }
@@ -424,7 +451,7 @@ function txView(r) {
       ['Safe', h('code', t.safe)],
       ['Chain', (c.name || 'unknown') + ' · chainId ' + t.chainId],
       ['Nonce', String(t.nonce)],
-      ['To', h('code', t.to)],
+      ['To', st.named[t.to] ? named(t.to) : [h('code', t.to), rev(t.to)]],
       ['Value', fmt(t.value) + ' ' + (c.sym || '') + ' (' + t.value + ' wei)'],
       ['Operation', t.operation ? h('b.bad', 'DELEGATECALL') : 'CALL'],
       ['Action', r.decoded ? actionView(r.decoded, t) : len ? 'Unknown calldata (not decoded; check the raw data)' : t.value ? 'Native transfer' : 'Empty call'],
