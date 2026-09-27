@@ -1,0 +1,20 @@
+{
+  "name": "safe-wei",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal onchain Safe interface, served by an ERC-8244 html() contract",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/dev.mjs",
+    "test": "node --test 'test/unit/*.test.mjs'",
+    "test:fork": "node --test --test-concurrency=1 'test/fork/*.test.mjs'",
+    "test:all": "npm run build && npm test && npm run test:fork"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@noble/hashes": "^2.4.0",
+    "esbuild": "^0.28.2",
+    "viem": "^2.56.9"
+  }
+}

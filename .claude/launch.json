@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "fork", "runtimeExecutable": "node", "runtimeArgs": ["scripts/fork.mjs"], "port": 8545 },
+    { "name": "dev", "runtimeExecutable": "node", "runtimeArgs": ["scripts/dev.mjs", "--anvil", "http://127.0.0.1:8545"], "port": 5173 }
+  ]
+}

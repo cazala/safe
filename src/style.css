@@ -1,0 +1,6 @@
+:root { --fg: #111; --bg: #fff; --mut: #666; --line: #ddd; --bad: #b00020; --ok: #0a7d32; }
+body { margin: 0 auto; max-width: 760px; padding: 16px; font: 15px/1.45 system-ui, sans-serif; color: var(--fg); background: var(--bg); }
+header { display: flex; gap: 12px; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+header span { flex: 1; color: var(--mut); }
+code, .mono, input, textarea { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+input { width: 100%; box-sizing: border-box; padding: 6px; }
