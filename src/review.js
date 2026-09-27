@@ -1,7 +1,25 @@
 // Transaction review: everything that must hold before any approve / sign / execute.
 // `ok === false` means every action is disabled (spec §6, §15).
-import { ZERO } from './abi.js';
+import { strip, u, ZERO } from './abi.js';
+import { rpc } from './rpc.js';
 import { chainTxHash, safeTxHash } from './safe.js';
+import { S } from './sel.js';
+
+const ERC20_BOOL = [S.transfer, S.approve, S.transferFrom];
+
+/** eth_call the inner call from the Safe. Returns a warning string or null. */
+export async function simulate(t) {
+  if (t.operation) return 'DELEGATECALL is not simulated.';
+  const [code, ret] = await Promise.all([
+    rpc('eth_getCode', [t.to, 'latest']),
+    rpc('eth_call', [{ from: t.safe, to: t.to, data: t.data, value: '0x' + t.value.toString(16) }, 'latest']).catch((e) => ({ e })),
+  ]);
+  if (ret.e) return 'Simulation: this call REVERTS if executed now (' + (ret.e.message || ret.e) + ').';
+  if (code === '0x' && t.data !== '0x') return 'The destination has no contract code, but the transaction carries calldata.';
+  if (ERC20_BOOL.includes(strip(t.data).slice(0, 8)) && strip(ret).length === 64 && u(ret) === 0n)
+    return 'Simulation: the token returned FALSE. The transfer would not happen, yet the Safe would report success.';
+  return null;
+}
 
 export async function review(tx, s, walletChain) {
   const r = { tx, local: safeTxHash(tx), chain: null, errors: [], warnings: [] };
@@ -19,6 +37,9 @@ export async function review(tx, s, walletChain) {
   if (tx.nonce > s.nonce) warn('Queued: nonce ' + tx.nonce + ' can only execute after nonce ' + s.nonce + ' has executed.');
   if (tx.operation === 1) warn('DANGEROUS: DELEGATECALL. The target code runs with full control of the Safe (owners, modules, funds).');
   if (tx.safeTxGas || tx.baseGas || tx.gasPrice || tx.gasToken !== ZERO || tx.refundReceiver !== ZERO) warn('Gas refund fields are non-zero: the executor may be paid from the Safe.');
-  r.ok = !r.errors.length;
+  if (r.ok = !r.errors.length) {
+    const w = await simulate(tx).catch((e) => 'Simulation failed: ' + e.message);
+    if (w) warn(w);
+  }
   return r;
 }

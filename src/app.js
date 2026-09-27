@@ -1,10 +1,12 @@
 // safe.wei — app shell, routing and views.
 import { fmt, isAddr, isHex, parse, strip } from './abi.js';
 import { CHAINS } from './chains.js';
+import { approve, collect, execute } from './flow.js';
 import { review } from './review.js';
 import * as rpc from './rpc.js';
 import { newTx, readSafe } from './safe.js';
-import { $, act, addr, bad, h, kv, short, warn } from './ui.js';
+import { fragment, importPayload, toJSON } from './share.js';
+import { $, act, addr, bad, h, kv, put, short, warn } from './ui.js';
 
 const st = { account: null, chainId: null, safe: null };
 const main = $('main');
@@ -102,12 +104,92 @@ function builder(s) {
   );
 }
 
+function importer() {
+  const ta = h('textarea', { placeholder: 'Paste a safe.wei link, a tx= fragment, or transaction JSON', spellcheck: 'false' });
+  const out = h('div');
+  const btn = h('button', 'Import');
+  btn.onclick = act(
+    btn,
+    async () => {
+      const p = importPayload(ta.value);
+      if (p.tx.safe !== st.safe.address || p.tx.chainId !== st.chainId) return (location.hash = fragment(p.tx, p.sigs));
+      await showReview(p.tx, p.sigs);
+    },
+    out,
+  );
+  return h('details', h('summary', 'Import transaction'), ta, h('div.actions', btn), out);
+}
+
 const rv = h('div');
-async function showReview(tx) {
+async function showReview(tx, sigs = []) {
   const r = await review(tx, st.safe, st.chainId);
   st.review = r;
-  rv.replaceChildren(txView(r));
+  st.sigs = sigs;
+  // Keep the transaction in the URL so a reload returns to this review (no hashchange fires).
+  if (r.ok) history.replaceState(null, '', '#' + fragment(tx, sigs));
+  put(rv, txView(r), r.ok ? [actionsView(r), shareView(r)] : bad('All actions are disabled until the errors above are resolved.'));
   rv.scrollIntoView({ behavior: 'smooth' });
+}
+
+const button = (label, fn, out, cls = '') => {
+  const b = h('button' + cls, label);
+  b.onclick = act(b, fn, out);
+  return b;
+};
+
+function actionsView(r) {
+  const box = h('section', h('p.mut', 'Loading approvals…'));
+  const s = st.safe, t = r.tx, me = st.account && st.account.toLowerCase();
+  (async () => {
+    const { approved, sigs } = await collect(s, r.local, me);
+    const owner = me && s.owners.includes(me), mine = approved.includes(me);
+    const ready = BigInt(sigs.length) >= s.threshold, current = t.nonce === s.nonce;
+    const out = h('div');
+    const done = (msg) => async (rc) => {
+      st.safe = await readSafe(s.address);
+      await showReview(t, st.sigs);
+      rv.append(h('p.ok', msg + ' ', h('code', rc.transactionHash)));
+    };
+    const executed = async (rc) => {
+      history.replaceState(null, '', '#/' + s.address);
+      await route();
+      main.prepend(h('p.ok', '✓ Executed nonce ' + t.nonce + ' in ', h('code', rc.transactionHash)));
+    };
+    put(
+      box,
+      h('h2', 'Approvals · ' + approved.length + ' of ' + s.threshold + ' required'),
+      h(
+        'ul.owners',
+        s.owners.map((o) => h('li', h('code', o), ' ', approved.includes(o) ? h('b.ok', '✓ approved onchain') : h('span.mut', '· not approved'), o === me && ' (you)')),
+      ),
+      !me && h('p.mut', 'Connect a wallet to approve or execute.'),
+      me && !owner && h('p.mut', 'The connected wallet is not an owner: it can execute once enough owners have approved.'),
+      !current && h('p.mut', 'Execution is possible only once the Safe nonce reaches ' + t.nonce + '.'),
+      h(
+        'div.actions',
+        owner && !mine && button('Approve onchain', () => approve(t, me).then(done('Approved.')), out),
+        me && ready && current && button(owner && !mine ? 'Approve and execute' : 'Execute', () => execute(t, me).then(executed), out, '.primary'),
+        button('Refresh', () => showReview(t, st.sigs), out),
+      ),
+      out,
+    );
+  })().catch((e) => box.replaceChildren(bad(e.message)));
+  return box;
+}
+
+function shareView(r) {
+  const link = location.href.split('#')[0] + '#' + fragment(r.tx, st.sigs);
+  const copy = (label, text) => button(label, () => navigator.clipboard.writeText(text));
+  return h(
+    'section',
+    h('h2', 'Share'),
+    h(
+      'p.mut',
+      'Other owners open this link, or paste it into Import, to review and approve the same transaction. It contains only the transaction data: anyone who has it can read it, nobody can sign with it.',
+    ),
+    h('input', { readonly: true, value: link, onclick: (e) => e.target.select() }),
+    h('div.actions', copy('Copy link', link), copy('Copy JSON', toJSON(r.tx, st.sigs))),
+  );
 }
 
 function txView(r) {
@@ -137,16 +219,18 @@ let seq = 0;
 async function route() {
   const n = ++seq;
   const path = location.hash.slice(1);
-  const m = /^\/(0x[0-9a-fA-F]{40})$/.exec(path);
-  if (!m) return main.replaceChildren(home());
-  main.replaceChildren(h('p.mut', 'Loading ' + m[1] + '…'));
+  let m = /^\/(0x[0-9a-fA-F]{40})$/.exec(path), p;
   try {
+    if (path.startsWith('tx=')) m = [0, (p = importPayload(path)).tx.safe];
+    if (!m) return main.replaceChildren(home());
+    main.replaceChildren(h('p.mut', 'Loading ' + m[1] + '…'));
     if (!chain()) throw Error('Connect a wallet on a supported chain (' + Object.values(CHAINS).map((c) => c.name).join(', ') + ').');
     const s = await readSafe(m[1]);
     if (n !== seq) return;
     st.safe = s;
     rv.replaceChildren();
-    main.replaceChildren(...safeView(s), builder(s), rv);
+    main.replaceChildren(...safeView(s), rv, builder(s), h('section', importer()));
+    if (p) await showReview(p.tx, p.sigs);
   } catch (e) {
     if (n === seq) main.replaceChildren(bad(e.message), home());
   }

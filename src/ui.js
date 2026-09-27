@@ -9,7 +9,12 @@ export function h(tag, attrs, ...kids) {
   if (cls.length) el.className = cls.join(' ');
   if (attrs && (typeof attrs !== 'object' || attrs instanceof Node || Array.isArray(attrs))) kids.unshift(attrs);
   else for (const k in attrs) k.startsWith('on') ? (el[k] = attrs[k]) : attrs[k] != null && attrs[k] !== false && el.setAttribute(k, attrs[k]);
-  el.append(...kids.flat(9).filter((k) => k != null && k !== false).map((k) => (k instanceof Node ? k : String(k))));
+  return put(el, ...kids);
+}
+
+/** Replace an element's children, skipping null/false and flattening arrays. */
+export function put(el, ...kids) {
+  el.replaceChildren(...kids.flat(9).filter((k) => k != null && k !== false).map((k) => (k instanceof Node ? k : String(k))));
   return el;
 }
 

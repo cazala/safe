@@ -1,0 +1,128 @@
+// Transaction sharing (spec §7.3). A payload is untrusted input: whoever imports it
+// recomputes the hash and reviews it; this module only (de)serializes.
+//
+// Compact binary (also the onchain format appended to approveHash):
+//   'SW' 0x01 flags to nonce value data [gas fields] [signatures]
+//   flags: bit0 DELEGATECALL, bit1 gas fields present, bit2 signatures present
+//   uint = 1-byte length + big-endian bytes; data = 3-byte length + bytes
+//   signatures = 1-byte count + 65-byte ECDSA signatures (signers are recovered)
+// A link carries uint(chainId) ‖ safe ‖ compact, base64url, in the URL fragment.
+import { bytes, hex, isAddr, isHex, strip, ZERO } from './abi.js';
+import { safeTxHash } from './safe.js';
+
+const MAGIC = '535701';
+const b1 = (n) => n.toString(16).padStart(2, '0');
+const uint = (v) => {
+  let h = v ? v.toString(16) : '';
+  if (h.length % 2) h = '0' + h;
+  return b1(h.length / 2) + h;
+};
+const hasGas = (t) => !!(t.safeTxGas || t.baseGas || t.gasPrice || t.gasToken !== ZERO || t.refundReceiver !== ZERO);
+
+/** Compact encoding of a SafeTx (chainId and Safe address are implied by context). */
+export function compact(t, sigs = []) {
+  const d = strip(t.data), g = hasGas(t);
+  if (d.length / 2 >= 1 << 24) throw Error('calldata too large to share');
+  let o = MAGIC + b1(t.operation | (g ? 2 : 0) | (sigs.length ? 4 : 0)) + strip(t.to) + uint(t.nonce) + uint(t.value) + (d.length / 2).toString(16).padStart(6, '0') + d;
+  if (g) o += uint(t.safeTxGas) + uint(t.baseGas) + uint(t.gasPrice) + strip(t.gasToken) + strip(t.refundReceiver);
+  if (sigs.length) o += b1(sigs.length) + sigs.map((s) => strip(s)).join('');
+  return '0x' + o.toLowerCase();
+}
+
+function reader(h) {
+  h = strip(h).toLowerCase();
+  let i = 0;
+  const take = (n) => {
+    if (i + n * 2 > h.length) throw Error('Payload is truncated.');
+    return h.slice(i, (i += n * 2));
+  };
+  const num = () => {
+    const n = parseInt(take(1), 16);
+    if (n > 32) throw Error('Payload has an oversized number.');
+    return n ? BigInt('0x' + take(n)) : 0n;
+  };
+  return { take, num, end: () => i === h.length };
+}
+
+function decode(r, chainId, safe) {
+  if (r.take(3) !== MAGIC) throw Error('Not a safe.wei transaction payload.');
+  const f = parseInt(r.take(1), 16);
+  if (f & ~7) throw Error('Payload uses unknown flags.');
+  const t = { chainId, safe, to: '0x' + r.take(20), nonce: r.num(), value: r.num(), operation: f & 1 };
+  t.data = '0x' + r.take(parseInt(r.take(3), 16));
+  Object.assign(
+    t,
+    f & 2
+      ? { safeTxGas: r.num(), baseGas: r.num(), gasPrice: r.num(), gasToken: '0x' + r.take(20), refundReceiver: '0x' + r.take(20) }
+      : { safeTxGas: 0n, baseGas: 0n, gasPrice: 0n, gasToken: ZERO, refundReceiver: ZERO },
+  );
+  const sigs = [];
+  if (f & 4) for (let n = parseInt(r.take(1), 16); n--; ) sigs.push('0x' + r.take(65));
+  if (!r.end()) throw Error('Payload has trailing bytes.');
+  return { tx: t, sigs };
+}
+
+/** Decode a compact payload for a known chain and Safe (the onchain case). */
+export const uncompact = (h, chainId, safe) => decode(reader(h), chainId, safe.toLowerCase());
+
+const b64 = (h) => btoa(String.fromCharCode(...bytes(h))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64 = (s) => hex(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)));
+
+/** The fragment part of a share link: tx=<base64url>. */
+export const fragment = (t, sigs) => 'tx=' + b64(uint(BigInt(t.chainId)) + strip(t.safe) + strip(compact(t, sigs)));
+
+export function fromFragment(s) {
+  const r = reader(unb64(s));
+  const chainId = Number(r.num());
+  return decode(r, chainId, '0x' + r.take(20));
+}
+
+/** Human-readable JSON payload. Includes safeTxHash so humans can cross-check. */
+export function toJSON(t, sigs = []) {
+  const o = { safeTxHash: safeTxHash(t) };
+  for (const k in t) o[k] = typeof t[k] === 'bigint' ? t[k].toString() : t[k];
+  if (sigs.length) o.signatures = sigs;
+  return JSON.stringify(o, null, 2);
+}
+
+/** Parse anything a user may paste: a link, a bare fragment, or JSON. */
+export function importPayload(text) {
+  text = text.trim();
+  if (text.startsWith('{')) {
+    const o = JSON.parse(text);
+    const U = (k) => {
+      if (!/^\d+$/.test(String(o[k] ?? '0'))) throw Error('JSON: ' + k + ' must be a decimal integer.');
+      return BigInt(o[k] ?? 0);
+    };
+    const A = (k, d) => {
+      const v = String(o[k] ?? d).toLowerCase();
+      if (!isAddr(v)) throw Error('JSON: ' + k + ' must be an address.');
+      return v;
+    };
+    const t = {
+      chainId: Number(U('chainId')),
+      safe: A('safe'),
+      to: A('to'),
+      value: U('value'),
+      data: String(o.data ?? '0x').toLowerCase(),
+      operation: Number(U('operation')),
+      safeTxGas: U('safeTxGas'),
+      baseGas: U('baseGas'),
+      gasPrice: U('gasPrice'),
+      gasToken: A('gasToken', ZERO),
+      refundReceiver: A('refundReceiver', ZERO),
+      nonce: U('nonce'),
+    };
+    if (!isHex(t.data)) throw Error('JSON: data must be hex.');
+    if (t.operation > 1) throw Error('JSON: operation must be 0 or 1.');
+    if (o.safeTxHash && o.safeTxHash.toLowerCase() !== safeTxHash(t)) throw Error('JSON: safeTxHash does not match the transaction fields. Refusing to import.');
+    const sigs = (o.signatures || []).map((s) => {
+      if (!/^0x[0-9a-fA-F]{130}$/.test(s)) throw Error('JSON: each signature must be 65 bytes of hex.');
+      return s.toLowerCase();
+    });
+    return { tx: t, sigs };
+  }
+  const m = /(?:^|[#&?])tx=([A-Za-z0-9_-]+)/.exec(text) || /^([A-Za-z0-9_-]+)$/.exec(text);
+  if (!m) throw Error('Paste a safe.wei link, a tx= fragment, or transaction JSON.');
+  return fromFragment(m[1]);
+}
