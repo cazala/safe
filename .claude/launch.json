@@ -30,6 +30,27 @@
         "0xf252aa460ef0e5edb45e7a8c3e3e6ff1038a97f7"
       ],
       "port": 5174
+    },
+    {
+      "name": "deployer-test",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/deployer/serve.mjs",
+        "--anvil",
+        "http://127.0.0.1:8545"
+      ],
+      "port": 8081,
+      "env": {
+        "PORT": "8081"
+      }
+    },
+    {
+      "name": "deployer",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/deployer/serve.mjs"
+      ],
+      "port": 8080
     }
   ]
 }
