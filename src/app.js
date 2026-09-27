@@ -1,5 +1,5 @@
 // safe.wei — app shell, routing and views.
-import { fmt, isAddr, isHex, parse, strip } from './abi.js';
+import { cd, fmt, isAddr, isHex, parse, strip } from './abi.js';
 import { CHAINS } from './chains.js';
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review } from './review.js';
@@ -8,9 +8,11 @@ import { create, createCall, newTx, predict, readSafe, safeTxHash } from './safe
 import { compact, fragment, importPayload, toJSON } from './share.js';
 import { payloadGas, scan } from './pending.js';
 import { decode } from './decode.js';
+import { balances, listed, meta, save, saved } from './tokens.js';
+import { S } from './sel.js';
 import { $, act, addr, bad, h, kv, put, short, warn } from './ui.js';
 
-const st = { account: null, chainId: null, safe: null };
+const st = { account: null, chainId: null, safe: null, tokens: {} };
 const main = $('main');
 const chain = () => CHAINS[st.chainId];
 
@@ -129,6 +131,95 @@ function safeView(s) {
   ];
 }
 
+// ---- assets ----
+const tokenOf = (addr) => st.tokens[addr];
+const tokenLabel = (t) => [h('b', t.symbol), ' ', h('code', t.address), ' ', t.listed ? h('span.mut', '(zOrg TokenList)') : h('b.bad', '(unlisted)')];
+
+function assetsView(s) {
+  const c = chain();
+  const rows = h('div', h('p.mut', 'Loading token balances…'));
+  const form = h('div');
+  const load = async () => {
+    const list = [...(await listed(st.chainId).catch(() => [])), ...saved(st.chainId)];
+    for (const t of list) st.tokens[t.address] = st.tokens[t.address] || t;
+    const tokens = Object.values(st.tokens);
+    const bal = await balances(s.address, tokens);
+    const held = tokens.map((t, i) => ({ ...t, bal: bal[i] })).filter((t) => t.bal || !t.listed);
+    put(
+      rows,
+      h(
+        'table.kv',
+        h('tr', h('th', c.sym), h('td', fmt(s.balance)), h('td', ''), h('td', h('button.link', { onclick: () => sendForm(s, null) }, 'send'))),
+        held.map((t) =>
+          h(
+            'tr',
+            h('th', t.symbol),
+            h('td', t.bal == null ? h('span.mut', 'unreadable') : fmt(t.bal, t.decimals)),
+            h('td', h('code', t.address), !t.listed && [' ', h('b.bad', 'unlisted')]),
+            h('td', h('button.link', { onclick: () => sendForm(s, t, t.bal) }, 'send')),
+          ),
+        ),
+      ),
+      h(
+        'p.mut',
+        st.chainId === 1
+          ? tokens.filter((t) => t.listed).length + ' tokens from the zOrg TokenList checked; zero balances are hidden.'
+          : 'The zOrg TokenList lives on Ethereum mainnet; add tokens by address on this chain.',
+      ),
+    );
+  };
+  const addIn = h('input', { placeholder: 'Token address 0x…', spellcheck: 'false' });
+  const addOut = h('div');
+  const add = button(
+    'Add token',
+    async () => {
+      const a = addIn.value.trim().toLowerCase();
+      if (!isAddr(a)) throw Error('Enter a token contract address.');
+      const t = await meta(a);
+      save(st.chainId, [...saved(st.chainId).filter((x) => x.address !== a), t]);
+      st.tokens[a] = st.tokens[a] || t;
+      addIn.value = '';
+      await load();
+    },
+    addOut,
+  );
+  load().catch((e) => put(rows, warn('Could not read token balances: ' + e.message)));
+  const sendForm = (s, t, bal) => {
+    const to = h('input', { placeholder: 'Recipient 0x…', spellcheck: 'false' });
+    const amt = h('input', { placeholder: '0.0', inputmode: 'decimal' });
+    const dec = t ? t.decimals : 18, max = t ? bal : s.balance;
+    const out = h('div');
+    const go = button(
+      'Review',
+      async () => {
+        const r = to.value.trim();
+        if (!isAddr(r)) throw Error('Recipient: enter a 0x address.');
+        const v = parse(amt.value, dec);
+        if (!v) throw Error('Amount must be greater than zero.');
+        if (max != null && v > max) throw Error('Amount exceeds the Safe balance.');
+        await showReview(t ? newTx(s, { to: t.address, data: cd(S.transfer, r, v) }) : newTx(s, { to: r, value: v }));
+      },
+      out,
+      '.primary',
+    );
+    put(
+      form,
+      h(
+        'div.card',
+        h('b', 'Send ', t ? tokenLabel(t) : c.sym),
+        h('label', 'Recipient'),
+        to,
+        h('label', 'Amount'),
+        h('div.row', amt, max != null && h('button', { onclick: () => (amt.value = fmt(max, dec)) }, 'Max')),
+        h('div.actions', go),
+        out,
+      ),
+    );
+    to.focus();
+  };
+  return h('section', h('h2', 'Assets'), rows, form, h('details', h('summary', 'Add token by address'), h('div.row', addIn, add), addOut));
+}
+
 function builder(s) {
   const sym = chain().sym;
   const to = h('input', { placeholder: '0x… recipient or contract', spellcheck: 'false' });
@@ -151,7 +242,7 @@ function builder(s) {
   );
   return h(
     'section',
-    h('h2', 'New transaction'),
+    h('h2', 'Custom transaction'),
     h('label', 'To'),
     to,
     h('label', 'Value (' + sym + ')'),
@@ -312,6 +403,17 @@ function shareView(r) {
   );
 }
 
+function actionView(d, t) {
+  const tok = d.label.startsWith('ERC-20') && tokenOf(t.to);
+  return [
+    h('b', d.label),
+    kv([
+      d.label.startsWith('ERC-20') && ['token', tok ? tokenLabel(tok) : [h('code', t.to), ' ', h('b.bad', '(unknown token: amount shown in raw units)')]],
+      ...d.args.map((x) => [x.name, x.type === 'address' ? h('code', x.value) : tok && x.name === 'amount' ? fmt(x.value, tok.decimals) + ' ' + tok.symbol + ' (' + x.value + ' raw)' : String(x.value)]),
+    ]),
+  ];
+}
+
 function txView(r) {
   const t = r.tx, c = CHAINS[t.chainId] || {}, len = strip(t.data).length / 2;
   return h(
@@ -325,7 +427,7 @@ function txView(r) {
       ['To', h('code', t.to)],
       ['Value', fmt(t.value) + ' ' + (c.sym || '') + ' (' + t.value + ' wei)'],
       ['Operation', t.operation ? h('b.bad', 'DELEGATECALL') : 'CALL'],
-      ['Action', r.decoded ? [h('b', r.decoded.label), kv(r.decoded.args.map((x) => [x.name, x.type === 'address' ? h('code', x.value) : String(x.value)]))] : len ? 'Unknown calldata (not decoded; check the raw data)' : t.value ? 'Native transfer' : 'Empty call'],
+      ['Action', r.decoded ? actionView(r.decoded, t) : len ? 'Unknown calldata (not decoded; check the raw data)' : t.value ? 'Native transfer' : 'Empty call'],
       ['Data', len ? [h('div', 'selector ', h('code', t.data.slice(0, 10)), ' · ' + len + ' bytes'), h('code.mono', t.data)] : 'none'],
       ['Gas fields', 'safeTxGas ' + t.safeTxGas + ' · baseGas ' + t.baseGas + ' · gasPrice ' + t.gasPrice + ' · gasToken ' + t.gasToken + ' · refundReceiver ' + t.refundReceiver],
       ['SafeTx hash', h('b', h('code', r.local))],
@@ -352,7 +454,7 @@ async function route() {
     if (n !== seq) return;
     st.safe = s;
     rv.replaceChildren();
-    main.replaceChildren(...safeView(s), rv, pendingView(s), builder(s), h('section', importer()));
+    main.replaceChildren(...safeView(s), rv, assetsView(s), pendingView(s), builder(s), h('section', importer()));
     if (p) await showReview(p.tx, p.sigs);
   } catch (e) {
     if (n === seq) put(main, bad(e.message), home());
