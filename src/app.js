@@ -646,7 +646,7 @@ function builder(s) {
   const abiText = h('textarea', { placeholder: 'JSON ABI (or a Hardhat/Foundry artifact), or one signature per line:\nfunction stake(uint256 amount, address to)', spellcheck: 'false', rows: 5 });
   const file = h('input', { type: 'file', accept: '.json,application/json' });
   const pasteBox = h('div', abiText, h('label', 'Or upload a .json file'), file);
-  const methods = h('div'), out = h('div');
+  const methods = h('div'), out = h('div'), toLabel = h('label', 'Contract');
   let contract = null;
 
   const pickDefault = (addr) => {
@@ -658,7 +658,10 @@ function builder(s) {
     put(out);
     put(methods);
     pasteBox.hidden = mode.value !== 'paste';
-    if (mode.value === 'raw') return put(methods, rawBuilder(s, contract));
+    // Raw calls can go to any address (a contract or a wallet), so the field is "To" there.
+    put(toLabel, mode.value === 'raw' ? 'To' : 'Contract');
+    to.placeholder = (mode.value === 'raw' ? 'Address' : 'Contract address') + ' 0x… or name.eth / name.wei';
+    if (mode.value === 'raw') return put(methods, rawBuilder(s, to));
     if (!contract) return put(methods, h('p.mut', 'Enter the contract to interact with.'));
     const text = mode.value === 'paste' ? abiText.value : KNOWN_ABIS[mode.value][1];
     if (!text.trim()) return put(methods, h('p.mut', 'Paste an ABI or upload a .json file to list the contract’s methods.'));
@@ -701,7 +704,7 @@ function builder(s) {
   return h(
     'div.form.wide',
     h('p.mut', 'Build calls to any contract from its ABI, then review them or add several to a batch. The ABI is only used here to encode calldata; nothing is fetched.'),
-    h('label', 'Contract'),
+    toLabel,
     to,
     out,
     h('label', 'ABI'),
@@ -818,9 +821,9 @@ function shape(p) {
   return 'JSON, e.g. ' + ex(p);
 }
 
-function rawBuilder(s, contract) {
+/** Raw call: value, calldata, operation, nonce. The destination is the builder's "To" field. */
+function rawBuilder(s, to) {
   const sym = chain().sym;
-  const to = h('input', { placeholder: '0x… or name.eth / name.wei', spellcheck: 'false', value: contract || null });
   const value = h('input', { placeholder: '0', inputmode: 'decimal' });
   const data = h('textarea', { placeholder: '0x (calldata, optional)', spellcheck: 'false' });
   const op = h('select', h('option', { value: 0 }, 'CALL'), h('option', { value: 1 }, 'DELEGATECALL (dangerous)'));
@@ -828,6 +831,7 @@ function rawBuilder(s, contract) {
   const out = h('div');
   const read = async () => {
     st.named = {};
+    if (!to.value.trim()) throw Error('Enter the destination in "To" above.');
     const t = await target(to.value), d = data.value.trim() || '0x', n = nonce.value.trim();
     if (!isHex(d)) throw Error('Data: must be 0x-prefixed hex with an even number of digits.');
     if (!/^\d+$/.test(n)) throw Error('Nonce: must be a whole number.');
@@ -843,9 +847,7 @@ function rawBuilder(s, contract) {
     out,
   );
   return h(
-    'div.form',
-    h('label', 'To'),
-    to,
+    'div',
     h('label', 'Value (' + sym + ')'),
     value,
     h('label', 'Data'),
