@@ -14,7 +14,8 @@ See [docs/spec.md](docs/spec.md) for the full specification.
 - Build transactions (raw, ETH/ERC-20 sends, MultiSend batches); every one shows its SafeTx hash verified against the Safe's own `getTransactionHash`
 - Approve onchain (`approveHash`) or sign offchain (EIP-712); share by link; optionally publish the transaction onchain with the approval so other owners find it without a link
 - ENS and `.wei` names wherever an address is accepted (onchain resolution only)
-- Token balances from the zOrg TokenList
+- Token balances from the zOrg TokenList; send ETH/tokens, or bulk-send many transfers from pasted CSV (`recipient,amount[,token]`)
+- Deeplinks that prefill a send or a bulk send: `#/<safe>/send?to=…&amount=…&token=…`, `#/<safe>/batch?csv=…` (`<safe>` can be a name)
 
 On mobile, use the in-app browser of a mobile wallet (safe.wei talks to the injected wallet; WalletConnect would need a relay server).
 
