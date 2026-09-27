@@ -1328,6 +1328,8 @@ Open a user-entered URL as a Safe App: a full-screen iframe below a fixed top ba
 
 ### 27.1 Compatibility spike (do this first)
 
+Results: docs/safe-apps.md.
+
 Risks that may make most apps unusable:
 
 - wagmi's `safe()` connector and many Safe Apps SDK integrations only accept `app.safe.global` / `gnosis-safe.io` as the parent origin by default. Apps configured this way will not detect safe.wei as their host.
@@ -1342,7 +1344,7 @@ Implement the Safe Apps SDK `postMessage` protocol, minimally:
 
 - `getSafeInfo`, `getChainInfo`, `getEnvironmentInfo`
 - `getSafeBalances`, served from §24
-- `rpcCall`, forwarded to the wallet provider ONLY for an allow-list of read methods (`eth_call`, `eth_getBalance`, `eth_getCode`, `eth_getStorageAt`, `eth_blockNumber`, `eth_getBlockByNumber`, `eth_getTransactionReceipt`, `eth_getTransactionByHash`, `eth_getLogs`, `eth_estimateGas`, `eth_chainId`). Reject everything else.
+- `rpcCall`, forwarded to the wallet provider ONLY for an allow-list of read methods (`eth_call`, `eth_getBalance`, `eth_getCode`, `eth_getStorageAt`, `eth_blockNumber`, `eth_getBlockByNumber`, `eth_getBlockByHash`, `eth_getTransactionReceipt`, `eth_getTransactionByHash`, `eth_getTransactionCount`, `eth_getLogs`, `eth_estimateGas`, `eth_gasPrice`, `eth_chainId`). `safe_setSettings` is acknowledged without effect. Reject everything else.
 - `sendTransactions`: a single tx or a MultiSend batch (§26), fed into the normal review flow. Returns the SafeTx hash.
 - `getTxBySafeTxHash`: answered from local state plus onchain state (approvals, nonce, `ExecutionSuccess`)
 - reject `signMessage` and `signTypedMessage` in v1
