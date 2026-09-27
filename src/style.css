@@ -63,3 +63,10 @@ label.check input { width: auto; margin-top: 3px; }
   .row { flex-wrap: wrap; }
   .row > button { flex: 1; }
 }
+summary { display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; list-style: none; color: var(--fg); font-weight: 500; user-select: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: ''; width: 7px; height: 7px; margin: 0 2px; border-right: 2px solid var(--mut); border-bottom: 2px solid var(--mut); transform: rotate(-45deg); flex: none; }
+details[open] > summary::before { transform: rotate(45deg); margin-top: -4px; }
+summary:hover::before { border-color: var(--fg); }
+details { border-top: 1px solid var(--line); margin-top: 8px; }
+#wallets .card { margin: 8px 0 0; }

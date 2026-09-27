@@ -35,6 +35,8 @@ node scripts/fork.mjs                                   # fork on :8545 with dem
 node scripts/dev.mjs --anvil http://127.0.0.1:8545      # http://localhost:5173
 ```
 
+The dev server adds an "Anvil test wallet (dev)" to the wallet picker (EIP-6963). If a wallet extension is installed, choose the test wallet under Connect: the extension talks to real mainnet, where the demo Safes do not exist. `?acct=N` picks the Anvil account.
+
 `FORK_URL` and `FORK_BLOCK` override the fork source (default: publicnode, pinned block).
 
 ## Deploy
