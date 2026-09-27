@@ -5,7 +5,9 @@ import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review } from './review.js';
 import * as rpc from './rpc.js';
 import { create, createCall, newTx, predict, readSafe, safeTxHash } from './safe.js';
-import { fragment, importPayload, toJSON } from './share.js';
+import { compact, fragment, importPayload, toJSON } from './share.js';
+import { payloadGas, scan } from './pending.js';
+import { decode } from './decode.js';
 import { $, act, addr, bad, h, kv, put, short, warn } from './ui.js';
 
 const st = { account: null, chainId: null, safe: null };
@@ -209,6 +211,8 @@ function actionsView(r) {
     const owner = me && s.owners.includes(me), mine = approved.includes(me) || signed.includes(me);
     const ready = BigInt(sigs.length) >= s.threshold, current = t.nonce === s.nonce;
     const out = h('div');
+    const payload = compact(t);
+    const publish = h('input', { type: 'checkbox' });
     const done = (msg) => async (rc) => {
       st.safe = await readSafe(s.address);
       await showReview(t, st.sigs);
@@ -230,9 +234,16 @@ function actionsView(r) {
       !me && h('p.mut', 'Connect a wallet to approve or execute.'),
       me && !owner && h('p.mut', 'The connected wallet is not an owner: it can execute once enough owners have approved.'),
       !current && h('p.mut', 'Execution is possible only once the Safe nonce reaches ' + t.nonce + '.'),
+      owner &&
+        !mine &&
+        h(
+          'label.check',
+          publish,
+          ' Publish this transaction onchain with my approval (+' + (payload.length - 2) / 2 + ' bytes, ≈' + payloadGas(payload) + ' gas) so other owners can find it without a link',
+        ),
       h(
         'div.actions',
-        owner && !mine && button('Approve onchain', () => approve(t, me).then(done('Approved.')), out),
+        owner && !mine && button('Approve onchain', () => approve(t, me, publish.checked ? compact(t) : '0x').then(done('Approved.')), out),
         owner && !mine && button('Sign offchain', async () => showReview(t, [...st.sigs, await sign(t, me)]), out),
         me && ready && current && button(owner && !mine ? 'Approve and execute' : 'Execute', () => execute(t, me, st.sigs).then(executed), out, '.primary'),
         button('Refresh', () => showReview(t, st.sigs), out),
@@ -241,6 +252,49 @@ function actionsView(r) {
     );
   })().catch((e) => box.replaceChildren(bad(e.message)));
   return box;
+}
+
+function pendingView(s) {
+  const list = h('div'), status = h('p.mut', 'Scanning recent ApproveHash events…'), seen = new Set();
+  let next;
+  const run = async (end) => {
+    const r = await scan(s, { end });
+    next = r.next;
+    for (const p of r.found) {
+      if (seen.has(p.hash)) continue;
+      seen.add(p.hash);
+      const d = decode(p.tx), c = chain();
+      list.append(
+        h(
+          'div.card',
+          kv([
+            ['Nonce', String(p.tx.nonce) + (p.tx.nonce > s.nonce ? ' (queued)' : '')],
+            ['Action', d ? d.label : p.tx.data === '0x' ? 'Native transfer' : 'Unknown calldata'],
+            ['To', h('code', p.tx.to)],
+            ['Value', fmt(p.tx.value) + ' ' + c.sym],
+            ['SafeTx hash', h('code', p.hash)],
+            ['Proposed by', h('code', p.proposer)],
+          ]),
+          h('button', { onclick: () => showReview(p.tx) }, 'Review'),
+        ),
+      );
+    }
+    put(
+      status,
+      r.error ? warn('The wallet RPC stopped the scan at block ' + next + ': ' + r.error.slice(0, 200)) : [seen.size ? 'Scanned' : 'None found', next >= 0 ? ' back to block ' + (next + 1) + '.' : ' (to genesis).'],
+    );
+    more.disabled = next < 0;
+  };
+  const more = button('Scan older blocks', () => run(next), status);
+  run().catch((e) => put(status, warn('Could not scan logs through the wallet RPC: ' + e.message)));
+  return h(
+    'section',
+    h('h2', 'Pending transactions published onchain'),
+    h('p.mut', 'Transactions that a proposer published together with its approval. Transactions shared only by link do not appear here.'),
+    list,
+    status,
+    h('div.actions', more),
+  );
 }
 
 function shareView(r) {
@@ -298,7 +352,7 @@ async function route() {
     if (n !== seq) return;
     st.safe = s;
     rv.replaceChildren();
-    main.replaceChildren(...safeView(s), rv, builder(s), h('section', importer()));
+    main.replaceChildren(...safeView(s), rv, pendingView(s), builder(s), h('section', importer()));
     if (p) await showReview(p.tx, p.sigs);
   } catch (e) {
     if (n === seq) put(main, bad(e.message), home());

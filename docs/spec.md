@@ -462,7 +462,9 @@ Discovery ("pending transactions" for a Safe):
 1. `eth_getLogs` for `ApproveHash` on the Safe address, scanning backwards in bounded block windows because wallet RPCs cap log ranges
 2. `eth_getTransactionByHash` for each log to read its input
 3. decode the trailing payload
-4. accept a payload only if its recomputed hash equals the approved hash AND its nonce equals the Safe's current nonce
+4. accept a payload only if its recomputed hash equals the approved hash AND its nonce is not below the Safe's current nonce (payloads above it are listed as queued)
+
+If the RPC refuses log ranges even at small windows, show what was found so far and let the user continue scanning older blocks.
 
 Constraints:
 
