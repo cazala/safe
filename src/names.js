@@ -1,7 +1,7 @@
 // ENS and .wei name resolution (spec §25), onchain only. Names are a convenience:
 // transactions always commit to the resolved address.
 import { a, B, cd, dbytes, hex, keccakHex, keccakText, str, strip, utf8, ZERO } from './abi.js';
-import { CHAINS } from './chains.js';
+import { MAINNET } from './chains.js';
 import { call } from './rpc.js';
 import { S, T } from './sel.js';
 
@@ -38,7 +38,7 @@ async function ccall(to, data) {
 }
 
 async function ens(name) {
-  const reg = CHAINS[1].ens, node = namehash(name);
+  const reg = MAINNET.ens, node = namehash(name);
   // Find the resolver for the name, or the nearest ancestor's (ENSIP-10 wildcard).
   let labels = name.split('.'), resolver = ZERO, exact = true;
   while (labels.length > 1) {
@@ -69,7 +69,7 @@ async function ens(name) {
 export async function resolveName(name, chainId) {
   checkName(name);
   if (chainId !== 1) throw Error('Names resolve on Ethereum mainnet only.');
-  const addr = name.endsWith('.wei') ? a(await call(CHAINS[1].wns, cd(S.wnsResolve, namehash(name)))) : await ens(name);
+  const addr = name.endsWith('.wei') ? a(await call(MAINNET.wns, cd(S.wnsResolve, namehash(name)))) : await ens(name);
   if (addr === ZERO) throw Error(name + ' does not resolve to an address' + (name.endsWith('.wei') ? ' (unregistered or expired).' : '.'));
   return addr;
 }
@@ -79,12 +79,12 @@ export async function nameOf(addr, chainId) {
   if (chainId !== 1) return null;
   addr = addr.toLowerCase();
   try {
-    const w = str(await call(CHAINS[1].wns, cd(S.reverseResolve, addr)));
+    const w = str(await call(MAINNET.wns, cd(S.reverseResolve, addr)));
     if (isName(w)) return w; // WNS verifies the forward record itself
   } catch {}
   try {
     const node = namehash(strip(addr) + '.addr.reverse');
-    const resolver = a(await call(CHAINS[1].ens, cd(S.resolver, node)));
+    const resolver = a(await call(MAINNET.ens, cd(S.resolver, node)));
     if (resolver === ZERO) return null;
     const n = str(await call(resolver, cd(S.name, node)));
     return isName(n) && (await resolveName(n, 1)) === addr ? n : null;

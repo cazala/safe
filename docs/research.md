@@ -23,6 +23,10 @@ Other registries (mainnet):
 | WNS NameNFT | `0x0000000000696760E15f265e828DB644A0c242EB` | z0r0z/wei-names README |
 | zOrg TokenList | `0x0000006013dF75A31678B786061C2B54bf531524` | z-fi/zFi `deploy/TokenList.md` |
 
+## Other chains
+
+The v1.4.1 addresses above are CREATE2 deployments and are identical on every chain that supports Safe's deterministic deployment. `networkAddresses["137"]` (Polygon) lists exactly the same addresses, and `test/fork/polygon.test.mjs` creates a SafeL2, executes a transfer and a batch, and reads balances on a Polygon fork. Chains where deterministic deployment does not hold (for example zkSync Era) simply fail the `eth_getCode` probe, so creating and batching are disabled there while existing Safes still open.
+
 ## Protocol constants
 
 - `SafeTx` typehash `0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8`

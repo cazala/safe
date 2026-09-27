@@ -7,7 +7,7 @@
 // plus a check that the app's html() matches dist/index.html.
 import { readFileSync } from 'node:fs';
 import { a, cd, keccakHex, keccakText, str, strip } from '../src/abi.js';
-import { CHAINS } from '../src/chains.js';
+import { MAINNET } from '../src/chains.js';
 
 const arg = (k, d) => {
   const i = process.argv.indexOf('--' + k);
@@ -15,7 +15,7 @@ const arg = (k, d) => {
 };
 const url = arg('rpc'), name = arg('name', 'safe'), app = arg('app');
 if (!url) throw Error('--rpc <url> is required');
-const WNS = CHAINS[1].wns, WEI_NODE = '0xa82820059d5df798546bcc2985157a77c3eef25eba9ba01899927333efacbd6f';
+const WNS = MAINNET.wns, WEI_NODE = '0xa82820059d5df798546bcc2985157a77c3eef25eba9ba01899927333efacbd6f';
 const call = async (to, data) => {
   const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to, data }, 'latest'] }) }).then((r) => r.json());
   if (r.error) throw Error(r.error.message);

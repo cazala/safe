@@ -209,13 +209,14 @@ Predict the Safe address by simulating `createProxyWithNonce(...)` with `eth_cal
 
 Do not deploy custom Safe implementations.
 
-Initial chain support:
+Chain support: any EVM chain the wallet is connected to.
 
-- Ethereum mainnet first
-
-Architecture should make adding other EVM chains trivial, but avoid shipping a huge chain registry.
-
-A small hardcoded map is acceptable.
+- Opening, approving, signing and executing need nothing but the Safe itself, so they work everywhere.
+- Features that need other contracts are enabled only when those contracts have code on the connected chain, probed with `eth_getCode` on connection: creating Safes (canonical v1.4.1 singleton, proxy factory, fallback handler), batches (MultiSendCallOnly), batched balance reads (Multicall3, with a per-call fallback).
+- New Safes use `Safe` on Ethereum mainnet and `SafeL2` elsewhere, as Safe Wallet does.
+- A small table maps well-known chain IDs to display names and native symbols; unknown chains show as "Chain <id>". No chain registry is shipped.
+- Name resolution and the TokenList are mainnet registries; on other chains, names show a clear error and tokens are added by address.
+- A DELEGATECALL to an address without code is a blocking error: the Safe would do nothing and still consume the nonce.
 
 ### 4.2 Open existing Safe
 
@@ -874,13 +875,8 @@ Do not rely on remembered addresses.
 
 For each supported chain store only:
 
-- chain ID
-- name
-- Safe singleton (v1.4.1, for creation)
-- Safe proxy factory
-- CompatibilityFallbackHandler
-- MultiSendCallOnly (once MultiSend ships)
-- Multicall3 (once balances ship)
+- the canonical CREATE2 addresses of Safe v1.4.1 (singleton, SafeL2 singleton, proxy factory, CompatibilityFallbackHandler, MultiSendCallOnly) and Multicall3, identical on every supporting chain
+- a display name and native symbol per well-known chain ID
 
 Mainnet-only registries (read only when connected to chain 1):
 

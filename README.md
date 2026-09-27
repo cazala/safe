@@ -10,7 +10,7 @@ See [docs/spec.md](docs/spec.md) for the full specification.
 
 ## What it does
 
-- Open any Safe v1.3.0 / v1.4.1 on Ethereum; create new v1.4.1 Safes
+- Works on any EVM chain the wallet is on: open any Safe v1.3.0 / v1.4.1; create new v1.4.1 Safes and batch where the canonical contracts are deployed (checked on chain)
 - Build transactions (raw, ETH/ERC-20 sends, MultiSend batches); every one shows its SafeTx hash verified against the Safe's own `getTransactionHash`
 - Approve onchain (`approveHash`) or sign offchain (EIP-712); share by link; optionally publish the transaction onchain with the approval so other owners find it without a link
 - ENS and `.wei` names wherever an address is accepted (onchain resolution only)
@@ -37,7 +37,7 @@ node scripts/dev.mjs --anvil http://127.0.0.1:8545      # http://localhost:5173
 
 The dev server adds an "Anvil test wallet (dev)" to the wallet picker (EIP-6963). If a wallet extension is installed, choose the test wallet under Connect: the extension talks to real mainnet, where the demo Safes do not exist. `?acct=N` picks the Anvil account.
 
-`FORK_URL` and `FORK_BLOCK` override the fork source (default: publicnode, pinned block).
+`FORK_URL` and `FORK_BLOCK` override the fork source (default: publicnode mainnet, pinned block; `FORK_BLOCK=0` forks the latest block). Public RPCs keep little history on fast chains, so a long-lived fork of Polygon or an L2 needs an archive RPC in `FORK_URL`.
 
 ## Deploy
 

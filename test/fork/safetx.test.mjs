@@ -51,9 +51,13 @@ test('review rejects wrong Safe, stale nonce, unsupported version; warns on dele
   assert.match((await review(base, { ...s, nonce: 1n }, 1)).errors.join(), /already used/);
   assert.match((await review(base, { ...s, supported: false, version: '1.1.1' }, 1)).errors.join(), /Unsupported Safe version/);
   assert.match((await review(base, s, 10)).errors.join(), /wallet is on chain 10/);
-  const dc = await review(newTx(s, { to: ACCOUNTS[3], operation: 1 }), s, 1);
+  // DELEGATECALL into a contract: allowed with the danger banner. Into an address without code: blocked.
+  const dc = await review(newTx(s, { to: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', operation: 1 }), s, 1);
   assert.equal(dc.ok, true);
   assert.match(dc.danger.join(), /DANGEROUS: DELEGATECALL/);
+  const empty = await review(newTx(s, { to: ACCOUNTS[3], operation: 1 }), s, 1);
+  assert.equal(empty.ok, false);
+  assert.match(empty.errors.join(), /no code on this chain/);
   assert.match((await review(newTx(s, { to: ACCOUNTS[3], nonce: 3n }), s, 1)).warnings.join(), /Queued/);
 });
 

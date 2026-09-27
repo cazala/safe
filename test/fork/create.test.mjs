@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { CHAINS } from '../../src/chains.js';
+import { SAFE } from '../../src/chains.js';
 import { execute } from '../../src/flow.js';
 import { use } from '../../src/rpc.js';
 import { create, createCall, newTx, predict } from '../../src/safe.js';
 import { ACCOUNTS, startFork, tx } from './anvil.mjs';
 
-const c = CHAINS[1];
+const c = SAFE; // mainnet: the non-L2 singleton
 const [A, B, C] = ACCOUNTS;
 let f;
 before(async () => {

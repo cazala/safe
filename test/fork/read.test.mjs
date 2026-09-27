@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { CHAINS } from '../../src/chains.js';
+import { chainInfo, MAINNET, SAFE } from '../../src/chains.js';
 import { use } from '../../src/rpc.js';
 import { readSafe } from '../../src/safe.js';
 import { ACCOUNTS, deploySafe, startFork, tx, V } from './anvil.mjs';
@@ -13,10 +13,10 @@ before(async () => {
 after(() => f.stop());
 
 test('hardcoded mainnet addresses have code on chain', async () => {
-  const c = CHAINS[1];
-  for (const k of ['singleton', 'factory', 'fallback', 'multiSendCallOnly', 'multicall3', 'ens', 'wns', 'tokenList']) {
-    assert.notEqual(await f.rpc('eth_getCode', [c[k], 'latest']), '0x', k);
-  }
+  const c = { ...SAFE, ...MAINNET };
+  for (const k of Object.keys(c)) assert.notEqual(await f.rpc('eth_getCode', [c[k], 'latest']), '0x', k);
+  const i = await chainInfo(1);
+  assert.deepEqual([i.name, i.sym, i.singleton, i.canCreate, i.canBatch, i.canMulticall], ['Ethereum', 'ETH', SAFE.singleton, true, true, true]);
   for (const v of Object.values(V)) for (const addr of Object.values(v)) assert.notEqual(await f.rpc('eth_getCode', [addr, 'latest']), '0x', addr);
 });
 
@@ -41,5 +41,5 @@ for (const version of ['1.3.0', '1.4.1']) {
 
 test('readSafe rejects an EOA and a non-Safe contract', async () => {
   await assert.rejects(readSafe('0x' + '42'.repeat(20)), /No contract/);
-  await assert.rejects(readSafe(CHAINS[1].multicall3), /Not a Safe/);
+  await assert.rejects(readSafe(SAFE.multicall3), /Not a Safe/);
 });
