@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
 import { keccak_256 } from '@noble/hashes/sha3.js';
 import { encodeAbiParameters, getAddress, keccak256, toFunctionSelector, toEventSelector } from 'viem';
-import { B, checksum, encode, fmt, keccakText, parse } from '../../src/abi.js';
+import { B, checksum, encode, fmt, fmtShort, keccakText, parse } from '../../src/abi.js';
 import { keccak } from '../../src/keccak.js';
 import { S, T } from '../../src/sel.js';
 
@@ -105,4 +105,14 @@ test('parse / fmt round trip without floating point', () => {
   assert.equal(fmt(10n ** 18n), '1');
   assert.equal(fmt(42n, 0), '42');
   for (const s of ['0', '1', '0.1', '99999999999999.000000000000000001']) assert.equal(fmt(parse(s)), s);
+});
+
+test('fmtShort: grouped, at most 2 decimals, truncated, tiny values marked', () => {
+  assert.equal(fmtShort(parse('1110725.005685094551836322')), '1,110,725');
+  assert.equal(fmtShort(parse('70271.262142', 6), 6), '70,271.26');
+  assert.equal(fmtShort(parse('1944.999', 18)), '1,944.99'); // truncated, never rounded up
+  assert.equal(fmtShort(parse('0.5')), '0.5');
+  assert.equal(fmtShort(parse('0.001')), '< 0.01');
+  assert.equal(fmtShort(0n), '0');
+  assert.equal(fmtShort(16940n, 0), '16,940');
 });

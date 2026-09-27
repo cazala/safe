@@ -72,6 +72,15 @@ export function fmt(v, dec = 18) {
   return f ? i + '.' + f : i;
 }
 
+/** Human-friendly amount for overviews: grouped thousands, at most `places` decimals (truncated,
+ *  never rounded up), "< 0.01" for tiny non-zero values. Exact amounts use `fmt`. */
+export function fmtShort(v, dec = 18, places = 2) {
+  const base = 10n ** BigInt(dec), int = v / base, frac = ((v % base) * 10n ** BigInt(places)) / base;
+  if (!int && !frac) return v ? '< 0.' + '0'.repeat(places - 1) + '1' : '0';
+  const f = frac ? '.' + frac.toString().padStart(places, '0').replace(/0+$/, '') : '';
+  return int.toLocaleString('en-US') + f;
+}
+
 /** Parse a decimal string into a bigint with `dec` decimals. Throws on bad input. */
 export function parse(s, dec = 18) {
   const m = /^(\d*)(?:\.(\d*))?$/.exec(s.trim());

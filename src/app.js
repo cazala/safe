@@ -1,5 +1,5 @@
 // safe.wei — app shell, routing and views.
-import { cd, fmt, hex, isAddr, isHex, keccakText, parse, strip, utf8 } from './abi.js';
+import { cd, fmt, fmtShort, hex, isAddr, isHex, keccakText, parse, strip, utf8 } from './abi.js';
 import { chainInfo, label } from './chains.js';
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review } from './review.js';
@@ -237,7 +237,7 @@ function safeHeader(s, back = ['#', '‹ Home']) {
       chip(c.name),
       chip(s.threshold + ' of ' + s.owners.length + ' owners'),
       chip('v' + (s.version || '?'), s.supported ? '' : '.bad'),
-      chip(fmt(s.balance) + ' ' + c.sym),
+      h('span.chip', { title: fmt(s.balance) + ' ' + c.sym }, fmtShort(s.balance) + ' ' + c.sym),
       me ? chip('You are an owner', '.ok') : st.account && chip('Not an owner'),
     ),
     !s.supported && bad('Unsupported Safe version "' + s.version + '". Only 1.3.0 and 1.4.1 are supported; signing is disabled.'),
@@ -315,7 +315,7 @@ function assetsTab(s) {
       h(
         'table.assets',
         h('tr', h('th', 'Asset'), h('th.num', 'Balance'), h('th', '')),
-        h('tr', h('td', h('b', c.sym), h('div.mut', 'Native')), h('td.num', fmt(s.balance)), h('td.act', h('a.btn', { href: link('send') }, 'Send'))),
+        h('tr', h('td', h('b', c.sym), h('div.mut', 'Native')), h('td.num', { title: fmt(s.balance) + ' ' + c.sym }, fmtShort(s.balance)), h('td.act', h('a.btn', { href: link('send') }, 'Send'))),
         held().map((t) =>
           h(
             'tr',
@@ -325,7 +325,11 @@ function assetsTab(s) {
               !t.listed && [' ', h('span.chip.bad', 'unlisted'), ' ', h('button.link', { onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), delete st.tokens[t.address], draw()), title: 'Remove from your token list' }, 'remove')],
               h('div', h('code.mut', t.address)),
             ),
-            h('td.num', st.bal[t.address] == null ? h('span.mut', 'unreadable') : fmt(st.bal[t.address], t.decimals)),
+            h(
+              'td.num',
+              { title: st.bal[t.address] == null ? null : fmt(st.bal[t.address], t.decimals) + ' ' + t.symbol },
+              st.bal[t.address] == null ? h('span.mut', 'unreadable') : fmtShort(st.bal[t.address], t.decimals),
+            ),
             h('td.act', h('a.btn', { href: link('send', { token: tokenSpec(t) }) }, 'Send')),
           ),
         ),
