@@ -1,9 +1,10 @@
 // safe.wei — app shell, routing and views.
-import { fmt, isAddr } from './abi.js';
+import { fmt, isAddr, isHex, parse, strip } from './abi.js';
 import { CHAINS } from './chains.js';
+import { review } from './review.js';
 import * as rpc from './rpc.js';
-import { readSafe } from './safe.js';
-import { $, addr, bad, h, kv, short, warn } from './ui.js';
+import { newTx, readSafe } from './safe.js';
+import { $, act, addr, bad, h, kv, short, warn } from './ui.js';
 
 const st = { account: null, chainId: null, safe: null };
 const main = $('main');
@@ -66,6 +67,71 @@ function safeView(s) {
   ];
 }
 
+function builder(s) {
+  const sym = chain().sym;
+  const to = h('input', { placeholder: '0x… recipient or contract', spellcheck: 'false' });
+  const value = h('input', { placeholder: '0', inputmode: 'decimal' });
+  const data = h('textarea', { placeholder: '0x (calldata, optional)', spellcheck: 'false' });
+  const op = h('select', h('option', { value: 0 }, 'CALL'), h('option', { value: 1 }, 'DELEGATECALL (dangerous)'));
+  const nonce = h('input', { value: String(s.nonce) });
+  const out = h('div');
+  const btn = h('button.primary', 'Review');
+  btn.onclick = act(
+    btn,
+    async () => {
+      const t = to.value.trim(), d = data.value.trim() || '0x', n = nonce.value.trim();
+      if (!isAddr(t)) throw Error('To: enter a 0x address (40 hex characters).');
+      if (!isHex(d)) throw Error('Data: must be 0x-prefixed hex with an even number of digits.');
+      if (!/^\d+$/.test(n)) throw Error('Nonce: must be a whole number.');
+      await showReview(newTx(s, { to: t, value: parse(value.value || '0', 18), data: d, operation: Number(op.value), nonce: n }));
+    },
+    out,
+  );
+  return h(
+    'section',
+    h('h2', 'New transaction'),
+    h('label', 'To'),
+    to,
+    h('label', 'Value (' + sym + ')'),
+    value,
+    h('label', 'Data'),
+    data,
+    h('details', h('summary', 'Advanced'), h('label', 'Operation'), op, h('label', 'Nonce'), nonce),
+    h('div.actions', btn),
+    out,
+  );
+}
+
+const rv = h('div');
+async function showReview(tx) {
+  const r = await review(tx, st.safe, st.chainId);
+  st.review = r;
+  rv.replaceChildren(txView(r));
+  rv.scrollIntoView({ behavior: 'smooth' });
+}
+
+function txView(r) {
+  const t = r.tx, c = CHAINS[t.chainId] || {}, len = strip(t.data).length / 2;
+  return h(
+    'section',
+    h('h2', 'Transaction summary'),
+    kv([
+      ['Safe', h('code', t.safe)],
+      ['Chain', (c.name || 'unknown') + ' · chainId ' + t.chainId],
+      ['Nonce', String(t.nonce)],
+      ['To', h('code', t.to)],
+      ['Value', fmt(t.value) + ' ' + (c.sym || '') + ' (' + t.value + ' wei)'],
+      ['Operation', t.operation ? h('b.bad', 'DELEGATECALL') : 'CALL'],
+      ['Data', len ? [h('div', 'selector ', h('code', t.data.slice(0, 10)), ' · ' + len + ' bytes'), h('code.mono', t.data)] : 'none'],
+      ['Gas fields', 'safeTxGas ' + t.safeTxGas + ' · baseGas ' + t.baseGas + ' · gasPrice ' + t.gasPrice + ' · gasToken ' + t.gasToken + ' · refundReceiver ' + t.refundReceiver],
+      ['SafeTx hash', h('b', h('code', r.local))],
+      ['Onchain hash', r.chain ? [h('code', r.chain), ' ', r.chain === r.local ? h('b.ok', '✓ verified') : h('b.bad', '✗ MISMATCH')] : h('b.bad', 'unavailable')],
+    ]),
+    r.errors.map((e) => bad(e)),
+    r.warnings.map((w) => warn(w)),
+  );
+}
+
 // ---- routing ----
 let seq = 0;
 async function route() {
@@ -79,7 +145,8 @@ async function route() {
     const s = await readSafe(m[1]);
     if (n !== seq) return;
     st.safe = s;
-    main.replaceChildren(...safeView(s));
+    rv.replaceChildren();
+    main.replaceChildren(...safeView(s), builder(s), rv);
   } catch (e) {
     if (n === seq) main.replaceChildren(bad(e.message), home());
   }
