@@ -649,7 +649,9 @@ function builder(s) {
   const methods = h('div'), out = h('div'), toLabel = h('label', 'Contract');
   let contract = null;
 
+  let picked = false; // once the user chooses an ABI, never switch it for them
   const pickDefault = (addr) => {
+    if (picked) return;
     if (addr === s.address) mode.value = 'safe';
     else if (loadAbi(addr)) (mode.value = 'paste'), (abiText.value = loadAbi(addr));
     else if (tokenOf(addr)) mode.value = 'erc20';
@@ -694,7 +696,7 @@ function builder(s) {
     }
     render();
   };
-  mode.onchange = render;
+  mode.onchange = () => ((picked = true), render());
   abiText.oninput = () => clearTimeout(abiText.t) || (abiText.t = setTimeout(render, 300));
   file.onchange = async () => {
     const f = file.files[0];
@@ -704,12 +706,12 @@ function builder(s) {
   return h(
     'div.form.wide',
     h('p.mut', 'Build calls to any contract from its ABI, then review them or add several to a batch. The ABI is only used here to encode calldata; nothing is fetched.'),
-    toLabel,
-    to,
-    out,
     h('label', 'ABI'),
     mode,
     pasteBox,
+    toLabel,
+    to,
+    out,
     methods,
   );
 }
