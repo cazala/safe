@@ -14,6 +14,7 @@ import { nameOf, resolveName } from './names.js';
 import { batch } from './multisend.js';
 import { parseCSV, toCSV } from './csv.js';
 import { $, act, addr, bad, h, kv, put, short, warn } from './ui.js';
+import { discover, get, list, remember, remembered } from './wallets.js';
 
 const st = { account: null, chainId: null, safe: null, tokens: {}, named: {}, batch: [], batchNames: {} };
 
@@ -46,22 +47,64 @@ const main = $('main');
 const chain = () => CHAINS[st.chainId];
 
 // ---- wallet ----
+let wallet = null; // { key, name, provider } in use, or null
+const menu = $('wallets');
+
 async function refreshWallet() {
-  if (!rpc.provider()) return;
+  if (!wallet) {
+    st.chainId = st.account = null;
+    put($('net'), h('span.mut', list().length ? 'Not connected' : 'No wallet detected'));
+    $('connect').textContent = 'Connect';
+    return;
+  }
   [st.chainId, [st.account = null] = []] = await Promise.all([rpc.chainId(), rpc.accounts()]);
   const c = chain();
-  $('net').replaceChildren(c ? c.name + ' (' + st.chainId + ')' : h('b.bad', 'Unsupported chain ' + st.chainId));
+  put($('net'), c ? c.name + ' (' + st.chainId + ')' : h('b.bad', 'Unsupported chain ' + st.chainId));
   $('connect').textContent = st.account ? short(st.account) : 'Connect';
 }
 
-$('connect').onclick = async () => {
-  try {
-    await rpc.connect();
-    await refreshWallet();
-    route();
-  } catch (e) {
-    main.prepend(bad(e.message));
-  }
+// Any wallet change invalidates everything loaded so far (spec §15).
+const reset = () => ((st.safe = null), refreshWallet().then(route));
+
+function useWallet(w) {
+  const old = wallet && wallet.provider;
+  if (old && old.removeListener) old.removeListener('chainChanged', reset), old.removeListener('accountsChanged', reset);
+  wallet = w;
+  rpc.use(w && w.provider);
+  if (w && w.provider.on) w.provider.on('chainChanged', reset), w.provider.on('accountsChanged', reset);
+}
+
+async function connectTo(w) {
+  put(menu);
+  useWallet(w);
+  remember(w.key);
+  await rpc.connect();
+  await reset();
+}
+
+async function disconnect() {
+  put(menu);
+  // Ask the wallet to forget this site where supported (EIP-2255); otherwise just stop using it.
+  await wallet.provider.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] }).catch(() => {});
+  remember('none');
+  useWallet(null);
+  await reset();
+}
+
+$('connect').onclick = () => {
+  if (menu.firstChild) return put(menu);
+  const ws = list(), out = h('div');
+  const run = (f) => () => f().catch((e) => put(out, bad(e.message || String(e))));
+  if (!st.account && ws.length === 1) return run(() => connectTo(ws[0]))();
+  put(
+    menu,
+    h(
+      'div.card',
+      st.account && [h('p', 'Connected with ', h('b', wallet.name), ': ', h('code', st.account)), h('div.actions', h('button', { onclick: run(disconnect) }, 'Disconnect'))],
+      ws.length ? [h('p.mut', st.account ? 'Switch wallet:' : 'Choose a wallet:'), h('div.actions', ws.map((w) => h('button', { onclick: run(() => connectTo(w)) }, w.name)))] : h('p.bad', 'No wallet found. Install or enable a browser wallet.'),
+      out,
+    ),
+  );
 };
 
 // ---- views ----
@@ -305,7 +348,7 @@ function assetsView(s, pre) {
         h('tr', h('th', '#'), h('th', 'Recipient'), h('th', 'Amount')),
         lines.map((x) => h('tr', h('td', String(x.r.line)), h('td', named(x.to)), h('td', x.t ? fmt(x.v, x.t.decimals) + ' ' + x.t.symbol : fmt(x.v) + ' ' + c.sym))),
       ),
-      sums.size && h('p', h('b', 'Totals: '), [...sums.values()].map(({ t, v }) => (t ? fmt(v, t.decimals) + ' ' + t.symbol : fmt(v) + ' ' + c.sym)).join(' · ')),
+      sums.size > 0 && h('p', h('b', 'Totals: '), [...sums.values()].map(({ t, v }) => (t ? fmt(v, t.decimals) + ' ' + t.symbol : fmt(v) + ' ' + c.sym)).join(' · ')),
       errs.map((e) => bad(e)),
     );
     if (errs.length) throw Error('Fix the rows above before continuing.');
@@ -381,7 +424,7 @@ function renderBatch() {
   const c = chain(), out = h('div');
   put(
     bq,
-    st.batch.length &&
+    st.batch.length > 0 &&
       h(
         'section',
         h('h2', 'Batch · ' + st.batch.length + ' call' + (st.batch.length > 1 ? 's' : '')),
@@ -688,13 +731,19 @@ async function route() {
 }
 
 // ---- boot ----
-const eth = window.ethereum;
-rpc.use(eth);
-if (eth && eth.on) {
-  // Any wallet change invalidates everything loaded so far (spec §15).
-  const reset = () => ((st.safe = null), refreshWallet().then(route));
-  eth.on('chainChanged', reset);
-  eth.on('accountsChanged', reset);
-}
 window.onhashchange = route;
-(eth ? refreshWallet() : Promise.resolve($('net').replaceChildren(h('b.bad', 'No wallet detected')))).then(route, route);
+let booted = false;
+discover(() => {
+  if (!booted) return; // announcements during discovery are handled by the initial choice below
+  // A wallet announced late: pick it up if it is the remembered one and nothing is in use.
+  const k = remembered();
+  if (!wallet && k && get(k)) useWallet(get(k)), reset();
+  else if (!wallet) refreshWallet();
+});
+{
+  const k = remembered(), ws = list();
+  // Remembered wallet; else the only wallet present; else wait for the user to choose.
+  useWallet(k === 'none' ? null : get(k) || (ws.length === 1 ? ws[0] : null));
+  booted = true;
+}
+refreshWallet().then(route, route);
