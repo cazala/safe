@@ -9,7 +9,8 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | 2 tx builder | 15,000 | 7,110 | 12,584 | 2,085 | builder, SafeTx hash, getTransactionHash check, review gate |
 | 3 approvals | 23,746 | 10,171 | 21,330 | 2,085 | approveHash, approve-and-execute, revalidation, simulation, share link/JSON, import |
 | 4 create | 26,432 | 11,021 | 24,016 | 2,085 | create view, eth_call prediction, deploy + verification |
-| 5 offchain | 28,935 | 12,082 | 26,519 | 2,085 | EIP-712 signing, ecrecover-precompile recovery, merge/import signatures |
+| 5 offchain | 28,935 | 11,888 | 26,519 | 2,085 | EIP-712 signing, ecrecover-precompile recovery, merge/import signatures |
+| 6 decoder | 31,419 | 12,816 | 28,951 | 2,137 | ERC-20 + Safe config decoding, danger banners |
 
 ## Major contributors
 

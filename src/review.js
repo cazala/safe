@@ -1,6 +1,7 @@
 // Transaction review: everything that must hold before any approve / sign / execute.
 // `ok === false` means every action is disabled (spec §6, §15).
 import { strip, u, ZERO } from './abi.js';
+import { decode } from './decode.js';
 import { rpc } from './rpc.js';
 import { chainTxHash, safeTxHash } from './safe.js';
 import { S } from './sel.js';
@@ -22,7 +23,7 @@ export async function simulate(t) {
 }
 
 export async function review(tx, s, walletChain) {
-  const r = { tx, local: safeTxHash(tx), chain: null, errors: [], warnings: [] };
+  const r = { tx, local: safeTxHash(tx), chain: null, errors: [], warnings: [], danger: [], decoded: decode(tx) };
   const err = (m) => r.errors.push(m), warn = (m) => r.warnings.push(m);
   try {
     r.chain = await chainTxHash(tx);
@@ -35,7 +36,8 @@ export async function review(tx, s, walletChain) {
   if (!s.supported) err('Unsupported Safe version "' + s.version + '".');
   if (tx.nonce < s.nonce) err('Nonce ' + tx.nonce + ' was already used (Safe nonce is ' + s.nonce + '). Rebuild the transaction.');
   if (tx.nonce > s.nonce) warn('Queued: nonce ' + tx.nonce + ' can only execute after nonce ' + s.nonce + ' has executed.');
-  if (tx.operation === 1) warn('DANGEROUS: DELEGATECALL. The target code runs with full control of the Safe (owners, modules, funds).');
+  if (tx.operation === 1) r.danger.push('DANGEROUS: DELEGATECALL. The target code runs with full control of the Safe (owners, modules, funds).');
+  if (r.decoded) r.danger.push(...r.decoded.danger), r.warnings.push(...r.decoded.warnings);
   if (tx.safeTxGas || tx.baseGas || tx.gasPrice || tx.gasToken !== ZERO || tx.refundReceiver !== ZERO) warn('Gas refund fields are non-zero: the executor may be paid from the Safe.');
   if (r.ok = !r.errors.length) {
     const w = await simulate(tx).catch((e) => 'Simulation failed: ' + e.message);
