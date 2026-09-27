@@ -14,6 +14,7 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | 9 pending | 34,015 | 13,847 | 31,431 | 2,253 | publish-with-approval, ApproveHash log discovery |
 | 10 tokens | 38,441 | 15,401 | 35,857 | 2,253 | TokenList + Multicall3 balances, send form, token-aware review |
 | 11 names | 40,741 | 16,278 | 38,157 | 2,253 | ENS (+ENSIP-10) and WNS forward/reverse, re-check before signing |
+| 12 multisend | 44,066 | 17,342 | 41,482 | 2,253 | batch queue, MultiSendCallOnly encode/strict decode, per-call review |
 
 ## Major contributors
 

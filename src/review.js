@@ -2,6 +2,7 @@
 // `ok === false` means every action is disabled (spec §6, §15).
 import { strip, u, ZERO } from './abi.js';
 import { decode } from './decode.js';
+import { unpack } from './multisend.js';
 import { rpc } from './rpc.js';
 import { chainTxHash, safeTxHash } from './safe.js';
 import { S } from './sel.js';
@@ -10,6 +11,12 @@ const ERC20_BOOL = [S.transfer, S.approve, S.transferFrom];
 
 /** eth_call the inner call from the Safe. Returns a warning string or null. */
 export async function simulate(t) {
+  const calls = unpack(t);
+  if (calls) {
+    // Each inner call is simulated on its own from the Safe; effects of earlier calls are not applied.
+    const w = await Promise.all(calls.map((c) => simulate({ ...t, ...c, operation: 0 })));
+    return w.map((x, i) => x && 'Call ' + (i + 1) + ' (simulated independently): ' + x).filter(Boolean).join(' ') || null;
+  }
   if (t.operation) return 'DELEGATECALL is not simulated.';
   const [code, ret] = await Promise.all([
     rpc('eth_getCode', [t.to, 'latest']),
@@ -23,7 +30,8 @@ export async function simulate(t) {
 }
 
 export async function review(tx, s, walletChain) {
-  const r = { tx, local: safeTxHash(tx), chain: null, errors: [], warnings: [], danger: [], decoded: decode(tx) };
+  const batch = unpack(tx);
+  const r = { tx, local: safeTxHash(tx), chain: null, errors: [], warnings: [], danger: [], decoded: batch ? null : decode(tx), batch };
   const err = (m) => r.errors.push(m), warn = (m) => r.warnings.push(m);
   try {
     r.chain = await chainTxHash(tx);
@@ -36,8 +44,14 @@ export async function review(tx, s, walletChain) {
   if (!s.supported) err('Unsupported Safe version "' + s.version + '".');
   if (tx.nonce < s.nonce) err('Nonce ' + tx.nonce + ' was already used (Safe nonce is ' + s.nonce + '). Rebuild the transaction.');
   if (tx.nonce > s.nonce) warn('Queued: nonce ' + tx.nonce + ' can only execute after nonce ' + s.nonce + ' has executed.');
-  if (tx.operation === 1) r.danger.push('DANGEROUS: DELEGATECALL. The target code runs with full control of the Safe (owners, modules, funds).');
+  if (tx.operation === 1 && !batch) r.danger.push('DANGEROUS: DELEGATECALL. The target code runs with full control of the Safe (owners, modules, funds).');
   if (r.decoded) r.danger.push(...r.decoded.danger), r.warnings.push(...r.decoded.warnings);
+  if (batch)
+    r.inner = batch.map((c, i) => {
+      const d = decode({ ...c, safe: tx.safe });
+      if (d) r.danger.push(...d.danger.map((m) => 'Call ' + (i + 1) + ': ' + m)), r.warnings.push(...d.warnings.map((m) => 'Call ' + (i + 1) + ': ' + m));
+      return { ...c, decoded: d };
+    });
   if (tx.safeTxGas || tx.baseGas || tx.gasPrice || tx.gasToken !== ZERO || tx.refundReceiver !== ZERO) warn('Gas refund fields are non-zero: the executor may be paid from the Safe.');
   if (r.ok = !r.errors.length) {
     const w = await simulate(tx).catch((e) => 'Simulation failed: ' + e.message);
