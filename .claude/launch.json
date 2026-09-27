@@ -2,6 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     { "name": "fork", "runtimeExecutable": "node", "runtimeArgs": ["scripts/fork.mjs"], "port": 8545 },
-    { "name": "dev", "runtimeExecutable": "node", "runtimeArgs": ["scripts/dev.mjs", "--anvil", "http://127.0.0.1:8545"], "port": 5173 }
+    { "name": "dev", "runtimeExecutable": "node", "runtimeArgs": ["scripts/dev.mjs", "--anvil", "http://127.0.0.1:8545"], "port": 5173 },
+    { "name": "onchain", "runtimeExecutable": "node", "runtimeArgs": ["scripts/dev.mjs", "--anvil", "http://127.0.0.1:8545", "--onchain", "0xf252aa460ef0e5edb45e7a8c3e3e6ff1038a97f7"], "port": 5174 }
   ]
 }
