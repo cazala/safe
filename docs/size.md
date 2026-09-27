@@ -13,6 +13,7 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | 6 decoder | 31,419 | 12,816 | 28,951 | 2,137 | ERC-20 + Safe config decoding, danger banners |
 | 9 pending | 34,015 | 13,847 | 31,431 | 2,253 | publish-with-approval, ApproveHash log discovery |
 | 10 tokens | 38,441 | 15,401 | 35,857 | 2,253 | TokenList + Multicall3 balances, send form, token-aware review |
+| 11 names | 40,741 | 16,278 | 38,157 | 2,253 | ENS (+ENSIP-10) and WNS forward/reverse, re-check before signing |
 
 ## Major contributors
 
