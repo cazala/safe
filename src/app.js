@@ -1,10 +1,10 @@
 // safe.wei — app shell, routing and views.
 import { fmt, isAddr, isHex, parse, strip } from './abi.js';
 import { CHAINS } from './chains.js';
-import { approve, collect, execute } from './flow.js';
+import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review } from './review.js';
 import * as rpc from './rpc.js';
-import { create, createCall, newTx, predict, readSafe } from './safe.js';
+import { create, createCall, newTx, predict, readSafe, safeTxHash } from './safe.js';
 import { fragment, importPayload, toJSON } from './share.js';
 import { $, act, addr, bad, h, kv, put, short, warn } from './ui.js';
 
@@ -171,7 +171,9 @@ function importer() {
     async () => {
       const p = importPayload(ta.value);
       if (p.tx.safe !== st.safe.address || p.tx.chainId !== st.chainId) return (location.hash = fragment(p.tx, p.sigs));
-      await showReview(p.tx, p.sigs);
+      // Same transaction as the one under review: merge the imported signatures into it.
+      const same = st.review && st.review.local === safeTxHash(p.tx);
+      await showReview(p.tx, same ? [...st.sigs, ...p.sigs] : p.sigs);
     },
     out,
   );
@@ -181,8 +183,11 @@ function importer() {
 const rv = h('div');
 async function showReview(tx, sigs = []) {
   const r = await review(tx, st.safe, st.chainId);
+  const c = await checkSigs(st.safe, r.local, sigs);
   st.review = r;
-  st.sigs = sigs;
+  st.off = c.valid;
+  st.sigs = c.valid.map((x) => x.sig); // only valid signatures are kept and re-shared
+  st.rejected = c.rejected;
   // Keep the transaction in the URL so a reload returns to this review (no hashchange fires).
   if (r.ok) history.replaceState(null, '', '#' + fragment(tx, sigs));
   put(rv, txView(r), r.ok ? [actionsView(r), shareView(r)] : bad('All actions are disabled until the errors above are resolved.'));
@@ -199,8 +204,9 @@ function actionsView(r) {
   const box = h('section', h('p.mut', 'Loading approvals…'));
   const s = st.safe, t = r.tx, me = st.account && st.account.toLowerCase();
   (async () => {
-    const { approved, sigs } = await collect(s, r.local, me);
-    const owner = me && s.owners.includes(me), mine = approved.includes(me);
+    const { approved, sigs } = await collect(s, r.local, me, st.off);
+    const signed = st.off.map((x) => x.signer);
+    const owner = me && s.owners.includes(me), mine = approved.includes(me) || signed.includes(me);
     const ready = BigInt(sigs.length) >= s.threshold, current = t.nonce === s.nonce;
     const out = h('div');
     const done = (msg) => async (rc) => {
@@ -215,18 +221,20 @@ function actionsView(r) {
     };
     put(
       box,
-      h('h2', 'Approvals · ' + approved.length + ' of ' + s.threshold + ' required'),
+      h('h2', 'Approvals · ' + (approved.length + st.off.filter((x) => !approved.includes(x.signer)).length) + ' of ' + s.threshold + ' required'),
       h(
         'ul.owners',
-        s.owners.map((o) => h('li', h('code', o), ' ', approved.includes(o) ? h('b.ok', '✓ approved onchain') : h('span.mut', '· not approved'), o === me && ' (you)')),
+        s.owners.map((o) => h('li', h('code', o), ' ', approved.includes(o) ? h('b.ok', '✓ approved onchain') : signed.includes(o) ? h('b.ok', '✓ signed offchain') : h('span.mut', '· not approved'), o === me && ' (you)')),
       ),
+      st.rejected.map((x) => warn('Ignored signature: ' + x.reason + '.')),
       !me && h('p.mut', 'Connect a wallet to approve or execute.'),
       me && !owner && h('p.mut', 'The connected wallet is not an owner: it can execute once enough owners have approved.'),
       !current && h('p.mut', 'Execution is possible only once the Safe nonce reaches ' + t.nonce + '.'),
       h(
         'div.actions',
         owner && !mine && button('Approve onchain', () => approve(t, me).then(done('Approved.')), out),
-        me && ready && current && button(owner && !mine ? 'Approve and execute' : 'Execute', () => execute(t, me).then(executed), out, '.primary'),
+        owner && !mine && button('Sign offchain', async () => showReview(t, [...st.sigs, await sign(t, me)]), out),
+        me && ready && current && button(owner && !mine ? 'Approve and execute' : 'Execute', () => execute(t, me, st.sigs).then(executed), out, '.primary'),
         button('Refresh', () => showReview(t, st.sigs), out),
       ),
       out,
@@ -243,7 +251,7 @@ function shareView(r) {
     h('h2', 'Share'),
     h(
       'p.mut',
-      'Other owners open this link, or paste it into Import, to review and approve the same transaction. It contains only the transaction data: anyone who has it can read it, nobody can sign with it.',
+      'Other owners open this link, or paste it into Import, to review and approve the same transaction. It carries the transaction and any offchain signatures collected so far: anyone who has it can read it, nobody can sign with it. Signatures from others can be merged by importing their link here.',
     ),
     h('input', { readonly: true, value: link, onclick: (e) => e.target.select() }),
     h('div.actions', copy('Copy link', link), copy('Copy JSON', toJSON(r.tx, st.sigs))),
