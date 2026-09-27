@@ -60,12 +60,15 @@ export const balances = async (holder, tokens) =>
     : [];
 
 /** Read decimals and symbol from an unlisted token (string or bytes32 symbol). */
-export async function meta(address) {
+export async function meta(address, chainName = 'this chain') {
+  address = address.toLowerCase();
+  if ((await rpc('eth_getCode', [address, 'latest'])) === '0x')
+    throw Error('There is no contract at ' + address + ' on ' + chainName + '. Tokens often have a different address on each chain.');
   const [d, s] = await multicall([
     { to: address, data: '0x' + S.decimals },
     { to: address, data: '0x' + S.symbol },
   ]);
-  if (!d.ok || strip(d.data).length !== 64 || W(strip(d.data), 0) > 77n) throw Error('Not an ERC-20 token (no valid decimals()).');
+  if (!d.ok || strip(d.data).length !== 64 || W(strip(d.data), 0) > 77n) throw Error('This contract does not look like an ERC-20 token: decimals() is missing or invalid.');
   const sh = strip(s.data);
   const symbol = !s.ok ? '?' : sh.length === 64 ? clean(new TextDecoder().decode(bytes(sh)).replace(/\0/g, '')) : clean(txt(sh, Number(W(sh, 0)) / 32));
   return { address: address.toLowerCase(), decimals: Number(W(strip(d.data), 0)), symbol, listed: false };
