@@ -8,6 +8,17 @@ A tiny rescue console for [Safe](https://safe.global) smart accounts that lives 
 
 See [docs/spec.md](docs/spec.md) for the full specification.
 
+## What it does
+
+- Open any Safe v1.3.0 / v1.4.1 on Ethereum; create new v1.4.1 Safes
+- Build transactions (raw, ETH/ERC-20 sends, MultiSend batches); every one shows its SafeTx hash verified against the Safe's own `getTransactionHash`
+- Approve onchain (`approveHash`) or sign offchain (EIP-712); share by link; optionally publish the transaction onchain with the approval so other owners find it without a link
+- ENS and `.wei` names wherever an address is accepted (onchain resolution only)
+- Token balances from the zOrg TokenList
+- Host Safe Apps in a sandboxed frame (see [docs/safe-apps.md](docs/safe-apps.md) for which apps allow it)
+
+On mobile, use the in-app browser of a mobile wallet (safe.wei talks to the injected wallet; WalletConnect would need a relay server).
+
 ## Develop
 
 ```bash

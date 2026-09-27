@@ -15,6 +15,9 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | 10 tokens | 38,441 | 15,401 | 35,857 | 2,253 | TokenList + Multicall3 balances, send form, token-aware review |
 | 11 names | 40,741 | 16,278 | 38,157 | 2,253 | ENS (+ENSIP-10) and WNS forward/reverse, re-check before signing |
 | 12 multisend | 44,066 | 17,342 | 41,482 | 2,253 | batch queue, MultiSendCallOnly encode/strict decode, per-call review |
+| 13 safe apps + mobile | 51,813 | 20,125 | 48,280 | 3,181 | Safe Apps SDK host, app mode, responsive layout |
+
+The page crossed the 50 KB "ideal" line with Phase 13; about 7 KB of it is the Safe Apps host (see docs/safe-apps.md).
 
 ## Major contributors
 
