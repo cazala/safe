@@ -33,6 +33,7 @@ export function fromApproval(s, tx) {
  */
 export async function scan(s, { blocks = 50000, step = 5000, end } = {}) {
   end = end ?? Number(await rpc('eth_blockNumber'));
+  const head = end;
   const stop = Math.max(0, end - blocks + 1), found = new Map();
   let win = step, error;
   while (end >= stop) {
@@ -56,5 +57,5 @@ export async function scan(s, { blocks = 50000, step = 5000, end } = {}) {
     }
     end = start - 1;
   }
-  return { error, found: [...found.values()].sort((x, y) => (x.tx.nonce < y.tx.nonce ? -1 : x.tx.nonce > y.tx.nonce ? 1 : y.block - x.block)), next: end };
+  return { head, error, found: [...found.values()].sort((x, y) => (x.tx.nonce < y.tx.nonce ? -1 : x.tx.nonce > y.tx.nonce ? 1 : y.block - x.block)), next: end };
 }
