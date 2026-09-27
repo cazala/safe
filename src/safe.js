@@ -1,8 +1,8 @@
 // Safe protocol: state reads. Everything is read from the Safe contract itself.
-import { a, arr, str, u, ZERO } from './abi.js';
+import { a, arr, B, cd, encode, keccakHex, str, strip, u, ZERO } from './abi.js';
 import { VERSIONS } from './chains.js';
 import { call, chainId, rpc } from './rpc.js';
-import { S } from './sel.js';
+import { S, T } from './sel.js';
 
 // keccak256("guard_manager.guard.address") / keccak256("fallback_manager.handler.address")
 const GUARD_SLOT = '0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8';
@@ -41,3 +41,35 @@ export async function readSafe(addr) {
     fallback: fallback === ZERO ? null : fallback,
   };
 }
+
+// ---- SafeTx ----
+
+/** A Safe transaction with the minimal-flow defaults (no gas refunds, spec §5). */
+export const newTx = (s, { to, value = 0n, data = '0x', operation = 0, nonce = s.nonce }) => ({
+  chainId: s.chainId,
+  safe: s.address,
+  to: to.toLowerCase(),
+  value: BigInt(value),
+  data: data.toLowerCase(),
+  operation,
+  safeTxGas: 0n,
+  baseGas: 0n,
+  gasPrice: 0n,
+  gasToken: ZERO,
+  refundReceiver: ZERO,
+  nonce: BigInt(nonce),
+});
+
+const fields = (t) => [t.to, t.value, B(t.data), t.operation, t.safeTxGas, t.baseGas, t.gasPrice, t.gasToken, t.refundReceiver, t.nonce];
+
+/** EIP-712 SafeTx hash computed locally (identical for v1.3.0 and v1.4.1). */
+export function safeTxHash(t) {
+  const domain = keccakHex('0x' + encode([T.Domain, t.chainId, t.safe]));
+  const struct = keccakHex(
+    '0x' + encode([T.SafeTx, t.to, t.value, keccakHex(t.data), t.operation, t.safeTxGas, t.baseGas, t.gasPrice, t.gasToken, t.refundReceiver, t.nonce]),
+  );
+  return keccakHex('0x1901' + strip(domain) + strip(struct));
+}
+
+/** The Safe's own getTransactionHash for the same fields. */
+export const chainTxHash = (t) => call(t.safe, cd(S.getTransactionHash, ...fields(t))).then((r) => '0x' + strip(r).slice(0, 64));
