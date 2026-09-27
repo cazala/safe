@@ -52,3 +52,5 @@ label { display: block; margin: 8px 0 2px; color: var(--mut); font-size: 13px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
 p.danger { font-size: 16px; border: 2px solid var(--bad); }
+label.check { display: flex; gap: 8px; align-items: flex-start; color: var(--fg); }
+label.check input { width: auto; margin-top: 3px; }
