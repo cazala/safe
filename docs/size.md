@@ -12,6 +12,7 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | 5 offchain | 28,935 | 11,888 | 26,519 | 2,085 | EIP-712 signing, ecrecover-precompile recovery, merge/import signatures |
 | 6 decoder | 31,419 | 12,816 | 28,951 | 2,137 | ERC-20 + Safe config decoding, danger banners |
 | 9 pending | 34,015 | 13,847 | 31,431 | 2,253 | publish-with-approval, ApproveHash log discovery |
+| 10 tokens | 38,441 | 15,401 | 35,857 | 2,253 | TokenList + Multicall3 balances, send form, token-aware review |
 
 ## Major contributors
 
