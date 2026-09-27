@@ -263,6 +263,7 @@ function txView(r) {
   return h(
     'section',
     h('h2', 'Transaction summary'),
+    r.danger.map((d) => h('p.bad.danger', d)),
     kv([
       ['Safe', h('code', t.safe)],
       ['Chain', (c.name || 'unknown') + ' · chainId ' + t.chainId],
@@ -270,6 +271,7 @@ function txView(r) {
       ['To', h('code', t.to)],
       ['Value', fmt(t.value) + ' ' + (c.sym || '') + ' (' + t.value + ' wei)'],
       ['Operation', t.operation ? h('b.bad', 'DELEGATECALL') : 'CALL'],
+      ['Action', r.decoded ? [h('b', r.decoded.label), kv(r.decoded.args.map((x) => [x.name, x.type === 'address' ? h('code', x.value) : String(x.value)]))] : len ? 'Unknown calldata (not decoded; check the raw data)' : t.value ? 'Native transfer' : 'Empty call'],
       ['Data', len ? [h('div', 'selector ', h('code', t.data.slice(0, 10)), ' · ' + len + ' bytes'), h('code.mono', t.data)] : 'none'],
       ['Gas fields', 'safeTxGas ' + t.safeTxGas + ' · baseGas ' + t.baseGas + ' · gasPrice ' + t.gasPrice + ' · gasToken ' + t.gasToken + ' · refundReceiver ' + t.refundReceiver],
       ['SafeTx hash', h('b', h('code', r.local))],

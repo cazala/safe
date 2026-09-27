@@ -53,6 +53,17 @@ test('review rejects wrong Safe, stale nonce, unsupported version; warns on dele
   assert.match((await review(base, s, 10)).errors.join(), /wallet is on chain 10/);
   const dc = await review(newTx(s, { to: ACCOUNTS[3], operation: 1 }), s, 1);
   assert.equal(dc.ok, true);
-  assert.match(dc.warnings.join(), /DANGEROUS: DELEGATECALL/);
+  assert.match(dc.danger.join(), /DANGEROUS: DELEGATECALL/);
   assert.match((await review(newTx(s, { to: ACCOUNTS[3], nonce: 3n }), s, 1)).warnings.join(), /Queued/);
+});
+
+test('security warnings: delegatecall and unlimited approval appear in the review', async () => {
+  const s = safes['1.4.1'];
+  const dc = await review(newTx(s, { to: ACCOUNTS[3], operation: 1 }), s, 1);
+  assert.match(dc.danger.join(), /DANGEROUS: DELEGATECALL/);
+  const usdc = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
+  const approve = '0x095ea7b3' + ACCOUNTS[3].slice(2).padStart(64, '0') + 'f'.repeat(64);
+  const r = await review(newTx(s, { to: usdc, data: approve }), s, 1);
+  assert.equal(r.decoded.label, 'ERC-20 approve');
+  assert.match(r.danger.join(), /UNLIMITED APPROVAL/);
 });
