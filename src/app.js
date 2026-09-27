@@ -75,10 +75,16 @@ function useWallet(w) {
 }
 
 async function connectTo(w) {
-  put(menu);
+  const prev = wallet;
   useWallet(w);
+  try {
+    await rpc.connect();
+  } catch (e) {
+    useWallet(prev); // rejected or failed: stay on the previous wallet
+    throw e;
+  }
+  put(menu);
   remember(w.key);
-  await rpc.connect();
   await reset();
 }
 
@@ -91,18 +97,41 @@ async function disconnect() {
   await reset();
 }
 
-$('connect').onclick = () => {
-  if (menu.firstChild) return put(menu);
-  const ws = list(), out = h('div');
-  const run = (f) => () => f().catch((e) => put(out, bad(e.message || String(e))));
-  if (!st.account && ws.length === 1) return run(() => connectTo(ws[0]))();
+const drop = $('drop');
+const closeDrop = () => put(drop);
+document.addEventListener('click', (e) => !e.target.closest('.acct') && closeDrop());
+document.addEventListener('keydown', (e) => e.key === 'Escape' && (closeDrop(), put(menu)));
+
+/** Wallet chooser panel under the header; lists every wallet except the one in use. */
+function picker() {
+  const ws = list().filter((w) => !wallet || w.key !== wallet.key || !st.account), out = h('div');
   put(
     menu,
     h(
       'div.card',
-      st.account && [h('p', 'Connected with ', h('b', wallet.name), ': ', h('code', st.account)), h('div.actions', h('button', { onclick: run(disconnect) }, 'Disconnect'))],
-      ws.length ? [h('p.mut', st.account ? 'Switch wallet:' : 'Choose a wallet:'), h('div.actions', ws.map((w) => h('button', { onclick: run(() => connectTo(w)) }, w.name)))] : h('p.bad', 'No wallet found. Install or enable a browser wallet.'),
+      ws.length
+        ? [h('p.mut', st.account ? 'Switch to:' : 'Choose a wallet:'), h('div.actions', ws.map((w) => h('button', { onclick: () => connectTo(w).catch((e) => put(out, bad(e.message || String(e)))) }, w.name)))]
+        : h('p.mut', st.account ? 'No other wallet found.' : 'No wallet found. Install or enable a browser wallet.'),
+      h('div.actions', h('button.link', { onclick: () => put(menu) }, 'close')),
       out,
+    ),
+  );
+}
+
+$('connect').onclick = () => {
+  if (drop.firstChild) return closeDrop();
+  put(menu);
+  if (!st.account) {
+    const ws = list();
+    return ws.length === 1 ? connectTo(ws[0]).catch((e) => main.prepend(bad(e.message || String(e)))) : picker();
+  }
+  put(
+    drop,
+    h(
+      'div.dropdown',
+      h('div.mut', wallet.name),
+      h('button', { onclick: () => (closeDrop(), picker()) }, 'Switch wallet'),
+      h('button', { onclick: () => (closeDrop(), disconnect()) }, 'Disconnect'),
     ),
   );
 };

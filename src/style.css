@@ -70,3 +70,8 @@ details[open] > summary::before { transform: rotate(45deg); margin-top: -4px; }
 summary:hover::before { border-color: var(--fg); }
 details { border-top: 1px solid var(--line); margin-top: 8px; }
 #wallets .card { margin: 8px 0 0; }
+.acct { position: relative; }
+.dropdown { position: absolute; right: 0; top: calc(100% + 6px); z-index: 10; min-width: 180px; display: flex; flex-direction: column; padding: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); }
+.dropdown > div { padding: 6px 10px; font-size: 12px; }
+.dropdown button { border: 0; background: none; text-align: left; padding: 8px 10px; }
+.dropdown button:hover { background: var(--bg); }
