@@ -48,7 +48,6 @@ const chain = () => CHAINS[st.chainId];
 
 // ---- wallet ----
 let wallet = null; // { key, name, provider } in use, or null
-const menu = $('wallets');
 
 async function refreshWallet() {
   if (!wallet) {
@@ -83,13 +82,11 @@ async function connectTo(w) {
     useWallet(prev); // rejected or failed: stay on the previous wallet
     throw e;
   }
-  put(menu);
   remember(w.key);
   await reset();
 }
 
 async function disconnect() {
-  put(menu);
   // Ask the wallet to forget this site where supported (EIP-2255); otherwise just stop using it.
   await wallet.provider.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] }).catch(() => {});
   remember('none');
@@ -97,43 +94,37 @@ async function disconnect() {
   await reset();
 }
 
+// Account popover, anchored to the header button: the account menu, or the wallet list.
 const drop = $('drop');
 const closeDrop = () => put(drop);
-document.addEventListener('click', (e) => !e.target.closest('.acct') && closeDrop());
-document.addEventListener('keydown', (e) => e.key === 'Escape' && (closeDrop(), put(menu)));
+// pointerdown, not click: by the time a click bubbles up, the popover may have re-rendered.
+document.addEventListener('pointerdown', (e) => !e.target.closest('.acct') && closeDrop());
+document.addEventListener('keydown', (e) => e.key === 'Escape' && closeDrop());
 
-/** Wallet chooser panel under the header; lists every wallet except the one in use. */
-function picker() {
-  const ws = list().filter((w) => !wallet || w.key !== wallet.key || !st.account), out = h('div');
+function popover(view) {
+  const err = h('div');
+  const item = (label, fn) => h('button', { onclick: () => fn().catch((e) => put(err, h('p.bad', e.message || String(e)))) }, label);
+  if (view === 'menu')
+    return put(drop, h('div.dropdown', h('div.head', wallet.name), item('Switch wallet', async () => popover('pick')), item('Disconnect', async () => (closeDrop(), disconnect())), err));
+  // Wallet list: every wallet except the one already connected.
+  const ws = list().filter((w) => !st.account || w.key !== wallet.key);
   put(
-    menu,
+    drop,
     h(
-      'div.card',
-      ws.length
-        ? [h('p.mut', st.account ? 'Switch to:' : 'Choose a wallet:'), h('div.actions', ws.map((w) => h('button', { onclick: () => connectTo(w).catch((e) => put(out, bad(e.message || String(e)))) }, w.name)))]
-        : h('p.mut', st.account ? 'No other wallet found.' : 'No wallet found. Install or enable a browser wallet.'),
-      h('div.actions', h('button.link', { onclick: () => put(menu) }, 'close')),
-      out,
+      'div.dropdown',
+      h('div.head', st.account && h('button.back', { onclick: () => popover('menu'), 'aria-label': 'Back' }, '‹'), st.account ? 'Switch wallet' : 'Connect a wallet'),
+      ws.length ? ws.map((w) => item(w.name, async () => (await connectTo(w), closeDrop()))) : h('div.empty', st.account ? 'No other wallet found.' : 'No wallet found. Install or enable a browser wallet.'),
+      err,
     ),
   );
 }
 
 $('connect').onclick = () => {
   if (drop.firstChild) return closeDrop();
-  put(menu);
-  if (!st.account) {
-    const ws = list();
-    return ws.length === 1 ? connectTo(ws[0]).catch((e) => main.prepend(bad(e.message || String(e)))) : picker();
-  }
-  put(
-    drop,
-    h(
-      'div.dropdown',
-      h('div.mut', wallet.name),
-      h('button', { onclick: () => (closeDrop(), picker()) }, 'Switch wallet'),
-      h('button', { onclick: () => (closeDrop(), disconnect()) }, 'Disconnect'),
-    ),
-  );
+  const ws = list();
+  if (st.account) return popover('menu');
+  if (ws.length === 1) return connectTo(ws[0]).catch((e) => (popover('pick'), drop.querySelector('.dropdown').append(h('p.bad', e.message || String(e)))));
+  popover('pick');
 };
 
 // ---- views ----
