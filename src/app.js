@@ -4,7 +4,7 @@ import { CHAINS } from './chains.js';
 import { approve, collect, execute } from './flow.js';
 import { review } from './review.js';
 import * as rpc from './rpc.js';
-import { newTx, readSafe } from './safe.js';
+import { create, createCall, newTx, predict, readSafe } from './safe.js';
 import { fragment, importPayload, toJSON } from './share.js';
 import { $, act, addr, bad, h, kv, put, short, warn } from './ui.js';
 
@@ -36,7 +36,65 @@ function home() {
   const input = h('input', { placeholder: 'Safe address 0x…', id: 'safeIn', spellcheck: 'false' });
   const go = () => (isAddr(input.value.trim()) ? (location.hash = '/' + input.value.trim().toLowerCase()) : input.after(bad('Enter a 0x address (40 hex characters).')));
   input.onkeydown = (e) => e.key === 'Enter' && go();
-  return h('section', h('h2', 'Open Safe'), h('div.row', input, h('button', { onclick: go }, 'Open')));
+  return [
+    h('section', h('h2', 'Open Safe'), h('div.row', input, h('button', { onclick: go }, 'Open'))),
+    h('section', h('h2', 'Create Safe'), h('p.mut', 'Deploy a new Safe v1.4.1 from the canonical proxy factory.'), h('button', { onclick: () => (location.hash = '/new') }, 'Create Safe')),
+  ];
+}
+
+function createView() {
+  const c = chain();
+  const owners = h('textarea', { placeholder: 'One owner address per line', spellcheck: 'false' }, st.account || '');
+  const threshold = h('input', { value: '1', inputmode: 'numeric' });
+  const rand = crypto.getRandomValues(new Uint8Array(8)).reduce((n, b) => n * 256n + BigInt(b), 0n);
+  const salt = h('input', { value: String(rand) });
+  const out = h('div'), plan = h('div');
+  const btn = h('button.primary', 'Review');
+  btn.onclick = act(
+    btn,
+    async () => {
+      put(plan);
+      if (!st.account) throw Error('Connect a wallet first.');
+      if (!/^\d+$/.test(threshold.value.trim()) || !/^\d+$/.test(salt.value.trim())) throw Error('Threshold and salt must be whole numbers.');
+      const list = owners.value.split(/[\s,]+/).filter(Boolean);
+      const k = createCall(c, list, threshold.value.trim(), BigInt(salt.value.trim()));
+      const at = await predict(k, st.account);
+      const deploy = h('button.primary', 'Deploy Safe');
+      deploy.onclick = act(deploy, async () => {
+        const s = await create(k, st.account);
+        location.hash = '/' + s.address;
+      });
+      put(
+        plan,
+        h('h2', 'Deployment summary'),
+        kv([
+          ['Predicted address', h('b', h('code', at))],
+          ['Chain', c.name + ' · chainId ' + st.chainId],
+          ['Owners', h('ol.owners', k.owners.map((o) => h('li', h('code', o), o === st.account.toLowerCase() && [' ', h('b.ok', 'you')])))],
+          ['Threshold', k.threshold + ' of ' + k.owners.length],
+          ['Singleton', [h('code', c.singleton), ' (Safe v1.4.1)']],
+          ['Factory', h('code', c.factory)],
+          ['Fallback', [h('code', c.fallback), ' (CompatibilityFallbackHandler)']],
+          ['Salt nonce', String(k.salt)],
+        ]),
+        !k.owners.includes(st.account.toLowerCase()) && warn('The connected wallet is not one of the owners.'),
+        h('div.actions', deploy),
+      );
+    },
+    out,
+  );
+  return h(
+    'section',
+    h('h2', 'Create Safe'),
+    h('label', 'Owners'),
+    owners,
+    h('label', 'Threshold'),
+    threshold,
+    h('details', h('summary', 'Advanced'), h('label', 'Salt nonce (the address depends on it)'), salt),
+    h('div.actions', btn),
+    out,
+    plan,
+  );
 }
 
 function safeView(s) {
@@ -222,7 +280,8 @@ async function route() {
   let m = /^\/(0x[0-9a-fA-F]{40})$/.exec(path), p;
   try {
     if (path.startsWith('tx=')) m = [0, (p = importPayload(path)).tx.safe];
-    if (!m) return main.replaceChildren(home());
+    if (path === '/new') return put(main, chain() ? createView() : bad('Connect a wallet on a supported chain.'));
+    if (!m) return put(main, home());
     main.replaceChildren(h('p.mut', 'Loading ' + m[1] + '…'));
     if (!chain()) throw Error('Connect a wallet on a supported chain (' + Object.values(CHAINS).map((c) => c.name).join(', ') + ').');
     const s = await readSafe(m[1]);
@@ -232,7 +291,7 @@ async function route() {
     main.replaceChildren(...safeView(s), rv, builder(s), h('section', importer()));
     if (p) await showReview(p.tx, p.sigs);
   } catch (e) {
-    if (n === seq) main.replaceChildren(bad(e.message), home());
+    if (n === seq) put(main, bad(e.message), home());
   }
 }
 
