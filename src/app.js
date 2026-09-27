@@ -11,9 +11,10 @@ import { decode } from './decode.js';
 import { balances, listed, meta, save, saved } from './tokens.js';
 import { S } from './sel.js';
 import { nameOf, resolveName } from './names.js';
+import { batch } from './multisend.js';
 import { $, act, addr, bad, h, kv, put, short, warn } from './ui.js';
 
-const st = { account: null, chainId: null, safe: null, tokens: {}, named: {} };
+const st = { account: null, chainId: null, safe: null, tokens: {}, named: {}, batch: [], batchNames: {} };
 
 /** An address input: a 0x address, or a .eth / .wei name resolved onchain (remembered for display and re-checks). */
 async function target(v) {
@@ -30,7 +31,7 @@ async function recheck() {
     if (now !== addr) throw Error(name + ' now resolves to ' + now + ' instead of ' + addr + '. Rebuild the transaction.');
   }
 }
-const named = (x) => (st.named[x] ? [h('b', st.named[x]), ' → ', h('code', x)] : h('code', x));
+const named = (x, m = st.named) => (m[x] ? [h('b', m[x]), ' → ', h('code', x)] : h('code', x));
 /** Fill in a reverse name next to an address, for display only. */
 const rev = (x) => {
   const el = h('span.mut');
@@ -215,19 +216,16 @@ function assetsView(s) {
     const amt = h('input', { placeholder: '0.0', inputmode: 'decimal' });
     const dec = t ? t.decimals : 18, max = t ? bal : s.balance;
     const out = h('div');
-    const go = button(
-      'Review',
-      async () => {
-        st.named = {};
-        const r = await target(to.value);
-        const v = parse(amt.value, dec);
-        if (!v) throw Error('Amount must be greater than zero.');
-        if (max != null && v > max) throw Error('Amount exceeds the Safe balance.');
-        await showReview(t ? newTx(s, { to: t.address, data: cd(S.transfer, r, v) }) : newTx(s, { to: r, value: v }));
-      },
-      out,
-      '.primary',
-    );
+    const read = async () => {
+      st.named = {};
+      const r = await target(to.value);
+      const v = parse(amt.value, dec);
+      if (!v) throw Error('Amount must be greater than zero.');
+      if (max != null && v > max) throw Error('Amount exceeds the Safe balance.');
+      return t ? { to: t.address, value: 0n, data: cd(S.transfer, r, v) } : { to: r, value: v, data: '0x' };
+    };
+    const go = button('Review', async () => showReview(newTx(s, await read())), out, '.primary');
+    const add = button('Add to batch', async () => (queue(await read()), put(form)), out);
     put(
       form,
       h(
@@ -237,7 +235,7 @@ function assetsView(s) {
         to,
         h('label', 'Amount'),
         h('div.row', amt, max != null && h('button', { onclick: () => (amt.value = fmt(max, dec)) }, 'Max')),
-        h('div.actions', go),
+        h('div.actions', go, add),
         out,
       ),
     );
@@ -245,6 +243,50 @@ function assetsView(s) {
   };
   return h('section', h('h2', 'Assets'), rows, form, h('details', h('summary', 'Add token by address'), h('div.row', addIn, add), addOut));
 }
+
+// ---- batch (MultiSendCallOnly) ----
+const bq = h('div');
+const queue = (call) => {
+  Object.assign(st.batchNames, st.named);
+  st.batch.push(call);
+  renderBatch();
+  bq.scrollIntoView({ behavior: 'smooth' });
+};
+function renderBatch() {
+  const c = chain(), out = h('div');
+  put(
+    bq,
+    st.batch.length &&
+      h(
+        'section',
+        h('h2', 'Batch · ' + st.batch.length + ' call' + (st.batch.length > 1 ? 's' : '')),
+        h('p.mut', 'Executed atomically, in order, through the canonical MultiSendCallOnly. If one call fails, none happen.'),
+        h(
+          'ol',
+          st.batch.map((x, i) =>
+            h(
+              'li',
+              callLabel(x),
+              ' ',
+              h('button.link', { onclick: () => (st.batch.splice(i, 1), renderBatch()) }, 'remove'),
+            ),
+          ),
+        ),
+        h(
+          'div.actions',
+          button('Review batch', async () => ((st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(st.chainId, st.batch)))), out, '.primary'),
+          h('button', { onclick: () => ((st.batch = []), (st.batchNames = {}), renderBatch()) }, 'Clear'),
+        ),
+        out,
+      ),
+  );
+}
+const callLabel = (x) => {
+  const d = decode({ ...x, safe: st.safe.address }), tok = d && d.label.startsWith('ERC-20') && tokenOf(x.to);
+  return d
+    ? [d.label, tok ? ' ' + fmt(d.args.at(-1).value, tok.decimals) + ' ' + tok.symbol : '', ' → ', named((d.args.find((a) => a.name === 'to' || a.name === 'spender') || d.args[0]).value, st.batchNames), tok ? '' : [' on ', named(x.to, st.batchNames)]]
+    : [fmt(x.value || 0n) + ' ' + chain().sym + ' → ', named(x.to, st.batchNames), x.data && x.data !== '0x' ? ' with ' + (x.data.length - 2) / 2 + ' bytes of calldata' : ''];
+};
 
 function builder(s) {
   const sym = chain().sym;
@@ -254,15 +296,20 @@ function builder(s) {
   const op = h('select', h('option', { value: 0 }, 'CALL'), h('option', { value: 1 }, 'DELEGATECALL (dangerous)'));
   const nonce = h('input', { value: String(s.nonce) });
   const out = h('div');
-  const btn = h('button.primary', 'Review');
-  btn.onclick = act(
-    btn,
+  const read = async () => {
+    st.named = {};
+    const t = await target(to.value), d = data.value.trim() || '0x', n = nonce.value.trim();
+    if (!isHex(d)) throw Error('Data: must be 0x-prefixed hex with an even number of digits.');
+    if (!/^\d+$/.test(n)) throw Error('Nonce: must be a whole number.');
+    return { to: t, value: parse(value.value || '0', 18), data: d.toLowerCase(), operation: Number(op.value), nonce: n };
+  };
+  const btn = button('Review', async () => showReview(newTx(s, await read())), out, '.primary');
+  const add = button(
+    'Add to batch',
     async () => {
-      st.named = {};
-      const t = await target(to.value), d = data.value.trim() || '0x', n = nonce.value.trim();
-      if (!isHex(d)) throw Error('Data: must be 0x-prefixed hex with an even number of digits.');
-      if (!/^\d+$/.test(n)) throw Error('Nonce: must be a whole number.');
-      await showReview(newTx(s, { to: t, value: parse(value.value || '0', 18), data: d, operation: Number(op.value), nonce: n }));
+      const x = await read();
+      if (x.operation) throw Error('Batches can only contain CALLs.');
+      queue({ to: x.to, value: x.value, data: x.data });
     },
     out,
   );
@@ -276,7 +323,7 @@ function builder(s) {
     h('label', 'Data'),
     data,
     h('details', h('summary', 'Advanced'), h('label', 'Operation'), op, h('label', 'Nonce'), nonce),
-    h('div.actions', btn),
+    h('div.actions', btn, add),
     out,
   );
 }
@@ -337,6 +384,7 @@ function actionsView(r) {
       rv.append(h('p.ok', msg + ' ', h('code', rc.transactionHash)));
     };
     const executed = async (rc) => {
+      if (r.batch) (st.batch = []), (st.batchNames = {});
       history.replaceState(null, '', '#/' + s.address);
       await route();
       main.prepend(h('p.ok', '✓ Executed nonce ' + t.nonce + ' in ', h('code', rc.transactionHash)));
@@ -441,6 +489,26 @@ function actionView(d, t) {
   ];
 }
 
+function batchView(r) {
+  return [
+    h('b', 'Batch of ' + r.inner.length + ' calls'),
+    ' via MultiSendCallOnly ',
+    h('code', r.tx.to),
+    r.inner.map((c, i) =>
+      h(
+        'div.card',
+        h('b', 'Call ' + (i + 1)),
+        kv([
+          ['To', named(c.to)],
+          ['Value', fmt(c.value) + ' ' + chain().sym],
+          ['Action', c.decoded ? actionView(c.decoded, c) : c.data !== '0x' ? 'Unknown calldata' : c.value ? 'Native transfer' : 'Empty call'],
+          c.data !== '0x' && ['Data', h('code', c.data)],
+        ]),
+      ),
+    ),
+  ];
+}
+
 function txView(r) {
   const t = r.tx, c = CHAINS[t.chainId] || {}, len = strip(t.data).length / 2;
   return h(
@@ -453,8 +521,8 @@ function txView(r) {
       ['Nonce', String(t.nonce)],
       ['To', st.named[t.to] ? named(t.to) : [h('code', t.to), rev(t.to)]],
       ['Value', fmt(t.value) + ' ' + (c.sym || '') + ' (' + t.value + ' wei)'],
-      ['Operation', t.operation ? h('b.bad', 'DELEGATECALL') : 'CALL'],
-      ['Action', r.decoded ? actionView(r.decoded, t) : len ? 'Unknown calldata (not decoded; check the raw data)' : t.value ? 'Native transfer' : 'Empty call'],
+      ['Operation', t.operation ? (r.batch ? 'DELEGATECALL into MultiSendCallOnly (batch)' : h('b.bad', 'DELEGATECALL')) : 'CALL'],
+      ['Action', r.batch ? batchView(r) : r.decoded ? actionView(r.decoded, t) : len ? 'Unknown calldata (not decoded; check the raw data)' : t.value ? 'Native transfer' : 'Empty call'],
       ['Data', len ? [h('div', 'selector ', h('code', t.data.slice(0, 10)), ' · ' + len + ' bytes'), h('code.mono', t.data)] : 'none'],
       ['Gas fields', 'safeTxGas ' + t.safeTxGas + ' · baseGas ' + t.baseGas + ' · gasPrice ' + t.gasPrice + ' · gasToken ' + t.gasToken + ' · refundReceiver ' + t.refundReceiver],
       ['SafeTx hash', h('b', h('code', r.local))],
@@ -481,7 +549,9 @@ async function route() {
     if (n !== seq) return;
     st.safe = s;
     rv.replaceChildren();
-    main.replaceChildren(...safeView(s), rv, assetsView(s), pendingView(s), builder(s), h('section', importer()));
+    if (!st.batch.length || st.batchSafe !== s.address) (st.batch = []), (st.batchNames = {}), (st.batchSafe = s.address);
+    main.replaceChildren(...safeView(s), rv, assetsView(s), bq, pendingView(s), builder(s), h('section', importer()));
+    renderBatch();
     if (p) await showReview(p.tx, p.sigs);
   } catch (e) {
     if (n === seq) put(main, bad(e.message), home());
