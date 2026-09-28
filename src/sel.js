@@ -38,6 +38,8 @@ export const S = {
   name: '691f3431',
   getMessageHash: '0a1028c4',
   isValidSignature: '1626ba7e',
+  signMessage: '85a5affe',
+  signedMessages: '5ae6bd37',
 };
 
 export const T = {

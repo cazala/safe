@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { hex, utf8 } from '../../src/abi.js';
-import { chainMessageHash, checkMessage, combine, describe, isValid, safeMessageHash, signMessage } from '../../src/message.js';
+import { chainMessageHash, checkMessage, combine, describe, isValid, onchainSignCall, safeMessageHash, signedOnchain, signMessage } from '../../src/message.js';
+import { LIBS, line } from '../../src/chains.js';
+import { execute, sign } from '../../src/flow.js';
+import { review } from '../../src/review.js';
+import { newTx, readSafe } from '../../src/safe.js';
 import { use } from '../../src/rpc.js';
 import { ACCOUNTS, deploySafe, startFork } from './anvil.mjs';
 
@@ -48,4 +52,31 @@ test('a non-owner cannot sign, and a Safe without a fallback handler cannot vali
   await assert.rejects(signMessage(m, X), /not an owner/);
   const bare = await deploySafe(f.rpc, '1.4.1', [A], 1, undefined, '0x0000000000000000000000000000000000000000');
   await assert.rejects(signMessage({ ...m, safe: bare }, A), /cannot validate message signatures/);
+});
+
+for (const v of ['1.3.0', '1.4.1', '1.5.0']) {
+  test(v + ': the Safe signs a message onchain (SignMessageLib); an empty signature is then valid', async () => {
+    const safe = await deploySafe(f.rpc, v, [A, B, C], 2);
+    const s = await readSafe(safe), hash = describe({ kind: 1, content: hex(utf8('onchain ' + v)) }).hash;
+    const t = newTx(s, onchainSignCall(LIBS[line(v)].signMessage[0], hash));
+    const r = await review(t, s, 1);
+    assert.equal(r.ok, true, r.errors.join(' '));
+    assert.equal(r.signMessage, hash);
+    assert.deepEqual(r.danger, [], 'the canonical SignMessageLib is not flagged as a dangerous DELEGATECALL');
+    assert.equal(await isValid(safe, hash, '0x'), false);
+    await execute(t, X, [await sign(t, A), await sign(t, C)]);
+    assert.equal(await signedOnchain(safe, safeMessageHash(1, safe, hash)), true);
+    assert.equal(await isValid(safe, hash, '0x'), true);
+    assert.equal(await isValid(safe, '0x' + 'cd'.repeat(32), '0x'), false);
+  });
+}
+
+test('only the canonical SignMessageLib with exact calldata is recognized', async () => {
+  const s = await readSafe(await deploySafe(f.rpc, '1.4.1', [A], 1));
+  const hash = '0x' + 'ab'.repeat(32), call = onchainSignCall(LIBS['1.4'].signMessage[0], hash);
+  assert.equal((await review(newTx(s, call), s, 1)).signMessage, hash);
+  const other = await review(newTx(s, { ...call, to: '0x' + '42'.repeat(20) }), s, 1);
+  assert.equal(other.signMessage, null);
+  assert.ok(other.danger.some((d) => /DELEGATECALL/.test(d)));
+  assert.equal((await review(newTx(s, { ...call, data: call.data + '00' }), s, 1)).signMessage, null);
 });
