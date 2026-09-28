@@ -1,4 +1,4 @@
-// "Your Safes" on Home: an iOS-style layout of Safes and (nested) folders.
+// "Safes" on Home: an iOS-style layout of Safes and (nested) folders.
 // Drag to reorder, drop onto a Safe to make a folder, onto a folder to move in,
 // onto the back bar to move up a level. Pinned Safes always sit on top of their level.
 import { label } from './chains.js';
@@ -85,7 +85,7 @@ export function mountSafes(root, chainId) {
       dragify(el);
       return el;
     });
-    let head = h('h2', 'Your Safes');
+    let head = h('h2', 'Safes');
     if (f) {
       const parent = path.length > 1 ? folderAt(t, path.slice(0, -1)) : null;
       const name = h('b.fname', recent.folderName(f));
@@ -109,11 +109,11 @@ export function mountSafes(root, chainId) {
         up.splice(i, 1, ...folderAt(t2, path).items);
         recent.saveTree(t2);
         go(path.slice(0, -1), -1);
-      }, title: 'Move everything to ' + (parent ? recent.folderName(parent) : 'Your Safes') + ' and remove this folder' }, 'Split folder');
-      const back = h('button.homeback.dropup', { onclick: () => go(path.slice(0, -1), -1) }, icon('m15 6-6 6 6 6'), parent ? recent.folderName(parent) : 'Your Safes');
+      }, title: 'Move everything to ' + (parent ? recent.folderName(parent) : 'Safes') + ' and remove this folder' }, 'Split folder');
+      const back = h('button.homeback.dropup', { onclick: () => go(path.slice(0, -1), -1) }, icon('m15 6-6 6 6 6'), parent ? recent.folderName(parent) : 'Safes');
       head = h('div.fhead', back, h('div.ftitle', name, rename, h('span.grow'), split));
     }
-    return h('div.level', head, rows, !path.length && rows.length > 1 && h('p.hint', 'Drag to reorder; drop one Safe onto another to make a folder.'));
+    return h('div.level', head, rows, !path.length && rows.length > 1 && recent.safes().length > 1 && h('p.hint', 'Drag to reorder; drop one Safe onto another to make a folder.'));
   }
 
   // ---- navigation with a quick slide ----
