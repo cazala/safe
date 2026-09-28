@@ -452,10 +452,9 @@ p.sharelinks { margin: 8px 0 0; font-size: 12px; }
 .rvsec h3 { margin: 0; font-size: 15px; }
 .rvsec .grow { flex: 1; }
 .rvapprovals ul.owners { margin: 8px 0; padding: 0; list-style: none; }
-.rvapprovals ul.owners li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; font-size: 14px; }
-.rvapprovals ul.owners li + li { border-top: 1px solid var(--line); } /* lines only between rows: the details below bring their own */
+.rvapprovals ul.owners li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .rvapprovals ul.owners li > .addr { flex: 1; min-width: 0; }
-details.rvdetails { margin-top: 20px; }
+details.rvdetails { margin-top: 14px; border-top: 0; } /* the list above ends with its own line */
 details.rvdetails > summary { font-weight: 600; }
 @media (max-width: 600px) { .opts2 { grid-template-columns: 1fr; } }
 /* Calls decoded with a signature that came with the transaction */
