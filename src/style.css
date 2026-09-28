@@ -244,7 +244,7 @@ input.rename.big { box-sizing: border-box; max-width: calc(100% - 22px); height:
 /* Folder header, one row: back on the left, name centered, Ungroup on the right. */
 .fhead { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin: 26px 0 8px; }
 .fhead .homeback { justify-self: start; }
-.fhead .ungroup { justify-self: end; display: inline-flex; align-items: center; gap: 5px; padding: 4px 2px 4px 8px; border: 0; border-radius: 8px; background: none; color: var(--mut); font-size: 13px; }
+.fhead .ungroup { justify-self: end; display: inline-flex; align-items: center; gap: 5px; margin-right: -4px; padding: 4px 8px; border: 0; border-radius: 8px; background: none; color: var(--mut); font-size: 13px; }
 .fhead .ungroup:hover { color: var(--fg); background: var(--card); }
 .fhead .ungroup svg { width: 16px; height: 16px; }
 button.homeback { display: inline-flex; align-items: center; gap: 2px; padding: 4px 8px 4px 2px; border: 1px dashed transparent; border-radius: 8px; background: none; color: var(--mut); font-size: 13px; }
@@ -263,7 +263,8 @@ p.hint { margin: 10px 0 0; text-align: center; color: var(--mut); font-size: 12p
 button.htab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; margin-bottom: -1px; padding: 8px 10px; background: none; color: var(--mut); font-weight: 600; font-size: 14px; }
 button.htab.on { color: var(--fg); border-bottom-color: var(--fg); }
 .hlist .saved h2:first-child { display: none; }
-.hlist .saved .fhead { margin-top: 12px; }
+.hlist .saved { margin-top: 14px; }
+.hlist .saved .fhead { margin-top: 6px; }
 p.empty { margin: 18px 0; text-align: center; color: var(--mut); font-size: 14px; }
 .lhead { display: flex; align-items: center; gap: 8px; margin: 10px 0 8px; }
 .lhead button { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; }
