@@ -109,6 +109,7 @@ Besides the onchain deploy, the same `dist/index.html` is served at **https://sa
 
 - every push to `main` deploys to production;
 - every PR from this repository deploys a preview at `https://<branch>.safe-wei.pages.dev` and comments the URL on the PR (one comment, updated on each push).
+- one run per PR: a new commit cancels the PR's run in progress, so the preview is always the latest commit; on `main`, runs queue and are never cancelled mid-deploy.
 
 The site is the page plus a `_headers` file that refuses framing (`X-Frame-Options: DENY`, `frame-ancestors 'none'`); the app also refuses to run in a frame.
 
