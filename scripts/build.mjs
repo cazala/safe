@@ -19,6 +19,14 @@ const git = (...a) => {
 };
 const BUILD = (git('rev-parse', '--short=7', 'HEAD:src') || 'unknown') + (git('status', '--porcelain', '--', 'src') ? '+' : '');
 
+// Config that may need replacing after deployment (the WalletConnect project ID) lives outside src/
+// and goes into its own tiny first chunk, cut at the <!--config--> marker (scripts/deploy-lib.mjs).
+// Replacing it redeploys only that chunk and the app contract; every other chunk stays byte for byte.
+const config = JSON.parse(readFileSync(root + 'config/walletconnect.json', 'utf8'));
+if (!/^[0-9a-f]{32}$/.test(config.projectId)) throw Error('config/walletconnect.json: projectId must be 32 hex characters');
+const OPEN = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
+const head = OPEN + '<script>var WC_PROJECT="' + config.projectId + '"</script><!--config-->';
+
 const js = (
   await build({
     entryPoints: [root + 'src/app.js'],
@@ -42,7 +50,8 @@ const shell = src('index.html')
   .trim();
 
 if (/<\/script/i.test(js)) throw Error('JS contains </script');
-const html = shell.replace('<!--CSS-->', () => '<style>' + css + '</style>').replace('<!--JS-->', () => '<script>' + js + '</script>');
+if (!shell.startsWith(OPEN)) throw Error('src/index.html must start with ' + OPEN);
+const html = head + shell.slice(OPEN.length).replace('<!--CSS-->', () => '<style>' + css + '</style>').replace('<!--JS-->', () => '<script>' + js + '</script>');
 
 // ---- no remote code / assets ----
 const SVG_NS = 'http://www.w3.org/2000/svg';

@@ -25,14 +25,28 @@ export function compile() {
   return JSON.parse(readFileSync(root + 'out/SafeWeiApp.sol/SafeWeiApp.json', 'utf8')).bytecode.object;
 }
 
+const indexOf = (b, m) => {
+  outer: for (let i = 0; i + m.length <= b.length; i++) {
+    for (let j = 0; j < m.length; j++) if (b[i + j] !== m[j]) continue outer;
+    return i;
+  }
+  return -1;
+};
+
 /** Plan: the ordered list of CREATE2 deployments and their resulting addresses. */
 export function plan(html, bytecode, salt = '0x' + '00'.repeat(32)) {
   const b = typeof html === 'string' ? new TextEncoder().encode(html) : html;
   const steps = [];
-  for (let i = 0; i < b.length; i += CHUNK) {
-    const init = dataInitcode(b.subarray(i, i + CHUNK));
+  // A page built with a config head is cut right after <!--config-->: the head is its own tiny chunk,
+  // so replacing the config only changes that chunk (the rest keeps its addresses).
+  const marker = new TextEncoder().encode('<!--config-->');
+  const at = indexOf(b, marker), cut = at >= 0 && at + marker.length <= CHUNK ? at + marker.length : 0;
+  const add = (part) => {
+    const init = dataInitcode(part);
     steps.push({ name: 'chunk ' + steps.length, initcode: init, address: create2(salt, init) });
-  }
+  };
+  if (cut) add(b.subarray(0, cut));
+  for (let i = cut; i < b.length; i += CHUNK) add(b.subarray(i, i + CHUNK));
   const chunks = steps.map((s) => s.address);
   const init = bytecode + encode([chunks]);
   steps.push({ name: 'SafeWeiApp', initcode: init, address: create2(salt, init) });
