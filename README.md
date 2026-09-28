@@ -90,3 +90,7 @@ See [docs/deploy.md](docs/deploy.md): deterministic CREATE2 deployment of the pa
 
 - Web: https://safe.caza.la, deployed from CI on every merge to `main` (docs/deploy.md → Web hosting).
 - Onchain: not yet deployed to mainnet.
+
+## License
+
+[MIT](LICENSE)
