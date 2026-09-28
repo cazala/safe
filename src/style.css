@@ -192,26 +192,10 @@ span.addr code { vertical-align: middle; }
 .panel.create { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .panel.create p { margin: 4px 0 0; font-size: 14px; }
 .panel.create button { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; white-space: nowrap; }
-.saved h2 { margin: 26px 0 8px; font-size: 13px; font-weight: 600; color: var(--mut); text-transform: uppercase; letter-spacing: .06em; }
-.saferow { display: flex; align-items: center; gap: 10px; margin: 8px 0; padding: 12px 10px 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--fg); text-decoration: none; }
-.saferow:not(.removed):hover { border-color: var(--mut); }
-a.saferow.other { opacity: .65; }
-.saferow .info { flex: 1; min-width: 0; }
-.saferow .name { font-size: 15px; overflow-wrap: anywhere; }
-.saferow .pinned { display: inline-flex; margin-left: 6px; color: var(--mut); vertical-align: middle; }
-.saferow .pinned svg { width: 12px; height: 12px; }
-.saferow .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 4px; color: var(--mut); font-size: 12px; }
-.saferow .meta code { font-size: 12px; }
-.saferow .meta .chip { padding: 0 7px; font-size: 11px; }
-.saferow .acts { display: flex; gap: 2px; opacity: 0; }
-.saferow:hover .acts, .saferow:focus-within .acts { opacity: 1; }
-@media (hover: none) { .saferow .acts { opacity: 1; } }
 button.ib { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--mut); }
 button.ib:hover { background: var(--bg); color: var(--fg); }
 button.ib.on { color: var(--fg); }
-.saferow .go { display: inline-flex; color: var(--mut); }
 input.rename { padding: 4px 8px; font: inherit; font-size: 15px; font-weight: 600; }
-.saferow.removed { justify-content: space-between; border-style: dashed; background: none; }
 @media (max-width: 600px) {
   .hero { margin: 16px 0; }
   .panel.create { flex-direction: column; align-items: stretch; }
@@ -224,47 +208,9 @@ input.rename.big { box-sizing: border-box; max-width: calc(100% - 22px); height:
 .panel a.alt:hover { background: var(--bg); }
 .panel a.alt svg { width: 14px; height: 14px; margin-left: auto; color: var(--mut); }
 .panel p.alt { margin-bottom: -16px; }
-.saved { margin-top: 36px; }
-/* ---- Your Safes: folders and drag and drop ---- */
-.saved { position: relative; overflow-x: clip; }
-.saved .level { transition: transform .18s ease, opacity .18s ease; }
-.saved.sliding .level.leaving { position: absolute; inset: 0 0 auto 0; }
-.saved .level.from-right, .saved .level.to-left { transform: translateX(-40%); opacity: 0; }
-.saved .level.from-right { transform: translateX(40%); }
-.saved .level.from-left, .saved .level.to-right { transform: translateX(40%); opacity: 0; }
-.saved .level.from-left { transform: translateX(-40%); }
-.node { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-.node.dragging { position: relative; z-index: 30; opacity: .92; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); pointer-events: none; cursor: grabbing; }
-.node.before { box-shadow: 0 -3px 0 var(--fg); }
-.node.after { box-shadow: 0 3px 0 var(--fg); }
-.node.merge { border-color: var(--fg); background: var(--bg); }
-.saferow.folder { cursor: pointer; }
-.saferow .ficon { display: inline-flex; color: var(--mut); }
-.saferow .ficon svg { width: 20px; height: 20px; }
-/* Folder header, one row: back on the left, name centered, Ungroup on the right. */
-.fhead { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin: 26px 0 8px; }
-.fhead .homeback { justify-self: start; }
-.fhead .ungroup { justify-self: end; display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border: 0; border-radius: 8px; background: none; color: var(--mut); font-size: 13px; }
-.fhead .ungroup:hover { color: var(--fg); background: var(--card); }
-.fhead .ungroup svg { width: 16px; height: 16px; }
-button.homeback { display: inline-flex; align-items: center; gap: 2px; padding: 4px 8px 4px 2px; border: 1px dashed transparent; border-radius: 8px; background: none; color: var(--mut); font-size: 13px; }
-button.homeback svg { width: 16px; height: 16px; }
-button.homeback:hover { color: var(--fg); }
-.dropup.over { border-color: var(--fg); color: var(--fg); }
-.ftitle { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; }
-.ftitle .fname { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ftitle .grow { flex: 1; }
-.ftitle input.rename { font-size: 17px; }
 p.hint { margin: 10px 0 0; text-align: center; color: var(--mut); font-size: 12px; }
 @media (hover: none) { p.hint::after { content: ' (Long-press to pick one up.)'; } }
-/* ---- home tabs, labels, dialog ---- */
-.hlist { margin-top: 32px; }
-.htabs { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
-button.htab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; margin-bottom: -1px; padding: 8px 10px; background: none; color: var(--mut); font-weight: 600; font-size: 14px; }
-button.htab.on { color: var(--fg); border-bottom-color: var(--fg); }
-.hlist .saved h2:first-child { display: none; }
-.hlist .saved { margin-top: 14px; }
-.hlist .saved .fhead { margin-top: 6px; }
+/* ---- labels, dialog ---- */
 p.empty { margin: 18px 0; text-align: center; color: var(--mut); font-size: 14px; }
 .lhead { display: flex; align-items: center; gap: 8px; margin: 10px 0 8px; }
 .lhead button { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; }
@@ -281,7 +227,6 @@ select.lsort { width: auto; padding: 7px 32px 7px 10px; border-radius: 8px; font
 b.lbl { font-weight: 600; }
 button.copy.tag svg { width: 13px; height: 13px; }
 button.link.danger { color: var(--bad); margin-left: auto; }
-.htabs .grow { flex: 1; }
 .bsec { margin: 16px 0 4px; padding-top: 12px; border-top: 1px solid var(--line); }
 .bsec:first-of-type { border-top: 0; padding-top: 0; }
 .actions input[type=file] { width: auto; border: 0; padding: 0; }
@@ -342,13 +287,6 @@ span.addr > code, span.addr > b.lbl { cursor: pointer; }
 span.addr { white-space: nowrap; }
 span.addr > code { white-space: normal; overflow-wrap: anywhere; }
 th { white-space: nowrap; }
-.level .node { -webkit-user-drag: none; -webkit-touch-callout: none; user-select: none; }
-/* Name and pin share one line; while renaming, the input takes the name's place without moving the row. */
-.saferow .nline { display: flex; align-items: center; min-width: 0; }
-.saferow .nline input.rename { flex: 1; min-width: 0; margin: -3px 0 -3px -7px; padding: 2px 6px; border-radius: 6px; }
-/* Folders: a small folder glyph inline with the name, so every row starts at the same edge. */
-.saferow .finl { display: inline-flex; margin-right: 7px; color: var(--mut); }
-.saferow .finl svg { width: 16px; height: 16px; }
 /* Gates: what an action needs (a wallet, a connection, a chain), instead of an error */
 .gate { padding-top: 40px; }
 .gatecard { text-align: center; padding: 28px 24px 24px; }
@@ -370,3 +308,61 @@ p.gateback a:hover { color: var(--fg); }
 .panel.nowallet b { display: block; margin-bottom: 6px; font-size: 14px; }
 .panel.nowallet p { margin: 0; font-size: 14px; }
 button#connect.nowallet { color: var(--mut); border-style: dashed; }
+/* ---- Home, returning: search-or-open bar, then your Safes as one list ---- */
+.home.returning { padding-top: 20px; }
+.hbar { display: flex; align-items: center; gap: 8px; }
+label.sfield { flex: 1; min-width: 0; position: relative; display: flex; align-items: center; margin: 0; }
+label.sfield svg { position: absolute; left: 12px; width: 16px; height: 16px; color: var(--mut); pointer-events: none; }
+label.sfield input { padding: 10px 12px 10px 36px; border-radius: 10px; background: var(--card); font-family: inherit; font-size: 14px; }
+a.btn.newbtn { display: inline-flex; align-items: center; gap: 4px; padding: 9px 14px 9px 10px; border-radius: 10px; white-space: nowrap; }
+a.btn.newbtn svg { width: 16px; height: 16px; }
+.gearwrap { position: relative; }
+.hmenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; min-width: 180px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+.hmenu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 6px; background: none; color: var(--fg); font-size: 14px; text-align: left; }
+.hmenu button:hover { background: var(--bg); }
+.hmenu svg { width: 16px; height: 16px; color: var(--mut); }
+p.hnote { margin: 10px 2px 0; color: var(--mut); font-size: 13px; }
+.returning .saved, .returning .openlist { margin-top: 14px; }
+.openlist + .saved { margin-top: 8px; }
+/* The list: one card, a row per Safe or folder; folders open in place. */
+.slist { border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.srow { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 4px 8px 4px 14px; color: var(--fg); text-decoration: none; font-size: 14px; }
+.slist .srow + .srow, .slist .srow + .fwrap, .slist .fwrap + .srow, .slist .fwrap + .fwrap, .kids > :first-child { border-top: 1px solid var(--line); }
+.srow:not(.removed):hover { background: var(--bg); }
+a.srow.other { opacity: .6; }
+.srow .nline { display: flex; align-items: center; min-width: 0; }
+.srow .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.srow .nline input.rename { flex: 1; min-width: 120px; margin: -3px 0 -3px -7px; padding: 2px 6px; border-radius: 6px; font-size: 14px; }
+.srow .pinned { display: inline-flex; margin-left: 6px; color: var(--mut); }
+.srow .pinned svg { width: 12px; height: 12px; }
+.srow code.sa { color: var(--mut); font-size: 12px; white-space: nowrap; }
+.srow .chip { padding: 0 7px; font-size: 11px; white-space: nowrap; }
+.srow .acts { display: flex; gap: 2px; opacity: 0; }
+.srow:hover .acts, .srow:focus-within .acts { opacity: 1; }
+@media (hover: none) { .srow .acts { opacity: 1; } }
+.srow .go { display: inline-flex; color: var(--mut); }
+.srow .go svg { width: 16px; height: 16px; }
+.srow.removed { border-style: dashed; color: var(--mut); }
+.openlist .srow { gap: 6px; }
+.srow.folder { cursor: pointer; }
+.srow .caret { display: inline-flex; margin-left: -6px; color: var(--mut); transition: transform .15s ease; }
+.srow .caret svg { width: 14px; height: 14px; }
+.srow.folder.open .caret { transform: rotate(90deg); }
+.srow .finl { display: inline-flex; margin-right: 7px; color: var(--mut); }
+.srow .finl svg { width: 16px; height: 16px; }
+.srow .count { padding: 0 7px; border-radius: 999px; background: var(--bg); color: var(--mut); font-size: 11px; line-height: 18px; }
+.kids { padding-left: 22px; border-top: 1px solid var(--line); }
+.kids > .srow:first-child, .kids > .fwrap:first-child { border-top: 0; }
+.fwrap.carrying > .kids { display: none; }
+@media (max-width: 600px) {
+  .srow code.sa { display: none; }
+  a.btn.newbtn span { display: none; }
+  a.btn.newbtn { padding: 9px 10px; }
+}
+/* drag and drop */
+.node { user-select: none; -webkit-user-select: none; -webkit-user-drag: none; -webkit-touch-callout: none; }
+.node.dragging { position: relative; z-index: 30; opacity: .95; background: var(--card); box-shadow: 0 10px 30px rgba(0, 0, 0, .35); border-radius: 10px; pointer-events: none; cursor: grabbing; }
+.node.before { box-shadow: inset 0 3px 0 var(--fg); }
+.node.after { box-shadow: inset 0 -3px 0 var(--fg); }
+.node.merge { background: var(--bg); box-shadow: inset 0 0 0 2px var(--fg); }
+.srow .grow { flex: 1; }

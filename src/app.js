@@ -10,7 +10,7 @@ import { payloadGas, scan } from './pending.js';
 import { decode } from './decode.js';
 import { balances, listed, meta, save, saved } from './tokens.js';
 import { S } from './sel.js';
-import { checkName, nameOf, resolveName } from './names.js';
+import { checkName, isName, nameOf, resolveName } from './names.js';
 import { batch } from './multisend.js';
 import { parseCSV } from './csv.js';
 import { canonical, encodeCall, parseAbi, parseValue } from './abicoder.js';
@@ -211,54 +211,100 @@ async function openTarget(ref, wantChain) {
 
 // ---- views ----
 function home() {
-  const input = h('input', { placeholder: 'Safe address 0x… or name.eth / name.wei', id: 'safeIn', spellcheck: 'false' });
-  const out = h('div');
+  const c = chain(), out = h('div');
   // Keep a name in the URL (readable, shareable); it is resolved again on every load.
-  const open = button('Open', async () => {
-    const v = input.value.trim();
+  const openRef = async (v) => {
+    v = v.trim();
     if (!isAddr(v)) checkName(v.toLowerCase());
     if (st.chainId === 1 && !isAddr(v)) await target(v); // catch typos right here
     st.intent = true;
-    location.hash = '/' + (isAddr(v) ? v.toLowerCase() : v.toLowerCase());
-  }, out, '.primary');
+    location.hash = '/' + v.toLowerCase();
+  };
+  const fail = (e) => put(out, bad(e.message));
+  return recent.safes().length ? homeReturning(c, openRef, out, fail) : homeFirstRun(c, openRef, out);
+}
+
+/** First visit (nothing saved yet): what safe.wei is, and the two ways in. */
+function homeFirstRun(c, openRef, out) {
+  const input = h('input', { placeholder: 'Safe address 0x… or name.eth / name.wei', id: 'safeIn', spellcheck: 'false' });
+  const open = button('Open', () => openRef(input.value), out, '.primary');
   input.onkeydown = (e) => {
     if (e.key === 'Enter') open.click(); // never return false here: that would cancel every keystroke
   };
-  // Safes | Labels
-  const body = h('div');
-  const tab = (id, text) => h('button.htab', { class: st.homeTab === id ? 'on' : null, onclick: () => ((st.homeTab = id), show()) }, text);
-  const bar = h('div.htabs');
-  const show = () => {
-    put(bar, tab('safes', 'Safes'), tab('labels', 'Labels'), h('span.grow'), iconButton('gear', 'Backup & sync: move your Safes, labels and ABIs to another device', () => backupDialog()));
-    if (st.homeTab === 'labels') return put(body, labelsView());
-    const l = h('div.saved');
-    if (recent.safes().length) mountSafes(l, () => st.chainId);
-    else put(l, h('p.empty', 'Safes you open will be listed here.'));
-    l.addEventListener('click', (e) => e.target.closest('a.saferow') && (st.intent = true));
-    put(body, l);
-  };
-  st.homeTab = st.homeTab || 'safes';
-  // Nothing saved yet: no empty tabs, just a way to bring data over from another device.
-  const empty = !recent.safes().length && !Object.keys(labels.all()).length;
-  if (!empty) show();
-  const saved = empty
-    ? h('p.importhint', h('span.mut', 'Moving from another device? '), h('button.link', { onclick: () => backupDialog() }, 'Import a backup'))
-    : h('div.hlist', bar, body);
-  const c = chain();
-  // Two ways in (open, create) live together at the top; your Safes are content below.
-  const create = !c
+  const create = !c || c.canCreate
     ? h('a.alt', { href: '#/new', onclick: () => (st.intent = true) }, h('span.mut', 'New to Safe?'), ' ', h('b', 'Create one'), icon(...ICONS.next))
-    : c.canCreate
-      ? h('a.alt', { href: '#/new' }, h('span.mut', 'New to Safe?'), ' ', h('b', 'Create one'), icon(...ICONS.next))
-      : h('p.alt.mut', 'Safe’s contracts are not deployed on ' + c.name + ', so new Safes can’t be created here.');
+    : h('p.alt.mut', 'Safe’s contracts are not deployed on ' + c.name + ', so new Safes can’t be created here.');
+  const nl = Object.keys(labels.all()).length;
   return h(
     'div.home',
     h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'safe.wei'), h('p', 'Your Safe, straight from the chain. No servers, everything stays in your browser.')),
     !list().length
       ? h('div.panel.nowallet', h('b', 'No wallet found'), h('p.mut', 'safe.wei reads and signs through your wallet, with no servers in between. On a computer, install a browser wallet extension and reload. On a phone, open this page in your wallet app’s browser.'))
       : h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), !c && h('p.fhint.connecthint', 'You’ll connect your wallet to open it. safe.wei reads the Safe through your wallet.'), out, create),
-    saved,
+    h('p.importhint', h('span.mut', 'Moving from another device? '), h('button.link', { onclick: () => backupDialog() }, 'Import a backup'), nl > 0 && [h('span.mut', ' · '), h('button.link', { onclick: labelsSheet }, 'Labels (' + nl + ')')]),
   );
+}
+
+const SEARCH = ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z', 'm20 20-4-4'];
+
+/** Returning (Safes saved): the page is your Safes, under one field that searches them or opens a new one. */
+function homeReturning(c, openRef, out, fail) {
+  const q = h('input.search', { placeholder: 'Search, or open 0x… / name.eth', id: 'safeIn', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Search or open a Safe' });
+  const openRow = h('div'), listRoot = h('div.saved');
+  const v = mountSafes(listRoot, () => st.chainId);
+  listRoot.addEventListener('click', (e) => e.target.closest('a.srow') && (st.intent = true));
+  let hits = null;
+  const update = () => {
+    put(out);
+    const s = q.value.trim(), lower = s.toLowerCase();
+    hits = v.filter(s);
+    const valid = isAddr(s) || isName(lower);
+    const known = hits && hits.some((e) => e.address === lower || e.ref === lower);
+    put(
+      openRow,
+      valid && !known
+        ? h('div.slist.openlist', h('a.srow', { href: '#/' + lower, onclick: (e) => (e.preventDefault(), openRef(s).catch(fail)) }, h('span.mut', 'Open'), h('b.name', isAddr(s) ? short(lower) : lower), h('span.grow'), h('span.go', icon(...ICONS.next))))
+        : hits && !hits.length && h('p.empty', 'No saved Safe matches. Paste a 0x address or a .eth / .wei name to open one.'),
+    );
+  };
+  q.oninput = update;
+  q.onkeydown = (e) => {
+    if (e.key === 'Escape') (q.value = ''), update();
+    if (e.key !== 'Enter') return; // never return false here: that would cancel every keystroke
+    const first = openRow.querySelector('a.srow') || (hits && hits.length === 1 && listRoot.querySelector('a.srow'));
+    if (first) first.click();
+  };
+  const note = !list().length
+    ? 'No wallet found in this browser. Your Safes are listed, but opening one needs a wallet.'
+    : !c && 'You’ll connect your wallet when you open a Safe.';
+  return h(
+    'div.home.returning',
+    h(
+      'div.hbar',
+      h('label.sfield', icon(...SEARCH), q),
+      (!c || c.canCreate) && h('a.btn.newbtn', { href: '#/new', onclick: () => (st.intent = true), title: 'Create a new Safe' }, icon(...ICONS.plus), h('span', 'New')),
+      gearMenu(),
+    ),
+    note && h('p.hnote', note),
+    out,
+    openRow,
+    listRoot,
+  );
+}
+
+/** The gear on Home: Labels and Backup & sync, the things you manage now and then. */
+function gearMenu() {
+  const n = Object.keys(labels.all()).length;
+  const m = h('div.hmenu', { hidden: true });
+  const item = (ic, text, fn) => h('button', { onclick: () => ((m.hidden = true), fn()) }, icon(...ICONS[ic]), text);
+  put(m, item('tag', n ? 'Labels (' + n + ')' : 'Labels', labelsSheet), item('gear', 'Backup & sync', () => backupDialog()));
+  return h('div.gearwrap', iconButton('gear', 'Labels, backup & sync', () => (m.hidden = !m.hidden)), m);
+}
+document.addEventListener('pointerdown', (e) => !e.target.closest('.gearwrap') && document.querySelectorAll('.hmenu').forEach((m) => (m.hidden = true)));
+
+function labelsSheet() {
+  const { body } = sheet('tag', 'Labels', true);
+  body.append(labelsView());
 }
 
 
