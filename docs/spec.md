@@ -1333,6 +1333,7 @@ Batches let one Safe transaction do several things atomically (for example appro
 - the outer Safe transaction is a DELEGATECALL to one of those addresses. Display it as "Batch of N calls", not as a dangerous delegatecall, and only for those exact addresses.
 - decode and display every inner call (to, value, data, decoded action) with the same warnings as single calls
 - `MultiSendCallOnly` rejects nested delegatecalls by design; never use the plain `MultiSend` contract
+- Zodiac module setups (roles.wei): `deployModule(masterCopy, initializer, saltNonce)` on Zodiac's ModuleProxyFactory 1.0.0 / 1.1.0 / 1.2.0 (gnosisguild/zodiac `src/contracts.ts`) is decoded exactly (`src/zodiac.js` → `deployModuleOf`). The new module's address is computed as the factory does: CREATE2 with salt `keccak256(keccak256(initializer) ‖ saltNonce)` over the EIP-1167 proxy of the mastercopy (fork-tested against all three factories). For Roles and Delay, `setUp(bytes)` is decoded to owner / avatar / target (layouts from the modules' sources); an owner that is not the Safe is a danger, an avatar or target that is not the Safe a warning. In a batch, an `enableModule` whose address is not the module deployed in the same batch is flagged.
 
 ---
 

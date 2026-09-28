@@ -1,6 +1,7 @@
 // Recognize Zodiac modules and guards: most are EIP-1167 minimal proxies to a canonical
 // mastercopy (gnosisguild/zodiac src/contracts.ts). Recognition is by exact address match.
-import { a, strip } from './abi.js';
+import { a, keccakHex, strip, word } from './abi.js';
+import { matchCall } from './abicoder.js';
 import { call, rpc } from './rpc.js';
 
 const KNOWN = {
@@ -29,12 +30,39 @@ const KNOWN = {
 // Versions the Zodiac team lists as faulty.
 const FAULTY = ['Roles 2.1.0', 'Delay 1.1.0'];
 
+const nameOf = (impl) => Object.keys(KNOWN).find((k) => KNOWN[k] === strip(impl).toLowerCase()) || null;
+
+// Zodiac's ModuleProxyFactory 1.0.0, 1.1.0 and 1.2.0 (gnosisguild/zodiac src/contracts.ts). All three deploy
+// an EIP-1167 proxy to the mastercopy with CREATE2, salt = keccak256(keccak256(initializer) ‖ saltNonce).
+export const FACTORIES = ['0x00000000062c52e29e8029dc2413172f6d619d85', '0x00000000000dc7f163742eb4abef650037b1f588', '0x000000000000addb49795b0f9ba5bc298cdda236'];
+// setUp(bytes initParams) layouts, from the modules' sources: owner, avatar, target first; the number of words.
+const SETUP = { Roles: 3, Delay: 5 }; // Delay adds cooldown, expiration
+
+/**
+ * A call to a Zodiac ModuleProxyFactory's deployModule, decoded exactly: { masterCopy, name, faulty, proxy
+ * (the address it will deploy), saltNonce, initializer, setup: { owner, avatar, target } | null }; else null.
+ */
+export function deployModuleOf(t) {
+  if (!FACTORIES.includes(t.to)) return null;
+  const m = matchCall(['deployModule(address masterCopy, bytes initializer, uint256 saltNonce)'], t.data);
+  if (!m) return null;
+  const [masterCopy, initializer, saltNonce] = m.values, name = nameOf(masterCopy);
+  const salt = keccakHex(keccakHex(initializer) + word(saltNonce));
+  const code = '0x602d8060093d393df3363d3d373d3d3d363d73' + strip(masterCopy) + '5af43d82803e903d91602b57fd5bf3';
+  const proxy = '0x' + strip(keccakHex('0xff' + strip(t.to) + strip(salt) + strip(keccakHex(code)))).slice(24);
+  // The settings, only for layouts known exactly: setUp(bytes) whose bytes are exactly those words, addresses clean.
+  const words = name && SETUP[name.split(' ')[0]], s = words && matchCall(['setUp(bytes initParams)'], initializer);
+  const p = s ? strip(s.values[0]) : '', clean = (i) => p.slice(64 * i, 64 * i + 24) === '0'.repeat(24), at = (i) => '0x' + p.slice(64 * i + 24, 64 * i + 64);
+  const setup = s && p.length === 64 * words && clean(0) && clean(1) && clean(2) ? { owner: at(0), avatar: at(1), target: at(2) } : null;
+  return { masterCopy, name, faulty: FAULTY.includes(name), proxy, saltNonce, initializer, setup };
+}
+
 /** { name, impl, faulty, proxy, owner, empty } for a module/guard address; name is null if unknown, empty if no code. */
 export async function identify(addr) {
   const code = strip(await rpc('eth_getCode', [addr, 'latest'])).toLowerCase();
   const m = /^363d3d373d3d3d363d73([0-9a-f]{40})5af43d82803e903d91602b57fd5bf3$/.exec(code);
   const impl = m ? m[1] : strip(addr).toLowerCase();
-  const name = Object.keys(KNOWN).find((k) => KNOWN[k] === impl) || null;
+  const name = nameOf(impl);
   const owner = name ? await call(addr, '0x8da5cb5b').then((r) => a(r), () => null) : null; // owner()
   return { name, impl: '0x' + impl, proxy: !!m, faulty: FAULTY.includes(name), owner, empty: !code };
 }
