@@ -22,6 +22,7 @@ import * as recent from './recent.js';
 import { discover, get, list, remember, remembered } from './wallets.js';
 import { identify } from './zodiac.js';
 import { checkMessage, combine, isValid, KINDS, onchainSignCall, signMessage } from './message.js';
+import { create as wcCreate } from './wc.js';
 
 const st = { account: null, chainId: null, safe: null, tokens: {}, named: {}, batch: [], batchNames: {} };
 let framed = false;
@@ -478,6 +479,7 @@ function createView() {
     btn,
     async () => {
       put(plan);
+      st.named = {}; // only the names typed here, not ones left from an earlier screen (or chain)
       if (!st.account) throw Error('Connect a wallet first.');
       if (!/^\d+$/.test(threshold.value.trim()) || !/^\d+$/.test(salt.value.trim())) throw Error('Threshold and salt must be whole numbers.');
       const list = await Promise.all(owners.value.split(/[\s,]+/).filter(Boolean).map(target));
@@ -544,6 +546,7 @@ const TABS = [
   ['send', 'Send'],
   ['transactions', 'Transactions'],
   ['custom', 'Custom'],
+  ['dapps', 'Dapps'],
   ['settings', 'Settings'],
 ];
 const link = (tab, q) => '#/' + st.ref + (tab && tab !== 'assets' ? '/' + tab : '') + (q ? '?' + new URLSearchParams(q) : '');
@@ -1469,6 +1472,7 @@ function reviewHead(r) {
     );
   return h(
     'section.rvhead',
+    wcFor(t) && wcFrom(),
     h('div.rvkicker', r.batch ? 'Batch of ' + r.inner.length + ' calls' : 'Transaction', nonce),
     r.batch ? h('ol.rvcalls', r.inner.map((c) => h('li', callLabel(c, st.named)))) : h('h2.rvtitle', isCancel(t) ? 'Replacement for nonce ' + t.nonce + ' (an empty transaction)' : r.signMessage ? 'Sign a message onchain' : callLabel(t, st.named)),
     isCancel(t) && h('p.mut', 'Executing this uses up nonce ' + t.nonce + ', so any other transaction with that nonce can no longer execute. The Safe sends nothing to itself.'),
@@ -1504,6 +1508,7 @@ function nextStep(r) {
       rv.append(h('p.ok', msg + ' ', addr(rc.transactionHash)));
     };
     const executed = async (rc) => {
+      if (wcFor(t)) wcAnswer(rc.transactionHash);
       if (r.batch) (st.batch = []), (st.batchNames = {});
       st.stale = true;
       st.review = null;
@@ -1730,6 +1735,7 @@ function messageHead(m, c) {
   const td = c.typed, dc = td && td.domain && td.domain.chainId !== undefined && Number(td.domain.chainId);
   return h(
     'section.rvhead',
+    wcFor(m) && wcFrom(),
     h('div.rvkicker', KINDS[m.kind], ' · to be signed by the Safe'),
     m.kind === 1 ? (c.text !== null ? h('pre.msgtext', c.text) : [h('p.mut', 'Raw bytes (not text):'), h('code.mono', m.content)]) : m.kind === 2 ? typedView(td) : h('code.mono', m.content),
     td && PERMITS.test(td.primaryType) && h('p.bad.danger', 'PERMISSION TO MOVE ASSETS (' + td.primaryType + '). Once enough owners sign, whoever holds the signature can use it to move this Safe’s tokens, without another Safe transaction.'),
@@ -1772,13 +1778,13 @@ function messageStep(m, c) {
   if (c.signed) {
     const status = h('p.rvhash', 'Checking with the Safe…');
     isValid(m.safe, c.hash, '0x').then((ok) => put(status, ok ? [h('b.ok', '✓'), ' The Safe accepts it with an empty signature (isValidSignature).'] : h('b.bad', '✗ The Safe does not accept it.')));
-    step = h('div.step.go', h('h3', h('span.ok', '✓ '), 'Signed onchain'), h('p', 'This Safe signed the message onchain. Apps accept it with an empty signature (0x): no owner signatures need to be passed along.'), status);
+    step = h('div.step.go', h('h3', h('span.ok', '✓ '), 'Signed onchain'), h('p', 'This Safe signed the message onchain. Apps accept it with an empty signature (0x): no owner signatures need to be passed along.'), status, wcFor(m) && wcSendSig('0x'));
   } else if (ready) {
     const sig = combine(c.valid, s.threshold), status = h('p.rvhash', 'Checking with the Safe…');
     isValid(m.safe, c.hash, sig).then((ok) => put(status, ok ? [h('b.ok', '✓'), ' The Safe accepts this signature (isValidSignature).'] : h('b.bad', '✗ The Safe rejects this signature.')));
     const b = h('button.primary', 'Copy signature');
     b.onclick = () => toClipboard(sig).then(() => (put(b, '✓ Copied'), setTimeout(() => put(b, 'Copy signature'), 1500)), () => {});
-    step = h('div.step.go', h('h3', 'Signature ready'), h('p', count + ' collected. Give this signature to the app that asked for it.'), h('div.row', h('input.mono', { readonly: true, value: sig, onclick: (e) => e.target.select(), 'aria-label': 'Signature' }), b), status);
+    step = h('div.step.go', h('h3', 'Signature ready'), h('p', count + ' collected. Give this signature to the app that asked for it.'), h('div.row', h('input.mono', { readonly: true, value: sig, onclick: (e) => e.target.select(), 'aria-label': 'Signature' }), b), status, wcFor(m) && wcSendSig(sig));
   } else if (!me) step = h('div.step', h('h3', 'Connect a wallet to sign'), h('p', count + ' so far. Owners sign with their wallet; you can also send this link to them.'), share(false));
   else if (owner && !mine)
     step = h(
@@ -1882,7 +1888,7 @@ async function route() {
     const s = st.safe;
     if (p) return showReview(p.tx, p.sigs, 'none');
     if (pm) return showMessage(pm.msg, pm.sigs, 'none');
-    const tabs = { assets: assetsTab, send: sendTab, batch: sendTab, transactions: transactionsTab, custom: builder, settings: settingsTab, setup: settingsTab };
+    const tabs = { assets: assetsTab, send: sendTab, batch: sendTab, transactions: transactionsTab, custom: builder, dapps: dappsTab, settings: settingsTab, setup: settingsTab };
     if (!tabs[tab]) return (location.hash = link('assets'));
     page(s, tab === 'batch' ? 'send' : tab, tab === 'send' || tab === 'batch' ? sendTab(s, tab === 'batch', q) : tabs[tab](s));
   } catch (e) {
@@ -1894,6 +1900,202 @@ async function route() {
 }
 
 setResolver((v) => resolveName(v.trim().toLowerCase(), st.chainId));
+
+// ---- WalletConnect: this Safe in other dapps ----
+// Dapps connect with their wc: link (Dapps tab). Their requests show in a bar on every page;
+// transactions and signatures go through the normal review, then the answer goes back to the dapp.
+const WC_STATE = 'safe.wei:wc', WC_OWN = 'safe.wei:wcproject';
+const wcOwn = () => {
+  try {
+    return localStorage.getItem(WC_OWN) || '';
+  } catch {
+    return '';
+  }
+};
+const wcProject = () => wcOwn() || (typeof WC_PROJECT === 'string' ? WC_PROJECT : '');
+const WC_METHODS = ['eth_sendTransaction', 'personal_sign', 'eth_signTypedData', 'eth_signTypedData_v4', 'eth_chainId', 'eth_accounts', 'eth_requestAccounts', 'wallet_switchEthereumChain'];
+const WC_ASK = ['eth_sendTransaction', 'personal_sign', 'eth_signTypedData', 'eth_signTypedData_v4'];
+// Reads a dapp may send through the wallet: answered from the connected wallet's RPC.
+const WC_READS = ['eth_call', 'eth_getBalance', 'eth_blockNumber', 'eth_estimateGas', 'eth_getCode', 'eth_getTransactionCount', 'eth_getTransactionReceipt', 'eth_getTransactionByHash', 'eth_getBlockByNumber', 'eth_gasPrice', 'eth_maxPriorityFeePerGas', 'eth_feeHistory', 'eth_getLogs', 'eth_getStorageAt'];
+const wc = wcCreate({
+  projectId: wcProject,
+  load: () => {
+    try {
+      return JSON.parse(localStorage.getItem(WC_STATE));
+    } catch {
+      return null;
+    }
+  },
+  save: (x) => {
+    try {
+      localStorage.setItem(WC_STATE, JSON.stringify(x));
+    } catch {}
+  },
+  onEvent: (e) => {
+    if (e.type === 'request') wcIncoming(e.request, e.session);
+    if (e.type === 'sessions') renderWcBar(), st.onWc && st.onWc();
+  },
+});
+
+async function wcIncoming(r, s) {
+  const m = r.method, answer = (result, error) => wc.respond(r.topic, r.id, result, error).catch(() => {}).then(renderWcBar);
+  if (m === 'eth_chainId') return answer('0x' + s.chainId.toString(16));
+  if (m === 'eth_accounts' || m === 'eth_requestAccounts') return answer([s.account]);
+  if (m === 'wallet_switchEthereumChain') return Number(((r.params || [])[0] || {}).chainId) === s.chainId ? answer(null) : answer(null, { code: 4902, message: 'This Safe is connected on chain ' + s.chainId + ' only.' });
+  if (WC_READS.includes(m)) {
+    if (st.chainId !== s.chainId) return answer(null, { code: 4100, message: 'The wallet in safe.wei is on another chain.' });
+    return rpc.rpc(m, r.params || []).then((x) => answer(x), (e) => answer(null, { code: -32000, message: e.message || 'Read failed.' }));
+  }
+  if (!WC_ASK.includes(m)) return answer(null, { code: 4200, message: 'safe.wei does not support ' + m + '.' });
+  renderWcBar();
+}
+
+const wcPeer = (topic) => (wc.sessions().find((x) => x.topic === topic) || {}).peer || {};
+const wcAsk = () => wc.pending().filter((r) => WC_ASK.includes(r.method));
+/** The dapp request under review, if the thing on screen is what it asked for. */
+const wcFor = (x) => {
+  const q = st.wcReq;
+  if (!q) return false;
+  if (q.method === 'eth_sendTransaction') return x.to && x.safe === q.safe && x.to === q.to && x.value === q.value && x.data === q.data && !x.operation;
+  return x.kind && x.safe === q.safe && x.kind === q.kind && x.content === q.content;
+};
+const wcAnswer = (result, error) => {
+  const q = st.wcReq;
+  st.wcReq = null;
+  return q && wc.respond(q.topic, q.id, result, error).catch(() => {}).then(renderWcBar);
+};
+function wcFrom() {
+  const p = st.wcReq.peer;
+  return h('p.wcfrom', 'Requested by ', h('b', p.name || 'a dapp'), p.url && h('span.mut', ' · ' + p.url), ' through WalletConnect. ', h('button.link', { onclick: () => (wcAnswer(null, { code: 4001, message: 'User rejected the request.' }), history.back()) }, 'Reject'));
+}
+function wcSendSig(sig) {
+  const p = st.wcReq.peer, b = h('button.primary', 'Send to ' + (p.name || 'the dapp'));
+  b.onclick = async () => ((b.disabled = true), await wcAnswer(sig), put(b, '✓ Sent to ' + (p.name || 'the dapp')));
+  return h('div.actions', b);
+}
+
+/** The bar of pending dapp requests, on every page. */
+function renderWcBar() {
+  const el = $('wcbar');
+  if (!el) return;
+  put(
+    el,
+    wcAsk().map((r) => {
+      const s = wc.sessions().find((x) => x.topic === r.topic);
+      if (!s) return null;
+      const who = (recent.find(s.chainId, s.account) || {}).label || 'Safe ' + short(s.account);
+      return h(
+        'div.wcreq',
+        h('span', h('b', s.peer.name || 'A dapp'), ' asks ', who, r.method === 'eth_sendTransaction' ? ' to send a transaction' : ' to sign a message'),
+        h('span.grow'),
+        button('Review', () => wcOpen(r, s), null, '.primary'),
+        h('button.link', { onclick: () => wc.respond(r.topic, r.id, null, { code: 4001, message: 'User rejected the request.' }).catch(() => {}).then(renderWcBar) }, 'Reject'),
+      );
+    }),
+  );
+}
+
+/** Open a dapp's request in the normal review (switching Safe, and asking the wallet to switch chain, if needed). */
+async function wcOpen(r, s) {
+  if (st.chainId !== s.chainId) return switchChain(s.chainId);
+  if (!st.safe || st.safe.address !== s.account) {
+    st.safe = await readSafe(s.account);
+    st.ref = s.account;
+    st.safeName = (recent.find(s.chainId, s.account) || {}).label || null;
+  }
+  const p = r.params || [], base = { topic: r.topic, id: r.id, method: r.method, peer: s.peer, safe: s.account };
+  st.named = {};
+  if (r.method === 'eth_sendTransaction') {
+    const x = p[0] || {};
+    if (!x.to) return wc.respond(r.topic, r.id, null, { code: 4200, message: 'A Safe cannot deploy contracts this way.' }).then(renderWcBar);
+    const t = newTx(st.safe, { to: x.to, value: BigInt(x.value || 0), data: x.data || x.input || '0x' });
+    st.wcReq = { ...base, to: t.to, value: t.value, data: t.data };
+    return showReview(t, [], 'push');
+  }
+  let m;
+  if (r.method === 'personal_sign') {
+    const msg = isAddr(String(p[0])) && String(p[0]).toLowerCase() === s.account ? p[1] : p[0];
+    m = { chainId: s.chainId, safe: s.account, kind: 1, content: isHex(String(msg)) ? String(msg).toLowerCase() : hex(utf8(String(msg))) };
+  } else {
+    const td = isAddr(String(p[0])) ? p[1] : p[0];
+    m = { chainId: s.chainId, safe: s.account, kind: 2, content: JSON.stringify(typeof td === 'string' ? JSON.parse(td) : td) };
+  }
+  st.wcReq = { ...base, kind: m.kind, content: m.content };
+  return showMessage(m, [], 'push');
+}
+
+/** Dapps tab: connect this Safe to a dapp with its wc: link; see and end connections. */
+function dappsTab(s) {
+  const out = h('div'), box = h('div'), list = h('div');
+  const input = h('input.mono', { placeholder: 'wc:… (the WalletConnect link from the dapp)', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'WalletConnect link' });
+  const draw = () => {
+    const mine = wc.sessions().filter((x) => x.account === s.address && x.chainId === s.chainId);
+    put(
+      list,
+      mine.length
+        ? h('div.slist', mine.map((x) => h('div.srow.dapp', h('span.nline', h('b.name', x.peer.name || 'Unnamed dapp')), x.peer.url && h('code.sa', String(x.peer.url).replace(/^https?:\/\//, '')), h('span.grow'), h('span.mut.small', 'since ' + recent.ago(x.at)), button('Disconnect', () => wc.disconnect(x.topic).then(draw), out, '.link'))))
+        : h('p.empty', 'No dapps connected to this Safe.'),
+    );
+  };
+  st.onWc = draw;
+  const connect = button(
+    'Connect',
+    async () => {
+      if (!wcProject()) throw Error('No WalletConnect project ID. Add one below.');
+      put(box, h('p.mut', 'Waiting for the dapp…'));
+      const pr = await wc.pair(input.value).catch((e) => (put(box), Promise.reject(e)));
+      const meta = pr.proposer.metadata || {}, need = ((pr.requiredNamespaces || {}).eip155 || {}).chains || [];
+      const missing = need.filter((c) => c !== 'eip155:' + s.chainId), boxOut = h('div');
+      put(
+        box,
+        h(
+          'div.step',
+          h('h3', (meta.name || 'A dapp') + ' wants to connect'),
+          h('p', meta.url ? String(meta.url) : 'No website given', h('span.mut', ' · as the dapp describes itself')),
+          missing.length > 0 && warn('It requires ' + missing.join(', ') + ', but this Safe is on ' + chain().name + '. It may not work.'),
+          h('p.mut', 'It will see this Safe’s address and can ask it to send transactions and sign messages. Every request comes here for review; nothing happens without the owners.'),
+          h(
+            'div.actions',
+            button('Connect', async () => {
+              await wc.approve(pr, { chainId: s.chainId, account: s.address, metadata: { name: 'safe.wei', description: 'Safe ' + s.address, url: location.origin, icons: [] }, methods: WC_METHODS, events: ['chainChanged', 'accountsChanged'] });
+              put(box);
+              input.value = '';
+              draw();
+            }, boxOut, '.primary'),
+            button('Reject', async () => (await wc.reject(pr), put(box)), boxOut),
+          ),
+          boxOut,
+        ),
+      );
+    },
+    out,
+    '.primary',
+  );
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') connect.click();
+  };
+  // WalletConnect project: safe.wei's, or your own if it stops working.
+  const own = h('input.mono', { value: wcOwn(), placeholder: 'your project ID (32 hex characters)', spellcheck: 'false' }), pOut = h('div');
+  const saveOwn = button('Save', async () => {
+    const v = own.value.trim().toLowerCase();
+    if (v && !/^[0-9a-f]{32}$/.test(v)) throw Error('A project ID is 32 hex characters.');
+    try {
+      v ? localStorage.setItem(WC_OWN, v) : localStorage.removeItem(WC_OWN);
+    } catch {}
+    put(pOut, h('p.ok', v ? '✓ Using your project ID.' : '✓ Using safe.wei’s project ID.'));
+  }, pOut);
+  draw();
+  return h(
+    'div.form.wide',
+    h('p.mut', 'Use this Safe in other dapps. In the dapp, choose WalletConnect, copy its connection link (usually under the QR code), and paste it here.'),
+    h('div.row', input, connect),
+    out,
+    box,
+    h('h3', 'Connected dapps'),
+    list,
+    h('details', h('summary', 'WalletConnect project'), h('p.mut', wcOwn() ? 'Using your own project ID.' : 'Using safe.wei’s project ID. If connecting stops working, create a free WalletConnect project ID and paste it here (leave empty to go back).'), h('div.row', own, saveOwn), pOut),
+  );
+}
 
 // ---- footer: which build this is, and which app contract serves it ----
 // The page cannot contain its own address (the address is derived from the page's bytes), so it is
@@ -1933,3 +2135,5 @@ discover(() => {
   booted = true;
 }
 refreshWallet().then(route, route).then(footer, footer);
+wc.restore().catch(() => {});
+renderWcBar();

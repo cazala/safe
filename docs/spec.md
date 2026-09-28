@@ -1365,6 +1365,15 @@ Owners sign `SafeMessage(bytes message)` under the Safe's EIP-712 domain, where 
 - Links: `#msg=` (format in [links.md](links.md)).
 - Onchain signing: a Safe transaction DELEGATECALLs Safe's canonical SignMessageLib (per release line, from safe-global/safe-deployments; probed on the chain) with `signMessage(hash)`, setting `signedMessages[safeMessageHash]`; the handler then accepts an empty signature. The review recognizes only that exact call (canonical library, operation 1, value 0, calldata that re-encodes exactly) and shows it as "Sign a message onchain" instead of the DELEGATECALL danger; any other DELEGATECALL keeps it. Tested on v1.3.0, v1.4.1 and v1.5.0.
 
+## 27c. Post-MVP — WalletConnect (wallet side)
+
+A minimal WalletConnect v2 Sign client (`src/wc.js`) lets dapps use the Safe: pairing from a `wc:` link, session approval for `eip155:<chain>:<safe>`, requests routed to the normal review (transactions) and message screens (EIP-191 / EIP-712), answers returned when executed or when the signature is ready; chain / account questions and read-only calls answered automatically; everything else refused (4200).
+
+- Relay: `wss://relay.walletconnect.org` with safe.wei's project ID, built into a tiny first chunk (`config/walletconnect.json`) so replacing it redeploys only that chunk and the app contract; users can set their own ID.
+- Crypto: X25519 + HKDF-SHA256 session keys, ChaCha20-Poly1305 envelopes (implemented here, tested against node:crypto), Ed25519 relay auth (WebCrypto). The relay client key is kept across reloads: the relay only accepts publishes from the client that joined a topic.
+- Conformance: `test/net/walletconnect.test.mjs` runs the official SDK as the dapp against the real relay; `scripts/wc-dapp.mjs` is a manual test dapp.
+- Dapp metadata is self-declared and shown as such; icons are never loaded.
+
 ## 28. Future work
 
 Only after MVP:
