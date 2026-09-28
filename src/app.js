@@ -14,7 +14,8 @@ import { nameOf, resolveName } from './names.js';
 import { batch } from './multisend.js';
 import { parseCSV, toCSV } from './csv.js';
 import { canonical, encodeCall, parseAbi, parseValue } from './abicoder.js';
-import { $, act, addr, bad, copy, h, kv, put, short, warn } from './ui.js';
+import { $, act, addr, bad, copy, h, icon, ICONS, kv, put, short, warn } from './ui.js';
+import * as recent from './recent.js';
 import { discover, get, list, remember, remembered } from './wallets.js';
 import { identify } from './zodiac.js';
 
@@ -137,22 +138,72 @@ function home() {
     const v = input.value.trim();
     await target(v);
     location.hash = '/' + (isAddr(v) ? v.toLowerCase() : v);
-  }, out);
+  }, out, '.primary');
   input.onkeydown = (e) => {
     if (e.key === 'Enter') open.click(); // never return false here: that would cancel every keystroke
   };
-  return [
-    h('section', h('h2', 'Open Safe'), h('div.row', input, open), out),
+  const list = h('div');
+  const draw = () => put(list, savedSafes(draw));
+  draw();
+  const c = chain();
+  return h(
+    'div.home',
+    h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'safe.wei'), h('p', 'Your Safe, straight from the chain. No servers, no sign-ups: just your wallet.')),
+    h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), out),
+    list,
     h(
-      'section',
-      h('h2', 'Create Safe'),
-      !chain()
-        ? h('p.mut', 'Connect a wallet to create a Safe.')
-        : chain().canCreate
-          ? [h('p.mut', 'Deploy a new ' + (chain().mainnet ? 'Safe' : 'SafeL2') + ' v1.4.1 on ' + chain().name + ' from the canonical proxy factory.'), h('button', { onclick: () => (location.hash = '/new') }, 'Create Safe')]
-          : h('p.mut', 'The canonical Safe v1.4.1 contracts are not deployed on ' + chain().name + ', so Safes cannot be created here. Existing Safes can still be opened.'),
+      'div.panel.create',
+      h('div', h('b', 'Create a new Safe'), h('p.mut', !c ? 'Connect a wallet to create a Safe.' : c.canCreate ? 'A shared account on ' + c.name + ' that several owners control together.' : 'Safe’s contracts are not deployed on ' + c.name + ', so new Safes can’t be created here.')),
+      c && c.canCreate && h('button', { onclick: () => (location.hash = '/new') }, icon(...ICONS.plus), ' Create'),
     ),
-  ];
+    h('p.foot', 'Everything is read from the chain through your wallet. Your saved Safes stay in this browser.'),
+  );
+}
+
+/** The "Your Safes" list: pinned first, then most recent. */
+function savedSafes(redraw) {
+  const l = recent.sorted();
+  if (!l.length) return null;
+  const iconBtn = (name, title, fn, on) => {
+    const b = h('button.ib' + (on ? '.on' : ''), { title, 'aria-label': title });
+    b.append(icon(...ICONS[name]));
+    b.onclick = (e) => (e.preventDefault(), e.stopPropagation(), fn());
+    return b;
+  };
+  const row = (e) => {
+    const title = e.label || e.ref || 'Safe ' + short(e.address), here = st.chainId === e.chainId;
+    const name = h('b.name', title);
+    const rename = () => {
+      const inp = h('input.rename', { value: e.label || '', placeholder: e.ref || 'Name this Safe', maxlength: 40 });
+      const save = (keep) => (keep && recent.update(e.chainId, e.address, { label: inp.value.trim().slice(0, 40) }), redraw());
+      inp.onkeydown = (k) => (k.key === 'Enter' ? save(true) : k.key === 'Escape' ? save(false) : null);
+      inp.onblur = () => save(true);
+      inp.onclick = (k) => (k.preventDefault(), k.stopPropagation());
+      name.replaceWith(inp);
+      inp.focus();
+      inp.select();
+    };
+    const remove = () => {
+      const gone = recent.remove(e.chainId, e.address);
+      const undo = h('div.saferow.removed', h('span.mut', 'Removed ' + title + '.'), h('button.link', { onclick: () => (recent.restore(gone), redraw()) }, 'Undo'));
+      el.replaceWith(undo);
+      setTimeout(() => undo.isConnected && undo.remove(), 6000);
+    };
+    const el = h(
+      'a.saferow' + (here ? '' : '.other'),
+      { href: '#/' + (e.ref || e.address), title: here ? null : 'Switch your wallet to ' + label(e.chainId).name + ' to open this Safe' },
+      h('div.info', h('div', name, e.pinned && h('span.pinned', icon(...ICONS.pin))), h('div.meta', h('code', short(e.address)), h('span.chip', label(e.chainId).name), h('span', recent.ago(e.at)))),
+      h(
+        'div.acts',
+        iconBtn('pin', e.pinned ? 'Unpin' : 'Pin', () => (recent.update(e.chainId, e.address, { pinned: !e.pinned }), redraw()), e.pinned),
+        iconBtn('edit', 'Rename', rename),
+        iconBtn('close', 'Remove from this list', remove),
+      ),
+      h('span.go', icon(...ICONS.next)),
+    );
+    return el;
+  };
+  return h('div.saved', h('h2', 'Your Safes'), l.map(row));
 }
 
 function createView() {
@@ -1161,7 +1212,8 @@ async function route() {
       if (!st.safe || st.safe.address !== address) put(main, h('p.mut', 'Loading ' + ref + '…'));
       const s = await readSafe(address);
       if (n !== seq) return;
-      if (!st.safe || st.safe.address !== s.address) st.safeName = isAddr(ref) ? null : ref;
+      if (!st.safe || st.safe.address !== s.address) st.safeName = ((recent.find(s.chainId, s.address) || {}).label) || (isAddr(ref) ? null : ref);
+      recent.touch(s.chainId, s.address, isAddr(ref) ? null : ref);
       st.safe = s;
       st.stale = false;
       st.balFor = st.pendingFor = null;

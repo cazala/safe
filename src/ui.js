@@ -26,7 +26,7 @@ export const kv = (rows) => h('table.kv', rows.filter(Boolean).map(([k, v]) => h
 /** A full address in monospace with a copy button. */
 // Inline SVG icons, built with DOM calls (no markup strings).
 const NS = 'http://www.w3.org/2000/svg';
-function icon(...paths) {
+export function icon(...paths) {
   const svg = document.createElementNS(NS, 'svg');
   for (const [k, v] of Object.entries({ viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' }))
     svg.setAttribute(k, v);
@@ -38,6 +38,14 @@ function icon(...paths) {
   return svg;
 }
 const COPY = ['M9 9h11v11H9z', 'M5 15H4V4h11v1'], CHECK = ['m5 12.5 4.5 4.5L19 7.5'];
+export const ICONS = {
+  shield: ['M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z', 'm8.5 12 2.5 2.5 4.5-5'],
+  pin: ['M12 16v6', 'M8 3h8l-1.5 6.5L18 13H6l3.5-3.5z'],
+  edit: ['M4 20h4L19 9l-4-4L4 16z', 'm13.5 6.5 4 4'],
+  close: ['M6 6l12 12', 'M18 6 6 18'],
+  next: ['m9 6 6 6-6 6'],
+  plus: ['M12 5v14', 'M5 12h14'],
+};
 
 /** Copy button: a copy icon that turns into a check for a moment. Fixed size, so nothing moves. */
 export function copy(text, what = 'Copy') {
