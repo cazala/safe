@@ -4,7 +4,7 @@ Every screen in safe.wei has a URL, and some URLs prefill a form. Everything liv
 
 This makes safe.wei easy to integrate with: a bot, a payroll script or another app can build a link with the fields filled in and send it to an owner, who opens it, checks it and signs.
 
-`<safe>` is always a 0x address or a `.eth` / `.wei` name that resolves to one. The Safe is read on the chain the wallet is connected to.
+`<safe>` is always a 0x address or a `.eth` / `.wei` name that resolves to one. The Safe is read on the chain the wallet is connected to, unless the link says the chain: `#tx=` and `#msg=` carry it in their payload, and any `#/<safe>[/<tab>]` route takes an optional `?chain=<chainId>` (decimal), e.g. `#/0x…/settings?chain=100`. When the wallet is on another chain, safe.wei offers the switch before opening the Safe.
 
 ## Screens
 
@@ -15,9 +15,10 @@ This makes safe.wei easy to integrate with: a bot, a payroll script or another a
 | `#/<safe>` or `#/<safe>/assets` | The Safe's balances |
 | `#/<safe>/send` | Send to one recipient |
 | `#/<safe>/batch` | Send to many recipients from CSV |
-| `#/<safe>/transactions` | Pending and past transactions |
+| `#/<safe>/transactions` | The review in progress, pending transactions found onchain, import a link or JSON |
 | `#/<safe>/custom` | Transaction builder (contract calls from an ABI, raw calldata) |
-| `#/<safe>/settings` | Owners, threshold, modules and guard |
+| `#/<safe>/dapps` | Dapps connected to the Safe with WalletConnect |
+| `#/<safe>/settings` (alias `setup`) | Owners, threshold, fallback handler, modules and guard |
 
 ## Prefilled sends
 
@@ -33,7 +34,7 @@ Every parameter is optional; the ones given are filled in.
 
 Example: send 250 USDC to vitalik.eth from treasury.wei
 
-    https://safe.wei/#/treasury.wei/send?to=vitalik.eth&amount=250&token=USDC
+    https://safe.caza.la/#/treasury.wei/send?to=vitalik.eth&amount=250&token=USDC
 
 ### Many recipients (CSV)
 
@@ -43,7 +44,7 @@ One transfer per line, `recipient,amount[,token]`, with the same rules as above 
 
 Example: 0.1 ETH to vitalik.eth and 250 USDC to alice.wei
 
-    https://safe.wei/#/treasury.wei/batch?csv=vitalik.eth%2C0.1%0Aalice.wei%2C250%2CUSDC
+    https://safe.caza.la/#/treasury.wei/batch?csv=vitalik.eth%2C0.1%0Aalice.wei%2C250%2CUSDC
 
 In JavaScript: `'#/' + safe + '/batch?csv=' + encodeURIComponent(rows.map((r) => r.join(',')).join('\n'))`.
 
@@ -51,7 +52,7 @@ In JavaScript: `'#/' + safe + '/batch?csv=' + encodeURIComponent(rows.map((r) =>
 
     #tx=<base64url payload>
 
-A transaction with the signatures collected so far, copied from the review screen (Copy link). It opens the review screen for that Safe, where the next owner can check the SafeTx hash and add their signature. Other apps can build these links to hand a transaction to the owners (see "Building a `#tx=` link" below).
+A transaction with the signatures collected so far, copied from the review screen (Copy link). Readers ignore `&key=value` parameters after the payload (`#tx=<payload>&app=roles.wei`); that is where optional additions go, and today none are read. It opens the review screen for that Safe, where the next owner can check the SafeTx hash and add their signature. Other apps can build these links to hand a transaction to the owners (see "Building a `#tx=` link" below).
 
 ### Payload
 
@@ -134,7 +135,8 @@ The JSON is `{ app: "safe.wei", v: 1, at, safes, tree, labels, labelsAt, abis, t
 
 Links are how other apps (bots, roles.wei, scripts) talk to safe.wei, and links already sent to people must keep working. **These formats are frozen:**
 
-- the routes in this document (`#/`, `#/new`, `#/<safe>[/<tab>]`, the `send` and `batch` query parameters);
+- the routes in this document (`#/`, `#/new`, `#/<safe>[/<tab>]`, the `send` and `batch` query parameters, `?chain=`);
+- readers ignoring `&key=value` parameters after a `#tx=` / `#msg=` payload (pinned by a test): future optional parameters (e.g. `app=` naming the app that built a link) go there, so old readers keep opening new links;
 - `#tx=` (payload above), including `compact`, which is also stored **onchain forever** in `approveHash` calldata of published transactions, and its call-signature section;
 - `#msg=` (payload above);
 - `#import=` (`z` and `j`, and the JSON shape);

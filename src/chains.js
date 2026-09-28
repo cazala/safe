@@ -30,8 +30,11 @@ const RELEASES = [
 ];
 export const SAFE = { ...RELEASES[0], multicall3: '0xca11bde05977b3631167028862be2a173976ca11' };
 export const SAFE141 = RELEASES[1];
-/** Canonical MultiSendCallOnly contracts recognized as batches (only these; spec §26). */
-export const MULTISEND = RELEASES.map((r) => r.multiSendCallOnly);
+/**
+ * Canonical MultiSendCallOnly contracts recognized as batches (only these; spec §26). New batches use
+ * the latest release; the 1.3.0 ones (canonical and eip155 addresses, same bytecode) are read only.
+ */
+export const MULTISEND = [...RELEASES.map((r) => r.multiSendCallOnly), '0x40a2accbd92bca938b02010e17a5b8929b49130d', '0xa1dabef33b3b82c7814b6d82a79e50f4ac44102b'];
 
 // Safe's canonical CompatibilityFallbackHandler and SignMessageLib per release line, from
 // safe-global/safe-deployments (1.3.0 exists at a "canonical" and an "eip155" address). A Safe

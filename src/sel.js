@@ -37,6 +37,7 @@ export const S = {
   reverseResolve: '9af8b7aa',
   name: '691f3431',
   getMessageHash: '0a1028c4',
+  simulateAndRevert: 'b4faba09',
   isValidSignature: '1626ba7e',
   signMessage: '85a5affe',
   signedMessages: '5ae6bd37',

@@ -489,7 +489,7 @@ Before sending execution transaction:
 - recompute / verify SafeTx hash again
 - verify enough valid approvals/signatures exist
 
-Before proposing, approving, or executing, simulate the inner call with `eth_call({from: safe, to, value, data})`:
+Before proposing, approving, or executing, simulate the inner call with `eth_call({from: safe, to, value, data})`. A DELEGATECALL (a MultiSendCallOnly batch, or any other) is simulated inside the Safe with `simulateAndRevert(to, data)` (StorageAccessible, Safe ≥ 1.3.0), which runs it as the Safe would and reverts with `(success, returndata)`; the revert data is read from wherever the wallet puts it in the error, and when it cannot be read, a batch falls back to simulating each call on its own. Each call of a batch is also simulated on its own, to name a failing call and catch tokens that return `false`:
 
 - a revert must be displayed prominently
 - for recognized ERC-20 `transfer`/`transferFrom`/`approve`, a `false` return value must be displayed prominently. Some tokens return `false` without reverting, and the Safe would report `ExecutionSuccess` even though nothing moved.
@@ -863,7 +863,7 @@ The app is immutable and cannot learn about future releases, so it does not keep
 
 Versions before 1.3.0 are refused: their EIP-712 domain has no chainId.
 
-Batches are recognized for the canonical MultiSendCallOnly of v1.4.1 and v1.5.0; new batches use the newest one deployed on the chain.
+Batches are recognized for the canonical MultiSendCallOnly of v1.4.1 and v1.5.0, and of v1.3.0 (canonical and eip155 addresses) in existing transactions; new batches use the newest one deployed on the chain.
 
 ---
 

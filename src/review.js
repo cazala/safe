@@ -1,6 +1,6 @@
 // Transaction review: everything that must hold before any approve / sign / execute.
 // `ok === false` means every action is disabled (spec §6, §15).
-import { strip, u, ZERO } from './abi.js';
+import { B, cd, strip, u, ZERO } from './abi.js';
 import { matchCall } from './abicoder.js';
 import { SIGN_MESSAGE_LIBS } from './chains.js';
 import { decode } from './decode.js';
@@ -18,16 +18,39 @@ export function signMessageOf(t) {
   return m ? m.values[0] : null;
 }
 
-/** eth_call the inner call from the Safe. Returns a warning string or null. */
-export async function simulate(t) {
-  const calls = unpack(t);
-  if (calls) {
-    // Each inner call is simulated on its own from the Safe; effects of earlier calls are not applied.
-    const w = await Promise.all(calls.map((c) => simulate({ ...t, ...c, operation: 0 })));
-    return w.map((x, i) => x && 'Call ' + (i + 1) + ' (simulated independently): ' + x).filter(Boolean).join('\n') || null; // one line per call
+/** The revert data of an eth_call error, wherever the wallet put it (e.data, e.data.data, e.error.data…). */
+export function revertData(e, depth = 0) {
+  if (!e || depth > 4) return null;
+  if (typeof e === 'string') return /^0x([0-9a-f]{2})*$/i.test(e) ? e : null;
+  if (typeof e !== 'object') return null;
+  for (const k of ['data', 'error', 'cause', 'info', 'originalError']) {
+    const d = revertData(e[k], depth + 1);
+    if (d) return d;
   }
+  return null;
+}
+/**
+ * Run a DELEGATECALL inside the Safe, as execution would: the Safe's simulateAndRevert (StorageAccessible,
+ * Safe ≥ 1.3.0) runs it, then reverts with (success, returndata). true / false, or null if the RPC hides it.
+ */
+async function simulateInside(t) {
+  const e = await rpc('eth_call', [{ to: t.safe, data: cd(S.simulateAndRevert, t.to, B(t.data)) }, 'latest']).then(() => null, (x) => x);
+  const d = revertData(e);
+  return d && d.length >= 130 ? u(d) === 1n : null;
+}
+
+/** Simulate the transaction from the Safe. Returns a warning string or null. */
+export async function simulate(t) {
   if (signMessageOf(t)) return null; // one effect: marks a message as signed (checked by its hash afterwards)
-  if (t.operation) return 'DELEGATECALL is not simulated.';
+  const calls = unpack(t), whole = t.operation ? await simulateInside(t).catch(() => null) : null;
+  if (calls) {
+    // The batch as a whole, in order (earlier calls' effects applied), when the RPC returns the result;
+    // each call on its own as well, to point at a failing call and catch tokens that return false.
+    const w = (await Promise.all(calls.map((c) => simulate({ ...t, ...c, operation: 0 })))).map((x, i) => x && 'Call ' + (i + 1) + ' (simulated on its own): ' + x);
+    if (whole === true) return w.filter((x) => x && x.includes('FALSE')).join('\n') || null;
+    return [whole === false && 'Simulation: this batch REVERTS if executed now.', ...w].filter(Boolean).join('\n') || null; // one line per call
+  }
+  if (t.operation) return whole === true ? null : whole === false ? 'Simulation: this DELEGATECALL REVERTS if executed now.' : 'DELEGATECALL is not simulated.';
   const [code, ret] = await Promise.all([
     rpc('eth_getCode', [t.to, 'latest']),
     rpc('eth_call', [{ from: t.safe, to: t.to, data: t.data, value: '0x' + t.value.toString(16) }, 'latest']).catch((e) => ({ e })),

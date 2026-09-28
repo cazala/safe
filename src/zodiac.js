@@ -29,12 +29,12 @@ const KNOWN = {
 // Versions the Zodiac team lists as faulty.
 const FAULTY = ['Roles 2.1.0', 'Delay 1.1.0'];
 
-/** { name, impl, faulty, proxy, owner } for a module/guard address; name is null if unknown. */
+/** { name, impl, faulty, proxy, owner, empty } for a module/guard address; name is null if unknown, empty if no code. */
 export async function identify(addr) {
   const code = strip(await rpc('eth_getCode', [addr, 'latest'])).toLowerCase();
   const m = /^363d3d373d3d3d363d73([0-9a-f]{40})5af43d82803e903d91602b57fd5bf3$/.exec(code);
   const impl = m ? m[1] : strip(addr).toLowerCase();
   const name = Object.keys(KNOWN).find((k) => KNOWN[k] === impl) || null;
   const owner = name ? await call(addr, '0x8da5cb5b').then((r) => a(r), () => null) : null; // owner()
-  return { name, impl: '0x' + impl, proxy: !!m, faulty: FAULTY.includes(name), owner };
+  return { name, impl: '0x' + impl, proxy: !!m, faulty: FAULTY.includes(name), owner, empty: !code };
 }
