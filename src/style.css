@@ -260,10 +260,18 @@ button.htab.on { color: var(--fg); border-bottom-color: var(--fg); }
 .hlist .saved h2:first-child { display: none; }
 .hlist .saved .fhead { margin-top: 12px; }
 p.empty { margin: 18px 0; text-align: center; color: var(--mut); font-size: 14px; }
-.lhead { display: flex; justify-content: flex-end; margin: 10px 0 4px; }
+.lhead { display: flex; align-items: center; gap: 8px; margin: 10px 0 8px; }
 .lhead button { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; }
-.lrow .meta code { font-size: 12px; overflow-wrap: anywhere; }
-.lrow .acts { opacity: 1; }
+select.lsort { width: auto; padding: 7px 32px 7px 10px; border-radius: 8px; font-family: inherit; font-size: 13px; background-color: var(--card); }
+.lhead .grow, .lrow .grow { flex: 1; }
+.llist { border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.lrow { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 2px 6px 2px 14px; font-size: 14px; }
+.llist .lrow + .lrow { border-top: 1px solid var(--line); }
+.lrow b.lname { min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lrow code { color: var(--mut); font-size: 12px; cursor: pointer; white-space: nowrap; }
+.lrow code:hover { color: var(--fg); }
+.lrow button.copy { margin-left: -6px; }
+.lrow.removed { margin-top: 8px; border: 1px dashed var(--line); border-radius: 12px; }
 b.lbl { font-weight: 600; }
 button.copy.tag svg { width: 13px; height: 13px; }
 button.link.danger { color: var(--bad); margin-left: auto; }

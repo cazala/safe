@@ -252,27 +252,47 @@ function backupDialog(incoming) {
   else exportView();
 }
 
-/** Home → Labels: every label in this browser, with add / edit / remove. */
+/** Home → Labels: every label in this browser, one line each, sorted by date or name; add / edit / remove. */
 function labelsView() {
   const el = h('div.labels');
+  const SORT = 'safe.wei:labelsort';
+  let by = 'date';
+  try {
+    by = localStorage.getItem(SORT) === 'name' ? 'name' : 'date';
+  } catch {}
   const draw = () => {
-    const l = Object.entries(labels.all()).sort((a, b) => a[1].localeCompare(b[1]));
+    const at = labels.dates();
+    const l = Object.entries(labels.all()).sort(by === 'name' ? (a, b) => a[1].localeCompare(b[1]) : (a, b) => (at[b[0]] || 0) - (at[a[0]] || 0) || a[1].localeCompare(b[1]));
+    const sort = h('select.lsort', { 'aria-label': 'Sort labels', onchange: () => {
+      by = sort.value;
+      try {
+        localStorage.setItem(SORT, by);
+      } catch {}
+      draw();
+    } }, h('option', { value: 'date' }, 'Newest first'), h('option', { value: 'name' }, 'Name (A–Z)'));
+    sort.value = by;
     put(
       el,
-      h('div.lhead', h('button', { onclick: () => labelDialog() }, icon(...ICONS.plus), ' Add label')),
+      h('div.lhead', l.length > 1 && sort, h('span.grow'), h('button', { onclick: () => labelDialog() }, icon(...ICONS.plus), ' Add label')),
       l.length
-        ? l.map(([a, name]) =>
-            h(
-              'div.saferow.lrow',
-              h('div.info', h('b.name', name), h('div.meta', h('code', a), copy(a, 'Copy address'))),
-              h('div.acts', iconButton('edit', 'Edit label', () => labelDialog(a)), iconButton('close', 'Remove label', () => {
+        ? h('div.llist', l.map(([a, name]) => {
+            const c = copy(a, 'Copy address');
+            return h(
+              'div.lrow',
+              h('b.lname', { title: name }, name),
+              h('code', { title: a, onclick: () => c.click() }, short(a)),
+              c,
+              h('span.grow'),
+              iconButton('edit', 'Edit label', () => labelDialog(a)),
+              iconButton('close', 'Remove label', () => {
+                const when = at[a];
                 labels.set(a, '');
-                const undo = h('div.saferow.removed', h('span.mut', 'Removed ' + name + '.'), h('button.link', { onclick: () => labels.set(a, name) }, 'Undo'));
+                const undo = h('div.lrow.removed', h('span.mut', 'Removed ' + name + '.'), h('button.link', { onclick: () => labels.set(a, name, when) }, 'Undo'));
                 setTimeout(() => undo.isConnected && undo.remove(), 6000);
                 el.append(undo);
-              })),
-            ),
-          )
+              }),
+            );
+          }))
         : h('p.empty', 'Name any address with its tag icon, or add one here.'),
     );
   };
