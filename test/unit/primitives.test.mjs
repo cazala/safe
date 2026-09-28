@@ -54,6 +54,7 @@ const SIGS = {
   isValidSignature: 'isValidSignature(bytes32,bytes)',
   signMessage: 'signMessage(bytes)',
   signedMessages: 'signedMessages(bytes32)',
+  domainSeparator: 'domainSeparator()',
 };
 
 test('every hardcoded selector matches its signature', () => {

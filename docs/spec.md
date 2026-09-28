@@ -1357,7 +1357,7 @@ A `#tx=` link (and the onchain publication, and the JSON) may carry the human-re
 
 Owners sign `SafeMessage(bytes message)` under the Safe's EIP-712 domain, where `message` is the 32-byte hash an app verifies (EIP-191 hash of a text, EIP-712 hash of typed data, or a raw hash), as Safe Wallet does; the fallback handler (CompatibilityFallbackHandler) validates it through `isValidSignature`. Tested on v1.3.0, v1.4.1 and v1.5.0.
 
-- Before signing: the local SafeMessage hash must equal the Safe's `getMessageHash` (called through the fallback handler); otherwise signing is disabled, including for Safes without a compatible handler.
+- Before signing: the local SafeMessage hash must equal the Safe's `getMessageHash` (called through the fallback handler). Safe's ExtensibleFallbackHandler has no `getMessageHash` but builds the same SafeMessage hash; for Safes using it, the Safe's `domainSeparator()` is checked against the local one instead. Otherwise signing is disabled, including for Safes without a compatible handler. Tested with CompatibilityFallbackHandler 1.3.0 / 1.4.1 / 1.5.0 and ExtensibleFallbackHandler (1.4.1-era and 1.5.0).
 - Signatures are recovered with the ecrecover precompile and must come from current owners; the combined signature is the owners' signatures sorted by owner address, threshold of them.
 - The combined signature is checked with `isValidSignature(bytes32, bytes)` before it is shown.
 - Typed data is hashed by a local EIP-712 implementation (tested against viem); its input is validated strictly (types, ranges, lengths).

@@ -186,7 +186,7 @@ Every call can be reviewed on its own or added to a batch. Nothing is fetched: t
 - **Threshold**: change how many owners must approve.
 - **Modules**: every enabled module, identified when it is a known Zodiac module (Roles, Delay, Reality, Bridge, Exit, Scope / Meta Guard, Optimistic Governor, Tellor, Connext) by its implementation, with its version, its owner, and a warning for versions the Zodiac team lists as faulty. **Disable** a module.
 - **Guard**: the transaction guard, if any, identified the same way, with **Remove guard**.
-- **Contract**: version, nonce, singleton, fallback handler and chain. The fallback handler is identified when it is Safe's canonical CompatibilityFallbackHandler; when it is missing or unknown, **Set (or Replace with) Safe's CompatibilityFallbackHandler** proposes the change, using the handler of the Safe's own release line. Without one, a Safe cannot sign messages (EIP-1271).
+- **Contract**: version, nonce, singleton, fallback handler and chain. The fallback handler is named when it is one of Safe's (CompatibilityFallbackHandler, or ExtensibleFallbackHandler, which CoW Protocol's TWAP orders use). When it is missing, **Set default handler** proposes Safe's CompatibilityFallbackHandler for the Safe's release line; when it is unknown, **Reset to default handler** does (anything that relied on the old handler stops working). Without a handler, a Safe cannot sign messages (EIP-1271).
 
 Every change is a normal Safe transaction: it goes through review and needs the owners' approvals.
 

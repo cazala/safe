@@ -13,6 +13,7 @@ import { B, cd, encode, hex, isAddr, isHex, keccakHex, keccakText, strip, u, utf
 import { checkSigs, normSig, recover } from './flow.js';
 import { call, rpc } from './rpc.js';
 import { readSafe } from './safe.js';
+import { HANDLERS } from './chains.js';
 import { S, T } from './sel.js';
 
 export const KINDS = { 1: 'Message', 2: 'Typed data (EIP-712)', 3: 'Message hash' };
@@ -163,12 +164,29 @@ export const onchainSignCall = (lib, hash) => ({ to: lib, value: 0n, data: cd(S.
 export const combine = (valid, threshold) =>
   '0x' + [...valid].sort((x, y) => (BigInt(x.signer) < BigInt(y.signer) ? -1 : 1)).slice(0, Number(threshold)).map((x) => strip(x.sig)).join('');
 
+/** The Safe's EIP-712 domain separator, from the Safe itself. */
+const chainDomain = (safe) => call(safe, '0x' + S.domainSeparator).then((r) => '0x' + strip(r).slice(0, 64), () => null);
+
+/**
+ * The Safe's own SafeMessage hash. Handlers with getMessageHash (Compatibility) are asked directly;
+ * a known handler without it (Extensible) builds the same SafeMessage hash from the Safe's domain
+ * separator, so that is what is checked against the one computed here.
+ */
+async function safeSideHash(s, hash, local) {
+  const own = await chainMessageHash(s.address, hash);
+  if (own) return { onchain: own, via: 'getMessageHash' };
+  const known = s.fallback && HANDLERS[s.fallback];
+  if (!known || known.messageHash) return { onchain: null };
+  const domain = keccakHex('0x' + encode([T.Domain, s.chainId, s.address]));
+  return (await chainDomain(s.address)) === domain ? { onchain: local, via: 'domainSeparator' } : { onchain: null };
+}
+
 /** Check a message against the Safe: its hashes, and which of `sigs` are valid owner signatures. */
 export async function checkMessage(m, sigs = []) {
   const s = await readSafe(m.safe), d = describe(m), local = safeMessageHash(m.chainId, m.safe, d.hash);
-  const [onchain, signed] = await Promise.all([chainMessageHash(m.safe, d.hash), signedOnchain(m.safe, local)]);
+  const [{ onchain, via }, signed] = await Promise.all([safeSideHash(s, d.hash, local), signedOnchain(m.safe, local)]);
   const { valid, rejected } = await checkSigs(s, local, sigs);
-  return { s, ...d, local, onchain, signed, valid, rejected };
+  return { s, ...d, local, onchain, via, signed, valid, rejected };
 }
 
 /** An owner signs the Safe's message; refuses unless the Safe computes the same hash. */

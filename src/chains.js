@@ -42,8 +42,18 @@ export const LIBS = {
   '1.5': { handler: ['0x3efcbb83a4a7afcb4f68d501e2c2203a38be77f4'], signMessage: ['0x4ffef8222648872b3de295ba1e49110e61f5b5aa'] },
 };
 const LINE_VERSION = { '1.3': '1.3.0', '1.4': '1.4.1', '1.5': '1.5.0' };
-/** Known handlers: address → release. */
-export const HANDLERS = Object.fromEntries(Object.entries(LIBS).flatMap(([l, x]) => x.handler.map((a) => [a, LINE_VERSION[l]])));
+/**
+ * Known fallback handlers: address → { name, version, messageHash }. `messageHash` says whether the
+ * handler exposes getMessageHash (Compatibility) or not (Extensible: same SafeMessage hash, checked
+ * through the Safe's domainSeparator instead). ExtensibleFallbackHandler 1.5.0 is in safe-deployments;
+ * the 1.4.1-era one (used by CoW Protocol's TWAP orders) is Etherscan-verified as ExtensibleFallbackHandler.
+ */
+export const HANDLERS = {
+  ...Object.fromEntries(Object.entries(LIBS).flatMap(([l, x]) => x.handler.map((a) => [a, { name: 'CompatibilityFallbackHandler', version: LINE_VERSION[l], messageHash: true }]))),
+  '0x2f55e8b20d0b9fefa187aa7d00b6cbe563605bf5': { name: 'ExtensibleFallbackHandler', version: '1.4.1', messageHash: false },
+  '0x85a8ca358d388530ad0fb95d0cb89dd44fc242c3': { name: 'ExtensibleFallbackHandler', version: '1.5.0', messageHash: false },
+};
+export const handlerName = (a) => HANDLERS[a] && HANDLERS[a].name + ' ' + HANDLERS[a].version;
 export const SIGN_MESSAGE_LIBS = Object.values(LIBS).flatMap((x) => x.signMessage);
 /** The release line whose libraries fit a Safe version (anything newer than 1.5 uses 1.5's). */
 export const line = (v) => {
