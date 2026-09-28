@@ -145,7 +145,7 @@ class Gate extends Error {
 const chainName = (id) => label(id).name;
 
 function gateCard(title, text, ...rest) {
-  return h('div.home.gate', h('div.panel.gatecard', h('span.mark', icon(...ICONS.shield)), h('h2', title), text && h('p.mut', text), ...rest), h('p.gateback', h('a', { href: '#/' }, '‹ Home')));
+  return h('div.home.gate', h('div.panel.gatecard', h('span.mark', icon(...ICONS.shield)), h('h2', title), text && h('p.mut', text), ...rest), h('p.gateback', h('a.back', { href: '#/' }, icon('m15 6-6 6 6 6'), 'Home')));
 }
 
 function noWalletView() {
@@ -518,7 +518,7 @@ const link = (tab, q) => '#/' + st.ref + (tab && tab !== 'assets' ? '/' + tab : 
 const chip = (text, cls = '') => h('span.chip' + cls, text);
 
 /** `back`: [href, text] for the single back link; defaults to Home. */
-function safeHeader(s, back = ['#', '‹ Home']) {
+function safeHeader(s, back = ['#', 'Home']) {
   const c = chain(), me = st.account && s.owners.includes(st.account.toLowerCase());
   const title = h('h1', st.safeName || 'Safe ' + short(s.address));
   if (!st.safeName)
@@ -554,7 +554,7 @@ function safeHeader(s, back = ['#', '‹ Home']) {
   const row = h('div.titlerow', title, rename);
   return h(
     'div.safehead',
-    h('a.back', { href: back[0] }, back[1]),
+    h('a.back', { href: back[0] }, icon('m15 6-6 6 6 6'), back[1]),
     row,
     h('div.sub', addr(s.address, null, null, true)),
     h(
@@ -647,7 +647,7 @@ function assetsTab(s) {
             h(
               'td',
               h('b', t.symbol),
-              !t.listed && [' ', h('span.chip.bad', 'unlisted'), ' ', h('button.link', { onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), delete st.tokens[t.address], draw()), title: 'Remove from your token list' }, 'remove')],
+              !t.listed && [' ', h('button.link', { onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), delete st.tokens[t.address], draw()), title: 'Remove from your token list' }, 'remove')],
               h('div.mut', addr(t.address)),
             ),
             h(
@@ -1317,7 +1317,7 @@ async function showReview(tx, sigs = [], nav = 'push') {
   // One back link: to the screen that opened this review, else the Transactions tab.
   if (nav === 'push') st.backTo = location.hash && !location.hash.startsWith('#tx=') ? location.hash : null;
   else if (nav === 'none') st.backTo = null;
-  put(main, safeHeader(st.safe, [st.backTo || link('transactions'), '‹ Back']), rv);
+  put(main, safeHeader(st.safe, [st.backTo || link('transactions'), 'Back']), rv);
   put(rv, h('p.mut', 'Checking the transaction…'));
   const r = await review(tx, st.safe, st.chainId);
   const c = await checkSigs(st.safe, r.local, sigs);
