@@ -5,6 +5,8 @@ import { label } from './chains.js';
 import * as recent from './recent.js';
 import { h, icon, iconButton, ICONS, put, short } from './ui.js';
 
+// A folder with an arrow coming out of it.
+const UNGROUP = ['M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', 'M12 16v-5', 'm9.5 13.5 2.5-2.5 2.5 2.5'];
 const FOLDER = ['M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'];
 
 // One drag at a time, tracked with document listeners registered once.
@@ -27,7 +29,7 @@ export function mountSafes(root, chainId) {
   const detach = (items, n) => items.splice(items.findIndex((x) => same(x, n)), 1);
 
   // ---- rows ----
-  function safeRow(n, m) {
+  function safeRow(n, m, withIcon) {
     const e = m.get(n.k), here = chainId() === e.chainId;
     const title = e.label || e.ref || 'Safe ' + short(e.address);
     const name = h('b.name', title);
@@ -50,6 +52,7 @@ export function mountSafes(root, chainId) {
     const el = h(
       'a.saferow.node' + (here ? '' : '.other'),
       { href: '#/' + (e.ref || e.address), title: here ? null : 'Switch your wallet to ' + label(e.chainId).name + ' to open this Safe' },
+      withIcon && h('span.ficon', icon(...ICONS.shield)),
       h('div.info', h('div.nline', name, e.pinned && h('span.pinned', icon(...ICONS.pin))), h('div.meta', h('code', short(e.address)), h('span.chip', label(e.chainId).name), h('span', recent.ago(e.at)))),
       h(
         'div.acts',
@@ -79,8 +82,10 @@ export function mountSafes(root, chainId) {
   function levelView() {
     const t = recent.tree(), m = meta(), items = levelOf(t, path), f = folderAt(t, path);
     if (path.length && !f) return (path = []), levelView(); // folder vanished (e.g. emptied)
+    // With folders on this level, Safes get an icon too so every name lines up.
+    const mixed = items.some((n) => n.t === 'f');
     const rows = view(items, m).map((n) => {
-      const el = n.t === 's' ? safeRow(n, m) : folderRow(n, m);
+      const el = n.t === 's' ? safeRow(n, m, mixed) : folderRow(n, m);
       el.node = n;
       dragify(el);
       return el;
@@ -104,14 +109,14 @@ export function mountSafes(root, chainId) {
         inp.focus();
         inp.select();
       });
-      const split = h('button.link', { onclick: () => {
+      const ungroup = h('button.ungroup', { onclick: () => {
         const t2 = recent.tree(), up = levelOf(t2, path.slice(0, -1)), i = up.findIndex((x) => x.id === f.id);
         up.splice(i, 1, ...folderAt(t2, path).items);
         recent.saveTree(t2);
         go(path.slice(0, -1), -1);
-      }, title: 'Move everything to ' + (parent ? recent.folderName(parent) : 'Safes') + ' and remove this folder' }, 'Split folder');
+      }, title: 'Ungroup: move these Safes to ' + (parent ? recent.folderName(parent) : 'Safes') + ' and remove the folder' }, icon(...UNGROUP), 'Ungroup');
       const back = h('button.homeback.dropup', { onclick: () => go(path.slice(0, -1), -1) }, icon('m15 6-6 6 6 6'), parent ? recent.folderName(parent) : 'Safes');
-      head = h('div.fhead', back, h('div.ftitle', name, rename, h('span.grow'), split));
+      head = h('div.fhead', back, h('div.ftitle', name, rename), ungroup);
     }
     return h('div.level', head, rows, !path.length && rows.length > 1 && recent.safes().length > 1 && h('p.hint', 'Drag to reorder; drop one Safe onto another to make a folder.'));
   }
