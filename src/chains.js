@@ -62,9 +62,9 @@ export const line = (v) => {
 };
 
 /**
- * Where a gateway says the page comes from: { app } when the hostname contains the contract address
- * (0x….w3link.io, 0x….1.w3link.io), { name } for a name gateway (safe.wei.limo, safe.eth.limo),
- * { local } for localhost / IPs, else {}.
+ * Where a gateway says the page comes from, from generic hostname patterns (no gateway is named):
+ * { app } when the hostname starts with the contract address (0x<address>.<gateway>), { name } when
+ * it starts with a .wei / .eth name (<name>.wei.<gateway>), { local } for localhost / IPs, else {}.
  */
 export function gatewayOf(host) {
   host = host.toLowerCase();
