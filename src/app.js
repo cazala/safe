@@ -14,7 +14,7 @@ import { nameOf, resolveName } from './names.js';
 import { batch } from './multisend.js';
 import { parseCSV, toCSV } from './csv.js';
 import { canonical, encodeCall, parseAbi, parseValue } from './abicoder.js';
-import { $, act, addr, bad, h, kv, put, short, warn } from './ui.js';
+import { $, act, addr, bad, copy, h, kv, put, short, warn } from './ui.js';
 import { discover, get, list, remember, remembered } from './wallets.js';
 import { identify } from './zodiac.js';
 
@@ -38,7 +38,7 @@ async function recheck() {
 const MAXU = (1n << 256n) - 1n;
 /** Token amount for display; 2^256-1 is shown as "unlimited" rather than 78 digits. */
 const amount = (v, t) => (v === MAXU ? 'unlimited (2^256 - 1)' : t ? fmt(v, t.decimals) + ' ' + t.symbol : String(v));
-const named = (x, m = st.named) => (m[x] ? [h('b', m[x]), ' → ', h('code', x)] : h('code', x));
+const named = (x, m = st.named) => (m[x] ? [h('b', m[x]), ' → ', addr(x)] : addr(x));
 /** Fill in a reverse name next to an address, for display only. */
 const rev = (x) => {
   const el = h('span.mut');
@@ -182,13 +182,13 @@ function createView() {
         plan,
         h('h2', 'Deployment summary'),
         kv([
-          ['Predicted address', h('b', h('code', at))],
+          ['Predicted address', h('b', addr(at))],
           ['Chain', c.name + ' · chainId ' + st.chainId],
           ['Owners', h('ol.owners', k.owners.map((o) => h('li', named(o), o === st.account.toLowerCase() && [' ', h('b.ok', 'you')])))],
           ['Threshold', k.threshold + ' of ' + k.owners.length],
-          ['Singleton', [h('code', c.singleton), c.mainnet ? ' (Safe v1.4.1)' : ' (SafeL2 v1.4.1)']],
-          ['Factory', h('code', c.factory)],
-          ['Fallback', [h('code', c.fallback), ' (CompatibilityFallbackHandler)']],
+          ['Singleton', [addr(c.singleton), c.mainnet ? ' (Safe v1.4.1)' : ' (SafeL2 v1.4.1)']],
+          ['Factory', addr(c.factory)],
+          ['Fallback', [addr(c.fallback), ' (CompatibilityFallbackHandler)']],
           ['Salt nonce', String(k.salt)],
         ]),
         !k.owners.includes(st.account.toLowerCase()) && warn('The connected wallet is not one of the owners.'),
@@ -232,7 +232,7 @@ function safeHeader(s, back = ['#', '‹ Home']) {
     'div.safehead',
     h('a.back', { href: back[0] }, back[1]),
     title,
-    h('div.sub', h('code', s.address), ' ', h('button.link', { onclick: () => navigator.clipboard.writeText(s.address) }, 'copy')),
+    h('div.sub', addr(s.address)),
     h(
       'div.chips',
       chip(c.name),
@@ -289,7 +289,7 @@ function loadPending(s) {
 
 // ---- tabs ----
 const tokenOf = (addr) => st.tokens[addr];
-const tokenLabel = (t) => [h('b', t.symbol), ' ', h('code', t.address), ' ', t.listed ? h('span.mut', '(zOrg TokenList)') : h('b.bad', '(unlisted)')];
+const tokenLabel = (t) => [h('b', t.symbol), ' ', addr(t.address), ' ', t.listed ? h('span.mut', '(zOrg TokenList)') : h('b.bad', '(unlisted)')];
 
 /** Token by CSV/link spec: '' or the native symbol → null (native); a TokenList symbol; or a token address. */
 async function findToken(spec) {
@@ -324,7 +324,7 @@ function assetsTab(s) {
               'td',
               h('b', t.symbol),
               !t.listed && [' ', h('span.chip.bad', 'unlisted'), ' ', h('button.link', { onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), delete st.tokens[t.address], draw()), title: 'Remove from your token list' }, 'remove')],
-              h('div', h('code.mut', t.address)),
+              h('div.mut', addr(t.address)),
             ),
             h(
               'td.num',
@@ -514,8 +514,8 @@ function transactionsTab(s) {
         h(
           'div.card.txrow',
           h('div', h('b', 'Nonce ' + p.tx.nonce), p.tx.nonce > s.nonce ? chip('queued') : chip('next', '.ok')),
-          h('div', d ? d.label : p.tx.data === '0x' ? fmt(p.tx.value) + ' ' + c.sym + ' transfer' : 'Contract call', ' → ', h('code', short(p.tx.to))),
-          h('div.mut', 'Proposed by ', h('code', short(p.proposer)), ' · ', h('code', short(p.hash))),
+          h('div', d ? d.label : p.tx.data === '0x' ? fmt(p.tx.value) + ' ' + c.sym + ' transfer' : 'Contract call', ' → ', addr(p.tx.to, null, short(p.tx.to))),
+          h('div.mut', 'Proposed by ', addr(p.proposer, null, short(p.proposer)), ' · SafeTx ', addr(p.hash, null, short(p.hash))),
           h('button', { onclick: () => ((st.named = {}), showReview(p.tx)) }, 'Review'),
         ),
       );
@@ -547,14 +547,14 @@ function transactionsTab(s) {
 }
 
 /** "Zodiac Roles 2.1.1 · owner this Safe", filled in once the contract is recognized. */
-function whatIs(addr, s) {
-  const el = h('div.mut.small');
-  identify(addr).then(
+function whatIs(contract, s) {
+  const el = h('div.modinfo');
+  identify(contract).then(
     (z) =>
       put(
         el,
         z.name ? [h('span.chip.ok', 'Zodiac ' + z.name), z.faulty && [' ', h('span.chip.bad', 'faulty version')]] : h('span.chip', z.proxy ? 'Unknown contract (proxy to ' + short(z.impl) + ')' : 'Unknown contract'),
-        z.owner && [' Owner: ', z.owner === s.address ? 'this Safe' : s.owners.includes(z.owner) ? [h('code', short(z.owner)), ' (an owner)'] : [h('b.bad', short(z.owner)), ' (not this Safe or an owner: it can reconfigure this module)']],
+        z.owner && h('span', h('span.mut', 'Owner '), z.owner === s.address ? 'this Safe' : s.owners.includes(z.owner) ? [addr(z.owner, null, short(z.owner)), ' (an owner)'] : [h('b.bad', addr(z.owner, null, short(z.owner))), ' (not this Safe or an owner: it can reconfigure this module)']),
         z.faulty && warn('Zodiac lists ' + z.name + ' as a faulty version. Consider replacing it.'),
       ),
     () => {},
@@ -609,7 +609,7 @@ function settingsTab(s) {
   const th = thPick(n, Number(s.threshold)), thOut = h('div');
   const thActs = acts(async () => cd(S.changeThreshold, BigInt(th.value)), thOut);
   // Nothing to submit until a different threshold is picked.
-  const syncTh = () => thActs.querySelectorAll('button').forEach((b) => (b.disabled = BigInt(th.value) === s.threshold));
+  const syncTh = () => (thActs.hidden = BigInt(th.value) === s.threshold);
   th.onchange = syncTh;
   syncTh();
   const threshold = [h('div.row.inline', 'Any transaction requires', th, 'out of ' + n + ' owner' + (n > 1 ? 's' : '') + ' to approve.'), thActs, thOut];
@@ -625,7 +625,7 @@ function settingsTab(s) {
               warn('Enabled modules can execute any transaction from this Safe without owner approval. Keep only modules you trust.'),
               h('ul.owners', ms.map((m, i) => {
                 const out = h('div');
-                return h('li', h('div.owner', h('code', m), h('span.links', button('disable', async () => showReview(newTx(s, self(cd(S.disableModule, i ? ms[i - 1] : SENTINEL, m)))), out, '.link'))), whatIs(m, s), out);
+                return h('li', h('div.owner', addr(m), h('span.links', button('disable', async () => showReview(newTx(s, self(cd(S.disableModule, i ? ms[i - 1] : SENTINEL, m)))), out, '.link'))), whatIs(m, s), out);
               })),
             ]
           : h('p.mut', 'No modules enabled. Only owner-approved transactions can move funds.'),
@@ -648,14 +648,14 @@ function settingsTab(s) {
     enable,
     h('h2', 'Guard'),
     s.guard
-      ? [warn('A guard checks every transaction and can block any of them, including removing it. Current guard: ', h('code', s.guard)), whatIs(s.guard, s), h('div.actions', button('Remove guard', async () => showReview(newTx(s, self(cd(S.setGuard, ZERO)))), gOut)), gOut]
+      ? [warn('A guard checks every transaction and can block any of them, including removing it. Current guard: ', addr(s.guard)), whatIs(s.guard, s), h('div.actions', button('Remove guard', async () => showReview(newTx(s, self(cd(S.setGuard, ZERO)))), gOut)), gOut]
       : h('p.mut', 'No guard. A guard is an optional contract that checks every transaction before and after execution.'),
     h('h2', 'Contract'),
     kv([
       ['Version', s.version || '(unreadable)'],
       ['Nonce', String(s.nonce) + ' (next transaction)'],
-      ['Singleton', h('code', s.singleton)],
-      ['Fallback handler', s.fallback ? [h('code', s.fallback), h('div.mut', 'Handles calls the Safe itself does not implement, such as EIP-1271 signature checks and token callbacks.')] : 'none'],
+      ['Singleton', addr(s.singleton)],
+      ['Fallback handler', s.fallback ? [addr(s.fallback), h('div.mut', 'Handles calls the Safe itself does not implement, such as EIP-1271 signature checks and token callbacks.')] : 'none'],
       ['Chain', chain().name + ' · chainId ' + s.chainId],
     ]),
   ];
@@ -847,7 +847,7 @@ function methodCard(s, contract, f, n) {
       sig: f.name + '(' + f.inputs.map((p) => canonical(p) + ' ' + p.name).join(', ') + ')',
       args: f.inputs.map((p, i) => [p.name, show(p, vals[i])]),
     };
-    put(preview, h('div.mut', 'Calldata · ' + (data.length - 2) / 2 + ' bytes'), h('code.mono', data));
+    put(preview, h('div.mut', 'Calldata · ' + (data.length - 2) / 2 + ' bytes ', copy(data, 'Copy calldata')), h('code.mono', data));
     return { to: contract, value: value ? parse(value.value || '0', 18) : 0n, data };
   };
   return h(
@@ -1030,7 +1030,7 @@ function actionsView(r) {
       st.safe = await readSafe(s.address);
       st.pendingFor = null;
       await showReview(t, st.sigs, 'replace');
-      rv.append(h('p.ok', msg + ' ', h('code', rc.transactionHash)));
+      rv.append(h('p.ok', msg + ' ', addr(rc.transactionHash)));
     };
     const executed = async (rc) => {
       if (r.batch) (st.batch = []), (st.batchNames = {});
@@ -1044,7 +1044,7 @@ function actionsView(r) {
       h('h2', 'Approvals · ' + (approved.length + st.off.filter((x) => !approved.includes(x.signer)).length) + ' of ' + s.threshold + ' required'),
       h(
         'ul.owners',
-        s.owners.map((o) => h('li', h('code', o), ' ', approved.includes(o) ? h('b.ok', '✓ approved onchain') : signed.includes(o) ? h('b.ok', '✓ signed offchain') : h('span.mut', '· not approved'), o === me && ' (you)')),
+        s.owners.map((o) => h('li', addr(o), ' ', approved.includes(o) ? h('b.ok', '✓ approved onchain') : signed.includes(o) ? h('b.ok', '✓ signed offchain') : h('span.mut', '· not approved'), o === me && ' (you)')),
       ),
       st.rejected.map((x) => warn('Ignored signature: ' + x.reason + '.')),
       !me && h('p.mut', 'Connect a wallet to approve or execute.'),
@@ -1090,7 +1090,7 @@ function actionView(d, t) {
   return [
     h('b', d.label),
     kv([
-      d.label.startsWith('ERC-20') && ['token', tok ? tokenLabel(tok) : [h('code', t.to), ' ', h('b.bad', '(unknown token: amount shown in raw units)')]],
+      d.label.startsWith('ERC-20') && ['token', tok ? tokenLabel(tok) : [addr(t.to), ' ', h('b.bad', '(unknown token: amount shown in raw units)')]],
       ...d.args.map((x) => [x.name, x.type === 'address' ? named(x.value) : x.name === 'amount' ? amount(x.value, tok) + (tok && x.value !== MAXU ? ' (' + x.value + ' raw)' : '') : String(x.value)]),
     ]),
   ];
@@ -1100,7 +1100,7 @@ function batchView(r) {
   return [
     h('b', 'Batch of ' + r.inner.length + ' calls'),
     ' via MultiSendCallOnly ',
-    h('code', r.tx.to),
+    addr(r.tx.to),
     r.inner.map((c, i) =>
       h(
         'div.card',
@@ -1109,7 +1109,7 @@ function batchView(r) {
           ['To', named(c.to)],
           ['Value', fmt(c.value) + ' ' + chain().sym],
           ['Action', c.decoded ? actionView(c.decoded, c) : c.data !== '0x' ? noteView(c.data) || 'Unknown calldata' : c.value ? 'Native transfer' : 'Empty call'],
-          c.data !== '0x' && ['Data', h('code', c.data)],
+          c.data !== '0x' && ['Data', [h('code', c.data), copy(c.data, 'Copy calldata')]],
         ]),
       ),
     ),
@@ -1123,17 +1123,17 @@ function txView(r) {
     h('h2', 'Transaction summary'),
     r.danger.map((d) => h('p.bad.danger', d)),
     kv([
-      ['Safe', h('code', t.safe)],
+      ['Safe', addr(t.safe)],
       ['Chain', (c.name || 'unknown') + ' · chainId ' + t.chainId],
       ['Nonce', String(t.nonce)],
-      ['To', st.named[t.to] ? named(t.to) : [h('code', t.to), rev(t.to)]],
+      ['To', st.named[t.to] ? named(t.to) : [addr(t.to), rev(t.to)]],
       ['Value', fmt(t.value) + ' ' + (c.sym || '') + ' (' + t.value + ' wei)'],
       ['Operation', t.operation ? (r.batch ? 'DELEGATECALL into MultiSendCallOnly (batch)' : h('b.bad', 'DELEGATECALL')) : 'CALL'],
       ['Action', r.batch ? batchView(r) : r.decoded ? actionView(r.decoded, t) : len ? noteView(t.data) || 'Unknown calldata (not decoded; check the raw data)' : t.value ? 'Native transfer' : 'Empty call'],
-      ['Data', len ? [h('div', 'selector ', h('code', t.data.slice(0, 10)), ' · ' + len + ' bytes'), h('code.mono', t.data)] : 'none'],
+      ['Data', len ? [h('div', 'selector ', h('code', t.data.slice(0, 10)), ' · ' + len + ' bytes ', copy(t.data, 'Copy calldata')), h('code.mono', t.data)] : 'none'],
       ['Gas fields', 'safeTxGas ' + t.safeTxGas + ' · baseGas ' + t.baseGas + ' · gasPrice ' + t.gasPrice + ' · gasToken ' + t.gasToken + ' · refundReceiver ' + t.refundReceiver],
-      ['SafeTx hash', h('b', h('code', r.local))],
-      ['Onchain hash', r.chain ? [h('code', r.chain), ' ', r.chain === r.local ? h('b.ok', '✓ verified') : h('b.bad', '✗ MISMATCH')] : h('b.bad', 'unavailable')],
+      ['SafeTx hash', h('b', addr(r.local))],
+      ['Onchain hash', r.chain ? [addr(r.chain), ' ', r.chain === r.local ? h('b.ok', '✓ verified') : h('b.bad', '✗ MISMATCH')] : h('b.bad', 'unavailable')],
     ]),
     r.errors.map((e) => bad(e)),
     r.warnings.map((w) => warn(w)),

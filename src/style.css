@@ -136,7 +136,8 @@ details.method .chip { margin-left: 8px; }
 .small { font-size: 12px; }
 .small:empty { display: none; }
 h3 { font-size: 14px; margin: 18px 0 6px; }
-.owner { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.owner { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 4px 16px; }
+.owner > .addr { min-width: 0; }
 .owner .links { display: flex; gap: 12px; }
 ol.owners > li, ul.owners > li { margin: 6px 0; }
 .row.inline { flex-wrap: wrap; margin: 10px 0 0; }
@@ -166,3 +167,12 @@ p.added { margin: 4px 0 0; padding: 0; background: none; font-size: 13px; }
 .batchpop .actions button.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .batchpop button.link { padding: 0; }
 .batchbar details[open] summary .mut { display: none; }
+button.copy { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; margin-left: 4px; border: 0; border-radius: 4px; background: none; color: var(--mut); vertical-align: middle; flex: none; }
+button.copy:hover { color: var(--fg); background: var(--card); }
+button.copy.done { color: var(--ok); }
+span.addr { display: inline; }
+span.addr code { vertical-align: middle; }
+.modinfo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0 2px; font-size: 13px; }
+.modinfo:empty { display: none; }
+.modinfo > .warn, .modinfo > p { flex-basis: 100%; margin: 4px 0 0; }
+[hidden] { display: none !important; }
