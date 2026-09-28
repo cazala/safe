@@ -15,7 +15,7 @@ See [docs/spec.md](docs/spec.md) for the full specification.
 - Approve onchain (`approveHash`) or sign offchain (EIP-712); share by link; optionally publish the transaction onchain with the approval so other owners find it without a link
 - ENS and `.wei` names wherever an address is accepted (onchain resolution only)
 - Token balances from the zOrg TokenList; send ETH/tokens, or bulk-send many transfers from pasted CSV (`recipient,amount[,token]`)
-- Deeplinks that prefill a send or a bulk send: `#/<safe>/send?to=…&amount=…&token=…`, `#/<safe>/batch?csv=…` (`<safe>` can be a name)
+- Links that prefill a send or a bulk send, for bots and integrations: `#/<safe>/send?to=…&amount=…&token=…`, `#/<safe>/batch?csv=…` (`<safe>` can be a name). All links: [docs/links.md](docs/links.md)
 
 On mobile, use the in-app browser of a mobile wallet (safe.wei talks to the injected wallet; WalletConnect would need a relay server).
 
