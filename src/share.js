@@ -1,6 +1,9 @@
 // Transaction sharing (spec §7.3). A payload is untrusted input: whoever imports it
 // recomputes the hash and reviews it; this module only (de)serializes.
 //
+// FROZEN FORMAT: links already shared and payloads published onchain depend on it. See
+// docs/links.md → Stability and the golden vectors in test/unit/links.test.mjs before touching it.
+//
 // Compact binary (also the onchain format appended to approveHash):
 //   'SW' 0x01 flags to nonce value data [gas fields] [signatures]
 //   flags: bit0 DELEGATECALL, bit1 gas fields present, bit2 signatures present
