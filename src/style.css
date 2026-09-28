@@ -373,3 +373,5 @@ a.srow.other { opacity: .6; }
 .node.after { box-shadow: inset 0 -3px 0 var(--fg); }
 .node.merge { background: var(--bg); box-shadow: inset 0 0 0 2px var(--fg); }
 .srow .grow { flex: 1; }
+.tsym { display: flex; align-items: center; gap: 8px; }
+.tsym button.link { padding: 0; }
