@@ -51,10 +51,62 @@ In JavaScript: `'#/' + safe + '/batch?csv=' + encodeURIComponent(rows.map((r) =>
 
     #tx=<base64url payload>
 
-A transaction with the signatures collected so far, copied from the review screen (Copy link). It opens the review screen for that Safe, where the next owner can check the SafeTx hash and add their signature. The payload format is in [spec.md §7](spec.md#7-signature--approval-modes).
+A transaction with the signatures collected so far, copied from the review screen (Copy link). It opens the review screen for that Safe, where the next owner can check the SafeTx hash and add their signature. Other apps can build these links to hand a transaction to the owners (see "Building a `#tx=` link" below).
+
+### Payload
+
+`base64url` (no padding) of these bytes:
+
+    uint(chainId) ‖ safe (20 bytes) ‖ compact
+
+`compact` is also what an owner appends to `approveHash` calldata when publishing a transaction onchain (§ Stability):
+
+| Field | Encoding |
+| --- | --- |
+| magic | `53 57 01` ("SW", version 1) |
+| flags | 1 byte: bit 0 = DELEGATECALL, bit 1 = gas fields present, bit 2 = signatures present; every other bit must be 0 |
+| to | 20 bytes |
+| nonce | uint |
+| value | uint (wei) |
+| data | 3-byte big-endian length, then the bytes |
+| gas fields (bit 1) | uint safeTxGas, uint baseGas, uint gasPrice, 20-byte gasToken, 20-byte refundReceiver; absent means all zero |
+| signatures (bit 2) | 1-byte count, then count × 65-byte ECDSA signatures (r ‖ s ‖ v); signers are recovered, not stored |
+
+`uint` = 1-byte length (0–32) followed by that many big-endian bytes (0 is a zero length). Readers reject unknown flag bits, trailing bytes and truncated input.
+
+### Building a `#tx=` link
+
+- Read the Safe's current `nonce()` (or pick a later one to queue).
+- Encode the fields above; for batches, `to` is the canonical MultiSendCallOnly with bit 0 set (safe.wei accepts no other DELEGATECALL batch target).
+- Open `<any safe.wei gateway>/#tx=<payload>`. The fragment is the payload; any gateway serving safe.wei accepts it.
+- safe.wei recomputes the SafeTx hash and checks it against the Safe's own `getTransactionHash`; the link is never trusted.
+
+The reference implementation is `src/share.js` (`fragment`, `fromFragment`, `compact`, `uncompact`, `importPayload`), dependency-free apart from `abi.js` and `safe.js`; other apps can copy it.
+
+### JSON
+
+**Copy as JSON** produces the same transaction as JSON (decimal strings for numbers, `safeTxHash` for cross-checking, `signatures` as hex). Import accepts it and refuses it if `safeTxHash` does not match the fields.
 
 ## Backup & sync
 
     #import=<z|j><base64url>
 
 Saved Safes, folders, labels, ABIs and added tokens, made by Backup & sync on Home (`z` = deflate-raw compressed JSON, `j` = plain JSON). Opening it asks whether to merge the data into this browser (keeps everything already here) or replace it. Anyone holding the link sees the data, so share it only with yourself.
+
+The JSON is `{ app: "safe.wei", v: 1, at, safes, tree, labels, labelsAt, abis, tokens }`; unknown or malformed entries are dropped on import (`src/backup.js` → `parse`).
+
+## Stability
+
+Links are how other apps (bots, roles.wei, scripts) talk to safe.wei, and links already sent to people must keep working. **These formats are frozen:**
+
+- the routes in this document (`#/`, `#/new`, `#/<safe>[/<tab>]`, the `send` and `batch` query parameters);
+- `#tx=` (payload above), including `compact`, which is also stored **onchain forever** in `approveHash` calldata of published transactions;
+- `#import=` (`z` and `j`, and the JSON shape);
+- the transaction JSON of Copy as JSON.
+
+Rules for changing safe.wei:
+
+1. Never change the meaning, order or encoding of an existing field, flag bit or parameter.
+2. Add capabilities only as **optional** additions: a new flag bit with a section appended after the existing ones, a new query parameter, a new JSON key. Readers keep rejecting unknown flag bits, so an old reader fails loudly on a new link instead of misreading it.
+3. A change that cannot be backward compatible needs a new magic/version byte **and** the old version must keep decoding.
+4. Golden vectors in `test/unit/links.test.mjs` pin the current encodings. If one fails, you broke a stable format: fix the code, not the vector. Add vectors for every new optional section.

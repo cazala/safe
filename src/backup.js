@@ -1,5 +1,6 @@
 // Backup & sync: everything this browser keeps for safe.wei (Safes and their layout,
 // labels, ABIs, added tokens), as JSON or a link to open on another device.
+// FROZEN FORMAT (#import= links, JSON shape): see docs/links.md → Stability and test/unit/links.test.mjs.
 import { utf8 } from './abi.js';
 
 const P = 'safe.wei:';

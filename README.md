@@ -41,6 +41,7 @@ A minimal interface for [Safe](https://safe.global) multisig accounts that lives
 | [Research](docs/research.md) | Verified contract addresses and protocol references |
 | [Size](docs/size.md) | Page size budget per feature |
 | [Safe Apps](docs/safe-apps.md) | Why Safe Apps support was dropped |
+| [AGENTS.md](AGENTS.md) | Rules for contributors and agents: git, frozen link formats, verification |
 
 ## Use it
 
