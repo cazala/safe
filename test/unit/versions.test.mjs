@@ -16,6 +16,7 @@ test('gatewayOf reads where a gateway says the page comes from', async () => {
   assert.deepEqual(gatewayOf(A + '.w4eth.io'), { app: A });
   assert.deepEqual(gatewayOf('safe.wei.limo'), { name: 'safe.wei' });
   assert.deepEqual(gatewayOf('safe.wei.domains'), { name: 'safe.wei' });
+  assert.deepEqual(gatewayOf('safe.wei.is'), { name: 'safe.wei' });
   assert.deepEqual(gatewayOf('safe.eth.limo'), { name: 'safe.eth' });
   assert.deepEqual(gatewayOf('app.safe.wei.limo'), { name: 'app.safe.wei' });
   assert.deepEqual(gatewayOf('localhost'), { local: true });
