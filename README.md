@@ -3,7 +3,7 @@
 A minimal interface for [Safe](https://safe.global) multisig accounts that lives on Ethereum.
 
 - **One self-contained HTML file**: no backend, no remote code, no API keys, no analytics.
-- **Reads from the chain**: every Safe fact comes from the Safe contract itself, through your wallet's RPC. No Safe Transaction Service, no indexer.
+- **Reads from the chain**: every Safe fact comes from the Safe contract itself, through your wallet's RPC (WalletConnect's RPC when the wallet is connected with WalletConnect). No Safe Transaction Service, no indexer.
 - **Signs through your wallet**: safe.wei never holds a key.
 - **Served onchain** from an ERC-8244 `html()` contract at `safe.wei`, or from any copy of the file.
 
@@ -32,6 +32,7 @@ A minimal interface for [Safe](https://safe.global) multisig accounts that lives
 - Address labels, remembered ABIs and added tokens, stored locally, and moved between devices with Backup and sync.
 - Links that open a screen or prefill a send, for bots and integrations.
 - Use the Safe in other dapps through WalletConnect: requests go through the same review.
+- Sign as an owner with a wallet on your phone: **Connect → WalletConnect** shows a QR code.
 
 ## Documentation
 
@@ -77,7 +78,7 @@ node scripts/dev.mjs --anvil http://127.0.0.1:8545      # http://localhost:5173
 - The dev server adds an "Anvil test wallet (dev)" to the wallet picker (EIP-6963). If an extension is installed, pick the test wallet: the extension talks to real mainnet, where the demo Safes do not exist. `?acct=N` picks the Anvil account.
 - It listens on the LAN too (it prints the addresses) and proxies the test wallet's RPC, so a phone on the same network can use the playground.
 - `node scripts/dev.mjs --port N` serves without a test wallet, to try the no-wallet state (or your own extension wallet).
-- `node scripts/wc-dapp.mjs` plays a dapp over the real WalletConnect relay (prints a `wc:` link to paste in the Dapps tab, then sends a signature and a transaction request). `node --test --test-force-exit test/net/walletconnect.test.mjs` checks conformance against the official SDK (needs the network).
+- `node scripts/wc-dapp.mjs` plays a dapp over the real WalletConnect relay (prints a `wc:` link to paste in the Dapps tab, then sends a signature and a transaction request). `node --test --test-force-exit 'test/net/*.test.mjs'` checks conformance against the official SDK, as the dapp and as the wallet (needs the network).
 - `FORK_URL` and `FORK_BLOCK` change the fork source (default: publicnode mainnet at a pinned block; `FORK_BLOCK=0` forks the latest). Public RPCs keep little history on fast chains, so a long-lived fork of Polygon or an L2 needs an archive RPC.
 
 ## Deploy

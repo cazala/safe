@@ -1374,6 +1374,16 @@ A minimal WalletConnect v2 Sign client (`src/wc.js`) lets dapps use the Safe: pa
 - Conformance: `test/net/walletconnect.test.mjs` runs the official SDK as the dapp against the real relay; `scripts/wc-dapp.mjs` is a manual test dapp.
 - Dapp metadata is self-declared and shown as such; icons are never loaded.
 
+## 27d. Post-MVP — WalletConnect (dapp side: owner wallets)
+
+The same client also plays the dapp, so an owner can sign with a wallet elsewhere (a phone). `connector()` creates the pairing (`wc:` URI with a fresh symKey, topic = sha256(symKey)), proposes a session with optional `eip155` namespaces for every known chain and the three signing methods (`eth_sendTransaction`, `eth_signTypedData_v4`, `personal_sign`), and settles it when the wallet approves. `provider()` wraps it as an EIP-1193 provider, registered as the wallet "WalletConnect":
+
+- signing methods go to the wallet (with a 15-minute expiry, `prompt` set so the phone is notified); rejections keep their code;
+- `eth_chainId` / `eth_accounts` come from the session; `wallet_switchEthereumChain` switches locally among the approved chains (4902 otherwise); `wallet_revokePermissions` deletes the session;
+- every other method is a read, sent to `https://rpc.walletconnect.org/v1/?chainId=eip155:<id>&projectId=<id>`: a phone wallet does not serve `eth_call` or logs over the relay. This is the one exception to "reads through the wallet's RPC", and the build's remote-URL check allows exactly that prefix. It does not weaken §16: the RPC is trusted exactly as a wallet's RPC is (spec, "does NOT protect against a malicious RPC").
+- The QR code is rendered by `src/qr.js` (byte mode, level M), tested by decoding with jsQR.
+- Conformance: `test/net/walletconnect-owner.test.mjs` runs the official SDK as the wallet (connect by link, sign, reject, chain event, reload, disconnect both ways).
+
 ## 28. Future work
 
 Only after MVP:

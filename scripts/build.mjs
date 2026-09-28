@@ -55,7 +55,9 @@ const html = head + shell.slice(OPEN.length).replace('<!--CSS-->', () => '<style
 
 // ---- no remote code / assets ----
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const scan = html.split(SVG_NS).join('');
+// Reads for a WalletConnect wallet (which cannot serve them) go to WalletConnect's RPC: data, never code.
+const WC_RPC = 'https://rpc.walletconnect.org/v1/?chainId=eip155:';
+const scan = html.split(SVG_NS).join('').split(WC_RPC).join('');
 const banned = [/<script[^>]+src=/i, /<link[^>]+rel=["']?stylesheet/i, /http:\/\//i, /https:\/\//i, /@import/i];
 for (const re of banned) if (re.test(scan)) throw Error('Build check failed: output matches ' + re);
 

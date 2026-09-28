@@ -27,8 +27,9 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | UI redesigns | 132,069 | — | — | — | wallet gates, Home (search-or-open, tree), Safe page polish, breadcrumb switcher, review next-step cards |
 | call signatures | 134,917 | — | — | — | ABI decoder + byte-exact matcher, signature section in #tx= links |
 | messages | 148,343 | 51,363 | 119,790 | 27,452 | EIP-191 / EIP-712 hashing, SafeMessage signing, #msg= links, message review |
+| WalletConnect, both sides | 188,410 | 66,072 | 157,937 | 29,244 | wallet side (Dapps tab), dapp side (owner wallets by QR), ChaCha20-Poly1305, QR encoder |
 
-The page is now about 145 KB (under the 200 KB limit, over the 100 KB "good" line). Recent growth: the redesigned screens, the ABI decoder and message signing. Onchain it takes 7 chunks of 24,575 bytes.
+The page is now about 184 KB: under the 200 KB limit, but close to it. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 8 chunks of 24,575 bytes plus the config chunk.
 
 ## Major contributors
 

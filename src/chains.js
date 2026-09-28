@@ -96,6 +96,8 @@ const KNOWN = {
   534352: ['Scroll', 'ETH'],
   11155111: ['Sepolia', 'ETH'],
 };
+/** Chains safe.wei knows by name (offered to a WalletConnect wallet). */
+export const KNOWN_IDS = Object.keys(KNOWN).map(Number);
 export const label = (id) => {
   const [name, sym] = KNOWN[id] || ['Chain ' + id, 'native'];
   return { name, sym };

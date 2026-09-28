@@ -4,7 +4,9 @@
 const found = new Map(); // key → { key, name, provider }
 const KEY = 'safe.wei:wallet';
 
-export const list = () => [...found.values()];
+// WalletConnect (a wallet elsewhere, e.g. on a phone) is always offered, after the browser's wallets.
+export const list = () => [...found.values()].sort((a, b) => (a.key === 'walletconnect') - (b.key === 'walletconnect'));
+export const add = (w) => found.set(w.key, w);
 export const get = (k) => found.get(k);
 
 export const remembered = () => {
@@ -35,5 +37,5 @@ export function discover(changed) {
   });
   window.dispatchEvent(new Event('eip6963:requestProvider'));
   const eth = window.ethereum;
-  if (eth && !found.size) found.set('injected', { key: 'injected', name: 'Browser wallet', provider: eth });
+  if (eth && ![...found.keys()].some((k) => k !== 'walletconnect')) found.set('injected', { key: 'injected', name: 'Browser wallet', provider: eth });
 }

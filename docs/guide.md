@@ -29,7 +29,7 @@ Everything this interface can do, screen by screen. For the links that open a sc
 
 safe.wei is a single HTML page with no backend. It is served from an onchain contract (ERC-8244 `html()`) at `safe.wei`, or from any copy of the same file.
 
-- **Reads** go to the Safe contract itself, through your wallet's RPC: owners, threshold, nonce, modules, guard, balances. There is no Safe Transaction Service, indexer or API key.
+- **Reads** go to the Safe contract itself, through your wallet's RPC (WalletConnect's RPC for a wallet connected with WalletConnect, see [§2](#a-wallet-on-your-phone-walletconnect)): owners, threshold, nonce, modules, guard, balances. There is no Safe Transaction Service, indexer or API key.
 - **Writes** are signed and sent by your wallet. safe.wei never holds a key.
 - **Coordination between owners** happens by link (the transaction and its signatures travel in the URL fragment, which is never sent to a server) or onchain (an approval can carry the transaction's details, so other owners find it without a link).
 - **Your own data** (saved Safes, folders, labels, ABIs, added tokens) lives in your browser's `localStorage` and can be moved to another device with Backup and sync.
@@ -42,6 +42,17 @@ safe.wei is a single HTML page with no backend. It is served from an onchain con
 - Wallets are discovered with EIP-6963, so several extensions can coexist; a browser that only injects `window.ethereum` shows it as "Browser wallet".
 - **Connect** in the header opens the wallet picker (or connects directly when there is only one wallet). The chosen wallet is remembered.
 - Once connected, the header button shows the chain and your short address. Its menu has **Switch wallet** and **Disconnect** (disconnect also asks the wallet to revoke the site's permission where supported).
+
+### A wallet on your phone (WalletConnect)
+
+**WalletConnect** is always in the wallet picker, after the browser's wallets. It lets an owner sign with a wallet elsewhere, e.g. Uniswap Wallet, MetaMask or Rainbow on a phone:
+
+1. **Connect → WalletConnect** shows a QR code. Scan it with the wallet app and approve the connection there. On the same device, **Open wallet app** hands the link to an installed wallet; **Copy link** copies it.
+2. The header shows the wallet's account. Transactions and signatures are sent to the phone; a dialog says where to confirm and closes when the wallet answers.
+3. The chain: the menu offers **Switch to …** for every chain the wallet approved when connecting. For another chain, disconnect and connect again.
+4. The connection survives reloads until you disconnect (from safe.wei or from the wallet) or it expires.
+
+Reads cannot go through a phone, so with WalletConnect they go to WalletConnect's RPC (`rpc.walletconnect.org`, with safe.wei's project ID or your own, see [§12b](#12b-using-the-safe-in-other-dapps-walletconnect)). Before connecting, it reads Ethereum. The checks in [§16](#16-what-safe-wei-checks-for-you) are unchanged: nothing is signed unless the locally computed hash equals the Safe's own.
 
 ### When something is missing
 
@@ -71,7 +82,7 @@ safe.wei says what it needs instead of failing after a click:
 
 ### Mobile
 
-The layout adapts to phones. Use the built-in browser of a mobile wallet app: safe.wei talks to the injected wallet (WalletConnect would need a relay server).
+The layout adapts to phones. Use the built-in browser of a mobile wallet app, or connect a wallet app with WalletConnect (**Open wallet app**).
 
 ## 3. Home
 
@@ -350,6 +361,9 @@ All in `localStorage`, under `safe.wei:`:
 | `abis` | ABIs you used, per chain and contract |
 | `tokens:<chainId>` | Tokens you added, per chain |
 | `wallet` | The wallet you chose (or that you disconnected) |
+| `wc` | Dapps connected to your Safes (WalletConnect sessions and keys) |
+| `wcowner` | A wallet connected with WalletConnect (session and keys) |
+| `wcproject` | Your own WalletConnect project ID, if you set one |
 
 Clearing site data removes them; export a backup first.
 
