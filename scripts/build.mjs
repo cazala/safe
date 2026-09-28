@@ -1,11 +1,23 @@
 // Builds dist/index.html: one self-contained file with inline, minified CSS and JS.
 // Fails if the output could load anything remote. Prints the size report.
 import { build, transform } from 'esbuild';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 
 const root = new URL('..', import.meta.url).pathname;
 const src = (f) => readFileSync(root + 'src/' + f, 'utf8');
+
+// Build ID: the git tree hash of src/ (it changes only when the code does, so the same code always
+// builds to the same bytes, hence the same onchain addresses), "+" when src/ has uncommitted changes.
+const git = (...a) => {
+  try {
+    return execFileSync('git', a, { cwd: root }).toString().trim();
+  } catch {
+    return '';
+  }
+};
+const BUILD = (git('rev-parse', '--short=7', 'HEAD:src') || 'unknown') + (git('status', '--porcelain', '--', 'src') ? '+' : '');
 
 const js = (
   await build({
@@ -17,6 +29,7 @@ const js = (
     write: false,
     legalComments: 'none',
     charset: 'utf8',
+    define: { __BUILD__: JSON.stringify(BUILD) },
   })
 ).outputFiles[0].text.trim();
 
@@ -44,7 +57,7 @@ const kb = (n) => (n / 1024).toFixed(1) + ' KB';
 const size = Buffer.byteLength(html);
 console.log(
   [
-    'dist/index.html',
+    'dist/index.html (build ' + BUILD + ')',
     '  raw   ' + size + ' B (' + kb(size) + ')',
     '  gzip  ' + gzipSync(html, { level: 9 }).length + ' B',
     '  js    ' + Buffer.byteLength(js) + ' B',

@@ -51,6 +51,20 @@ export const line = (v) => {
   return !m || +m[1] >= 5 ? '1.5' : +m[1] === 4 ? '1.4' : '1.3';
 };
 
+/**
+ * Where a gateway says the page comes from: { app } when the hostname contains the contract address
+ * (0x….w3link.io, 0x….1.w3link.io), { name } for a name gateway (safe.wei.limo, safe.eth.limo),
+ * { local } for localhost / IPs, else {}.
+ */
+export function gatewayOf(host) {
+  host = host.toLowerCase();
+  const app = /^(0x[0-9a-f]{40})(?:\.|$)/.exec(host);
+  if (app) return { app: app[1] };
+  const name = /^((?:[a-z0-9-]+\.)+?(?:wei|eth))\.[a-z0-9-]+(?:\.[a-z0-9-]+)*$/.exec(host);
+  if (name) return { name: name[1] };
+  return host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || /^[\d.]+$/.test(host) || host.startsWith('[') ? { local: true } : {};
+}
+
 // Registries that exist on Ethereum mainnet only (names, token list).
 export const MAINNET = {
   ens: '0x00000000000c2e074ec69a0dfb2997ba6c7d2e1e',

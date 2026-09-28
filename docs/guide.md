@@ -32,6 +32,7 @@ safe.wei is a single HTML page with no backend. It is served from an onchain con
 - **Writes** are signed and sent by your wallet. safe.wei never holds a key.
 - **Coordination between owners** happens by link (the transaction and its signatures travel in the URL fragment, which is never sent to a server) or onchain (an approval can carry the transaction's details, so other owners find it without a link).
 - **Your own data** (saved Safes, folders, labels, ABIs, added tokens) lives in your browser's `localStorage` and can be moved to another device with Backup and sync.
+- **The footer** shows the build ID (the code version) and the app contract serving the page, so you can check it against the deployment record.
 
 ## 2. Wallets and chains
 

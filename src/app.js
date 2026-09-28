@@ -1,6 +1,6 @@
 // safe.wei — app shell, routing and views.
 import { cd, fmt, fmtShort, hex, isAddr, isHex, keccakText, parse, strip, utf8, ZERO } from './abi.js';
-import { chainInfo, HANDLERS, label } from './chains.js';
+import { chainInfo, gatewayOf, HANDLERS, label } from './chains.js';
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review, signMessageOf } from './review.js';
 import * as rpc from './rpc.js';
@@ -76,7 +76,7 @@ async function refreshWallet() {
 }
 
 // Any wallet change invalidates everything loaded so far (spec §15).
-const reset = () => ((st.safe = null), refreshWallet().then(route));
+const reset = () => ((st.safe = null), refreshWallet().then(route).then(footer, footer));
 
 function useWallet(w) {
   const old = wallet && wallet.provider;
@@ -1889,6 +1889,22 @@ async function route() {
 
 setResolver((v) => resolveName(v.trim().toLowerCase(), st.chainId));
 
+// ---- footer: which build this is, and which app contract serves it ----
+// The page cannot contain its own address (the address is derived from the page's bytes), so it is
+// found at runtime: in the gateway's hostname (0x….w3link.io), or by resolving the name the page was
+// opened by (safe.wei.limo → safe.wei) onchain through the wallet on Ethereum.
+const BUILD = typeof __BUILD__ === 'string' ? __BUILD__ : 'dev';
+async function footer() {
+  const g = gatewayOf(location.hostname);
+  let app = g.app || null;
+  if (g.name && st.chainId === 1) app = await resolveName(g.name, 1).catch(() => null);
+  put(
+    $('foot'),
+    h('span', 'safe.wei · build ', h('code', { title: 'git tree hash of src/ this page was built from' }, BUILD)),
+    app ? h('span', ' · app ', addr(app, null, short(app), true), g.name && h('span.mut', ' via ' + g.name)) : g.local ? h('span', ' · local build') : g.name && h('span.mut', ' · connect on Ethereum to see which app ' + g.name + ' points to'),
+  );
+}
+
 // ---- boot ----
 // safe.wei never runs inside another page: a frame could overlay a crafted transaction and trick clicks.
 if (framed) {
@@ -1910,4 +1926,4 @@ discover(() => {
   useWallet(k === 'none' ? null : get(k) || (ws.length === 1 ? ws[0] : null));
   booted = true;
 }
-refreshWallet().then(route, route);
+refreshWallet().then(route, route).then(footer, footer);
