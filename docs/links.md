@@ -64,20 +64,34 @@ A transaction with the signatures collected so far, copied from the review scree
 | Field | Encoding |
 | --- | --- |
 | magic | `53 57 01` ("SW", version 1) |
-| flags | 1 byte: bit 0 = DELEGATECALL, bit 1 = gas fields present, bit 2 = signatures present; every other bit must be 0 |
+| flags | 1 byte: bit 0 = DELEGATECALL, bit 1 = gas fields present, bit 2 = signatures present, bit 3 = call signatures present; every other bit must be 0 |
 | to | 20 bytes |
 | nonce | uint |
 | value | uint (wei) |
 | data | 3-byte big-endian length, then the bytes |
 | gas fields (bit 1) | uint safeTxGas, uint baseGas, uint gasPrice, 20-byte gasToken, 20-byte refundReceiver; absent means all zero |
 | signatures (bit 2) | 1-byte count, then count × 65-byte ECDSA signatures (r ‖ s ‖ v); signers are recovered, not stored |
+| call signatures (bit 3) | 2-byte big-endian length, then UTF-8 text: one human-readable function signature per line (see below) |
 
 `uint` = 1-byte length (0–32) followed by that many big-endian bytes (0 is a zero length). Readers reject unknown flag bits, trailing bytes and truncated input.
+
+### Call signatures (readable reviews)
+
+safe.wei decodes a few well-known calls itself (ERC-20 transfers and approvals, Safe settings). For anything else, a link can carry the **function signatures** its calls were encoded with, so signers see names and values instead of raw calldata:
+
+    assignRoles(address module, bytes32[] roleKeys, bool[] memberOf)
+    scopeFunction(bytes32 roleKey, address targetAddress, bytes4 selector, (uint8 parent, uint8 paramType, uint8 operator, bytes compValue)[] conditions, uint8 options)
+
+- One signature per line, in the human-readable form (`function` keyword optional; tuples as `(type name, …)`, arrays as `type[]` / `type[N]`). Parameter names are shown to signers: make them descriptive.
+- For each call (the transaction's own call, or each call of a MultiSendCallOnly batch), safe.wei picks the signature whose selector matches, decodes the calldata with it, and **encodes the decoded values again**. Only if that reproduces the calldata byte for byte is the call shown decoded, labeled as decoded with a signature that came with the transaction. Otherwise the call is shown raw.
+- So the values shown are exactly what will execute; only the names (function and parameters) are the proposer's claim. safe.wei's own decoder always takes precedence over a link's signature.
+- safe.wei keeps the signatures when it re-shares the transaction (links, JSON as `"abi": [...]`, onchain publication with an approval), trimmed to the ones the transaction uses. The Custom tab adds the signature of every call it encodes.
 
 ### Building a `#tx=` link
 
 - Read the Safe's current `nonce()` (or pick a later one to queue).
 - Encode the fields above; for batches, `to` is the canonical MultiSendCallOnly with bit 0 set (safe.wei accepts no other DELEGATECALL batch target).
+- Add the call signatures of every call you encoded (bit 3), so the owners can read what they approve.
 - Open `<any safe.wei gateway>/#tx=<payload>`. The fragment is the payload; any gateway serving safe.wei accepts it.
 - safe.wei recomputes the SafeTx hash and checks it against the Safe's own `getTransactionHash`; the link is never trusted.
 
@@ -85,7 +99,7 @@ The reference implementation is `src/share.js` (`fragment`, `fromFragment`, `com
 
 ### JSON
 
-**Copy as JSON** produces the same transaction as JSON (decimal strings for numbers, `safeTxHash` for cross-checking, `signatures` as hex). Import accepts it and refuses it if `safeTxHash` does not match the fields.
+**Copy as JSON** produces the same transaction as JSON (decimal strings for numbers, `safeTxHash` for cross-checking, `signatures` as hex, `abi` as a list of call signatures). Import accepts it and refuses it if `safeTxHash` does not match the fields.
 
 ## Backup & sync
 

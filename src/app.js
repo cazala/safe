@@ -11,9 +11,9 @@ import { decode } from './decode.js';
 import { balances, listed, meta, save, saved } from './tokens.js';
 import { S } from './sel.js';
 import { checkName, isName, nameOf, resolveName } from './names.js';
-import { batch } from './multisend.js';
+import { batch, unpack } from './multisend.js';
 import { parseCSV } from './csv.js';
-import { canonical, encodeCall, parseAbi, parseValue } from './abicoder.js';
+import { encodeCall, humanSig, matchCall, parseAbi, parseValue } from './abicoder.js';
 import { $, act, addr, bad, copy, h, icon, iconButton, ICONS, kv, labelDialog, put, setName, setResolver, toClipboard, sheet, short, warn } from './ui.js';
 import { mountSafes } from './homeview.js';
 import * as labels from './labels.js';
@@ -871,12 +871,13 @@ function transactionsTab(s) {
     for (const p of r.found) {
       if (seen.has(p.hash)) continue;
       seen.add(p.hash);
-      const d = decode(p.tx), c = chain();
+      addHints(p.abi);
+      const d = decode(p.tx), c = chain(), hm = !d && hintOf(p.tx.data);
       list.append(
         h(
           'div.card.txrow',
           h('div', h('b', 'Nonce ' + p.tx.nonce), p.tx.nonce > s.nonce ? chip('queued') : chip('next', '.ok')),
-          h('div', d ? d.label : p.tx.data === '0x' ? fmt(p.tx.value) + ' ' + c.sym + ' transfer' : 'Contract call', ' → ', addr(p.tx.to, null, short(p.tx.to))),
+          h('div', d ? d.label : hm ? hm.f.name : p.tx.data === '0x' ? fmt(p.tx.value) + ' ' + c.sym + ' transfer' : 'Contract call', ' → ', addr(p.tx.to, null, short(p.tx.to))),
           h('div.mut', 'Proposed by ', addr(p.proposer, null, short(p.proposer)), ' · SafeTx ', addr(p.hash, null, short(p.hash))),
           h('button', { onclick: () => ((st.named = {}), showReview(p.tx)) }, 'Review'),
         ),
@@ -897,7 +898,7 @@ function transactionsTab(s) {
   loadPending(s).then(draw, (e) => put(status, warn('Could not scan logs through the wallet RPC: ' + e.message)));
   return [
     st.review && st.review.tx.safe === s.address && st.review.tx.nonce >= s.nonce &&
-      h('a.callout', { href: '#' + fragment(st.review.tx, st.sigs) }, h('b', 'In progress: '), 'nonce ' + st.review.tx.nonce + ' · ' + short(st.review.local) + ' · Continue ›'),
+      h('a.callout', { href: '#' + fragment(st.review.tx, st.sigs, hintsFor(st.review.tx)) }, h('b', 'In progress: '), 'nonce ' + st.review.tx.nonce + ' · ' + short(st.review.local) + ' · Continue ›'),
     h('h2', 'Pending'),
     h('p.mut', 'Transactions a proposer published onchain together with its approval. Transactions shared only by link are not listed; import them below.'),
     list,
@@ -1094,8 +1095,8 @@ const callLabel = (x, names = names) => {
   // Safe settings: "Change threshold · threshold 3", "Add owner · owner vitalik.eth → 0x…, threshold 2"
   if (d && x.to === st.safe.address)
     return [d.label, ' · ', d.args.map((a, i) => [i ? ', ' : '', a.name + ' ', a.type === 'address' ? named(a.value, names) : String(a.value)])];
-  const note = !d && st.notes[strip(x.data || '0x').toLowerCase()];
-  if (note) return [h('code', note.sig.replace(/\(.+\)$/, '(…)')), ' on ', named(x.to, names), x.value ? ' · ' + fmt(x.value) + ' ' + chain().sym : ''];
+  const m = !d && hintOf(x.data);
+  if (m) return [h('b', m.f.name), ' on ', named(x.to, names), x.value ? ' · ' + fmt(x.value) + ' ' + chain().sym : ''];
   return d
     ? [d.label, tok ? [' ', brief(d.args.at(-1).value, tok.decimals, tok.symbol)] : '', ' → ', named((d.args.find((a) => a.name === 'to' || a.name === 'spender') || d.args[0]).value, names), tok ? '' : [' on ', named(x.to, names)]]
     : [brief(x.value || 0n, 18, chain().sym), ' → ', named(x.to, names), x.data && x.data !== '0x' ? ' with ' + (x.data.length - 2) / 2 + ' bytes of calldata' : ''];
@@ -1125,11 +1126,35 @@ const storeAbi = (addr, text) => {
     localStorage.setItem(ABIS, JSON.stringify({ ...abiMap(), [st.chainId + ':' + addr]: text }));
   } catch {}
 };
-/** What the builder encoded, so the review can show it (clearly marked as coming from the user's ABI). */
-st.notes = {};
+// ---- call signatures: names for calls safe.wei cannot decode on its own ----
+// They come from the ABI used in Custom, or with a #tx= link. A call is shown decoded only if its
+// values re-encode to exactly its calldata (abicoder.js → matchCall): the names are someone's
+// claim, the values are the truth. They travel on in share links, JSON and onchain publications.
+st.hints = [];
+const addHints = (list) => (st.hints = [...new Set([...st.hints, ...(list || [])])]);
+const hintOf = (data) => matchCall(st.hints, data);
+/** The call signatures a transaction actually uses (its call, or each call of a batch). */
+const hintsFor = (t) => [...new Set((unpack(t) || [t]).map((c) => hintOf(c.data)).filter(Boolean).map((m) => m.signature))];
+
+/** A decoded value, the way the review shows it: addresses by name, nested lists for arrays and tuples. */
+function valueView(p, v) {
+  const m = /^(.*)\[(\d*)\]$/.exec(p.type);
+  if (m) return v.length ? h('ol.vlist', v.map((x) => h('li', valueView({ ...p, type: m[1] }, x)))) : h('span.mut', 'empty');
+  if (p.type === 'tuple') return kv(p.components.map((c, i) => [c.name || String(i), valueView(c, v[i])]));
+  if (p.type === 'address') return named(v);
+  if (p.type === 'string') return JSON.stringify(v);
+  if (p.type === 'bytes' || /^bytes\d+$/.test(p.type)) return v === '0x' ? h('span.mut', 'empty') : [h('code', v), strip(v).length > 64 && copy(v, 'Copy')];
+  return String(v);
+}
 const noteView = (data) => {
-  const n = st.notes[strip(data).toLowerCase()];
-  return n && [h('b', n.sig), h('div.mut', 'Encoded here from the ABI you provided; safe.wei did not decode this independently.'), kv(n.args)];
+  const m = hintOf(data);
+  return (
+    m && [
+      h('b', m.f.name),
+      h('p.hintnote', 'Decoded with a function signature that came with this transaction. The values are checked against the calldata; the names come from whoever built it.'),
+      kv(m.f.inputs.map((p, i) => [p.name, valueView(p, m.values[i])])),
+    ]
+  );
 };
 
 function builder(s) {
@@ -1207,10 +1232,7 @@ function methodCard(s, contract, f, n) {
     const vals = [];
     for (const x of fields) vals.push(await x.read());
     const data = encodeCall(f, vals);
-    st.notes[strip(data)] = {
-      sig: f.name + '(' + f.inputs.map((p) => canonical(p) + ' ' + p.name).join(', ') + ')',
-      args: f.inputs.map((p, i) => [p.name, show(p, vals[i])]),
-    };
+    addHints([humanSig(f)]);
     put(preview, h('div.mut', 'Calldata · ' + (data.length - 2) / 2 + ' bytes ', copy(data, 'Copy calldata')), h('code.mono', data));
     return { to: contract, value: value ? parse(value.value || '0', 18) : 0n, data };
   };
@@ -1231,7 +1253,6 @@ function methodCard(s, contract, f, n) {
   );
 }
 
-const show = (p, v) => (Array.isArray(v) ? JSON.stringify(v, (_, x) => (typeof x === 'bigint' ? x.toString() : x)) : typeof v === 'bigint' ? v.toString() : String(v));
 
 /** One parameter input with helpers by type. Returns { el, read() → parsed value }. */
 function paramField(s, contract, f, p) {
@@ -1340,7 +1361,8 @@ function importer() {
     async () => {
       const p = importPayload(ta.value);
       st.named = {};
-      if (p.tx.safe !== st.safe.address || p.tx.chainId !== st.chainId) return (location.hash = fragment(p.tx, p.sigs));
+      addHints(p.abi);
+      if (p.tx.safe !== st.safe.address || p.tx.chainId !== st.chainId) return (location.hash = fragment(p.tx, p.sigs, p.abi));
       // Same transaction as the one under review: merge the imported signatures into it.
       const same = st.review && st.review.local === safeTxHash(p.tx);
       await showReview(p.tx, same ? [...st.sigs, ...p.sigs] : p.sigs);
@@ -1367,7 +1389,7 @@ async function showReview(tx, sigs = [], nav = 'push') {
   st.sigs = c.valid.map((x) => x.sig); // only valid signatures are kept and re-shared
   st.rejected = c.rejected;
   // The URL carries the transaction, so reloading or sharing the address bar returns here.
-  const h2 = '#' + fragment(tx, st.sigs);
+  const h2 = '#' + fragment(tx, st.sigs, hintsFor(tx));
   if (nav === 'push') history.pushState(null, '', h2);
   else if (nav === 'replace') history.replaceState(null, '', h2);
   put(rv, reviewHead(r), r.ok ? nextStep(r) : h('div.step.blocked', h('h3', 'Nothing can be approved or executed'), h('p', 'Resolve the problems above first.')), detailsView(r));
@@ -1438,7 +1460,7 @@ function nextStep(r) {
       );
     else if (ready) step = h('div.step', h('h3', 'Approved · waiting for nonce ' + s.nonce), h('p', 'This transaction is queued: it can execute once nonce ' + s.nonce + ' has.'), shareBlock(r, false));
     else if (owner && !mine) {
-      const payload = compact(t), publish = h('input', { type: 'checkbox', checked: true });
+      const payload = compact(t, [], hintsFor(t)), publish = h('input', { type: 'checkbox', checked: true });
       step = h(
         'div.step',
         h('h3', 'Your approval is needed'),
@@ -1456,7 +1478,7 @@ function nextStep(r) {
             h('div', h('b', 'Approve onchain'), h('span.tag', 'costs gas')),
             h('p', 'Recorded in the Safe. With the details published, the other owners find it in Transactions without a link.'),
             h('label.check', publish, ' Publish the details too (+' + (payload.length - 2) / 2 + ' bytes, ≈' + payloadGas(payload) + ' gas)'),
-            button('Approve onchain', () => recheck().then(() => approve(t, me, publish.checked ? compact(t) : '0x')).then(done('Approved.')), out),
+            button('Approve onchain', () => recheck().then(() => approve(t, me, publish.checked ? payload : '0x')).then(done('Approved.')), out),
           ),
         ),
         out,
@@ -1488,7 +1510,7 @@ function nextStep(r) {
 
 /** The share link (with the signatures collected so far), a copy button, and the less common extras. */
 function shareBlock(r, primary) {
-  const url = location.href.split('#')[0] + '#' + fragment(r.tx, st.sigs);
+  const url = location.href.split('#')[0] + '#' + fragment(r.tx, st.sigs, hintsFor(r.tx));
   const b = h('button' + (primary ? '.primary' : ''), 'Copy link');
   b.onclick = () => toClipboard(url).then(() => (put(b, '✓ Copied'), setTimeout(() => put(b, 'Copy link'), 1500)), () => {});
   const more = h('div.sharemore', { hidden: true }, h('p.mut', 'Got a link back with more signatures? Paste it to merge them here.'), importer());
@@ -1496,7 +1518,7 @@ function shareBlock(r, primary) {
     'div.share',
     h('div.row', h('input.mono', { readonly: true, value: url, onclick: (e) => e.target.select(), 'aria-label': 'Share link' }), b),
     h('p.fhint', 'The link carries the transaction and the signatures so far. Anyone with it can read it; only owners can approve.'),
-    h('p.sharelinks', h('button.link', { onclick: () => toClipboard(toJSON(r.tx, st.sigs)) }, 'Copy as JSON'), h('span.mut', ' · '), h('button.link', { onclick: () => (more.hidden = !more.hidden) }, 'Merge signatures from another link')),
+    h('p.sharelinks', h('button.link', { onclick: () => toClipboard(toJSON(r.tx, st.sigs, hintsFor(r.tx))) }, 'Copy as JSON'), h('span.mut', ' · '), h('button.link', { onclick: () => (more.hidden = !more.hidden) }, 'Merge signatures from another link')),
     more,
   );
 }
@@ -1571,7 +1593,7 @@ async function route() {
       if (!chain()) throw new Gate(connectView('create a Safe'));
       return put(main, chain().canCreate ? createView() : bad('Safe’s contracts are not deployed on ' + chain().name + '.'));
     }
-    if (path.startsWith('tx=')) (p = importPayload(path)), (m = [0, p.tx.safe, 'review']);
+    if (path.startsWith('tx=')) (p = importPayload(path)), addHints(p.abi), (m = [0, p.tx.safe, 'review']);
     if (!m) return put(main, home()), renderBatch();
     const ref = decodeURIComponent(m[1]), tab = m[2] || 'assets', q = new URLSearchParams(m[3] || '');
     const address = await openTarget(ref, p && p.tx.chainId);

@@ -59,8 +59,20 @@ test('#import= links: plain (j) and deflated (z) backups keep parsing', async ()
   assert.equal(z.tokens['1'][0].symbol, 'MANA');
 });
 
+test('#tx= links with call signatures (flag bit 3) are frozen', () => {
+  const t = { ...plain, to: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', value: 0n, nonce: 5n,
+    data: '0xa9059cbb000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa960450000000000000000000000000000000000000000000000000000000000000001' };
+  const abi = ['transferTo(address recipient, uint256 amount)', 'transfer(address to, uint256 amount)'];
+  const F = 'tx=AQGW4vYJmGBzHP3Ar3AN6GLPbrpEB1NXAQiguGmRxiGLNsHRnUounrDONgbrSAEFAAAARKkFnLsAAAAAAAAAAAAAAADY2mvyaWSvnX7tngPlNBXTeqlgRQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAFJ0cmFuc2ZlclRvKGFkZHJlc3MgcmVjaXBpZW50LCB1aW50MjU2IGFtb3VudCkKdHJhbnNmZXIoYWRkcmVzcyB0bywgdWludDI1NiBhbW91bnQp';
+  assert.equal(fragment(t, [], abi), F);
+  assert.deepEqual(fromFragment(F.slice(3)), { tx: t, sigs: [], abi });
+  // the signatures never change the transaction or its hash
+  assert.equal(safeTxHash(fromFragment(F.slice(3)).tx), safeTxHash(t));
+  assert.equal(fragment(t, []), fragment(t, [], []));
+});
+
 test('readers reject what they do not understand (so extensions need new flag bits)', () => {
   const c = compact(plain);
-  assert.throws(() => uncompact('0x53570180' + c.slice(10), 1, plain.safe), /unknown flags/);
+  assert.throws(() => uncompact('0x53570110' + c.slice(10), 1, plain.safe), /unknown flags/);
   assert.throws(() => uncompact(c + '00', 1, plain.safe), /trailing/);
 });

@@ -5,12 +5,15 @@
 // docs/links.md → Stability and the golden vectors in test/unit/links.test.mjs before touching it.
 //
 // Compact binary (also the onchain format appended to approveHash):
-//   'SW' 0x01 flags to nonce value data [gas fields] [signatures]
-//   flags: bit0 DELEGATECALL, bit1 gas fields present, bit2 signatures present
+//   'SW' 0x01 flags to nonce value data [gas fields] [signatures] [call signatures]
+//   flags: bit0 DELEGATECALL, bit1 gas fields present, bit2 signatures present,
+//          bit3 call signatures present
 //   uint = 1-byte length + big-endian bytes; data = 3-byte length + bytes
 //   signatures = 1-byte count + 65-byte ECDSA signatures (signers are recovered)
+//   call signatures = 2-byte length + UTF-8 text, one human-readable function signature per line
+//     (names for decoding the calls; untrusted: a decode counts only if it re-encodes exactly)
 // A link carries uint(chainId) ‖ safe ‖ compact, base64url, in the URL fragment.
-import { bytes, hex, isAddr, isHex, strip, ZERO } from './abi.js';
+import { bytes, hex, isAddr, isHex, strip, utf8, ZERO } from './abi.js';
 import { safeTxHash } from './safe.js';
 
 const MAGIC = '535701';
@@ -22,13 +25,18 @@ const uint = (v) => {
 };
 const hasGas = (t) => !!(t.safeTxGas || t.baseGas || t.gasPrice || t.gasToken !== ZERO || t.refundReceiver !== ZERO);
 
+/** Call signatures as the UTF-8 text of the payload section (one per line, no empty lines). */
+const abiText = (abi) => strip(hex(utf8(abi.map((l) => l.trim()).filter(Boolean).join('\n'))));
+
 /** Compact encoding of a SafeTx (chainId and Safe address are implied by context). */
-export function compact(t, sigs = []) {
-  const d = strip(t.data), g = hasGas(t);
+export function compact(t, sigs = [], abi = []) {
+  const d = strip(t.data), g = hasGas(t), a = abi.length ? abiText(abi) : '';
   if (d.length / 2 >= 1 << 24) throw Error('calldata too large to share');
-  let o = MAGIC + b1(t.operation | (g ? 2 : 0) | (sigs.length ? 4 : 0)) + strip(t.to) + uint(t.nonce) + uint(t.value) + (d.length / 2).toString(16).padStart(6, '0') + d;
+  if (a.length / 2 >= 1 << 16) throw Error('call signatures too large to share');
+  let o = MAGIC + b1(t.operation | (g ? 2 : 0) | (sigs.length ? 4 : 0) | (a ? 8 : 0)) + strip(t.to) + uint(t.nonce) + uint(t.value) + (d.length / 2).toString(16).padStart(6, '0') + d;
   if (g) o += uint(t.safeTxGas) + uint(t.baseGas) + uint(t.gasPrice) + strip(t.gasToken) + strip(t.refundReceiver);
   if (sigs.length) o += b1(sigs.length) + sigs.map((s) => strip(s)).join('');
+  if (a) o += (a.length / 2).toString(16).padStart(4, '0') + a;
   return '0x' + o.toLowerCase();
 }
 
@@ -50,7 +58,7 @@ function reader(h) {
 function decode(r, chainId, safe) {
   if (r.take(3) !== MAGIC) throw Error('Not a safe.wei transaction payload.');
   const f = parseInt(r.take(1), 16);
-  if (f & ~7) throw Error('Payload uses unknown flags.');
+  if (f & ~15) throw Error('Payload uses unknown flags.');
   const t = { chainId, safe, to: '0x' + r.take(20), nonce: r.num(), value: r.num(), operation: f & 1 };
   t.data = '0x' + r.take(parseInt(r.take(3), 16));
   Object.assign(
@@ -61,8 +69,13 @@ function decode(r, chainId, safe) {
   );
   const sigs = [];
   if (f & 4) for (let n = parseInt(r.take(1), 16); n--; ) sigs.push('0x' + r.take(65));
+  let abi = [];
+  if (f & 8) {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes('0x' + r.take(parseInt(r.take(2), 16))));
+    abi = text.split('\n').filter(Boolean);
+  }
   if (!r.end()) throw Error('Payload has trailing bytes.');
-  return { tx: t, sigs };
+  return { tx: t, sigs, abi };
 }
 
 /** Decode a compact payload for a known chain and Safe (the onchain case). */
@@ -72,7 +85,7 @@ const b64 = (h) => btoa(String.fromCharCode(...bytes(h))).replace(/\+/g, '-').re
 const unb64 = (s) => hex(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)));
 
 /** The fragment part of a share link: tx=<base64url>. */
-export const fragment = (t, sigs) => 'tx=' + b64(uint(BigInt(t.chainId)) + strip(t.safe) + strip(compact(t, sigs)));
+export const fragment = (t, sigs, abi) => 'tx=' + b64(uint(BigInt(t.chainId)) + strip(t.safe) + strip(compact(t, sigs, abi)));
 
 export function fromFragment(s) {
   const r = reader(unb64(s));
@@ -81,10 +94,11 @@ export function fromFragment(s) {
 }
 
 /** Human-readable JSON payload. Includes safeTxHash so humans can cross-check. */
-export function toJSON(t, sigs = []) {
+export function toJSON(t, sigs = [], abi = []) {
   const o = { safeTxHash: safeTxHash(t) };
   for (const k in t) o[k] = typeof t[k] === 'bigint' ? t[k].toString() : t[k];
   if (sigs.length) o.signatures = sigs;
+  if (abi.length) o.abi = abi;
   return JSON.stringify(o, null, 2);
 }
 
@@ -123,7 +137,8 @@ export function importPayload(text) {
       if (!/^0x[0-9a-fA-F]{130}$/.test(s)) throw Error('JSON: each signature must be 65 bytes of hex.');
       return s.toLowerCase();
     });
-    return { tx: t, sigs };
+    if (o.abi !== undefined && (!Array.isArray(o.abi) || o.abi.some((l) => typeof l !== 'string'))) throw Error('JSON: abi must be a list of function signatures.');
+    return { tx: t, sigs, abi: (o.abi || []).map((l) => l.trim()).filter(Boolean) };
   }
   const m = /(?:^|[#&?])tx=([A-Za-z0-9_-]+)/.exec(text) || /^([A-Za-z0-9_-]+)$/.exec(text);
   if (!m) throw Error('Paste a safe.wei link, a tx= fragment, or transaction JSON.');
