@@ -3,6 +3,7 @@ import { after, before, test } from 'node:test';
 import { cd } from '../../src/abi.js';
 import { execute } from '../../src/flow.js';
 import { batch } from '../../src/multisend.js';
+import { SAFE } from '../../src/chains.js';
 import { review } from '../../src/review.js';
 import { use } from '../../src/rpc.js';
 import { newTx, readSafe } from '../../src/safe.js';
@@ -29,7 +30,7 @@ for (const v of ['1.3.0', '1.4.1', '1.5.0']) {
     await tx(f.rpc, A, WETH, cd(S.transfer, safe, 10n ** 17n));
     const s = await readSafe(safe);
     const [d1, d2] = [dest(), dest()];
-    const t = newTx(s, batch(1, [
+    const t = newTx(s, batch(SAFE.multiSendCallOnly, [
       { to: d1, value: 11n },
       { to: WETH, data: cd(S.transfer, d2, 12n) },
       { to: safe, data: cd(S.addOwnerWithThreshold, B, 1) },
@@ -52,7 +53,7 @@ test('a failing inner call is flagged and reverts the whole batch', async () => 
   await tx(f.rpc, A, safe, '0x', 100n);
   const s = await readSafe(safe);
   const d = dest();
-  const t = newTx(s, batch(1, [{ to: d, value: 50n }, { to: dest(), value: 10n ** 20n }]));
+  const t = newTx(s, batch(SAFE.multiSendCallOnly, [{ to: d, value: 50n }, { to: dest(), value: 10n ** 20n }]));
   const r = await review(t, s, 1);
   assert.match(r.warnings.join(), /Call 2 \(simulated independently\).*REVERTS/);
   await assert.rejects(execute(t, A));

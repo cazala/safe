@@ -10,7 +10,7 @@ See [docs/spec.md](docs/spec.md) for the full specification.
 
 ## What it does
 
-- Works on any EVM chain the wallet is on: open any Safe v1.3.0 / v1.4.1; create new v1.4.1 Safes and batch where the canonical contracts are deployed (checked on chain)
+- Works on any EVM chain the wallet is on: open any Safe from v1.3.0 up (tested with 1.3.0, 1.4.1 and 1.5.0; newer versions work with a warning); create v1.5.0 Safes and batch where the canonical contracts are deployed (checked on chain)
 - Build transactions: ETH/ERC-20 sends, bulk sends, contract calls from an ABI (Etherscan-style builder with type helpers), raw calldata, MultiSend batches; every one shows its SafeTx hash verified against the Safe's own `getTransactionHash`
 - Approve onchain (`approveHash`) or sign offchain (EIP-712); share by link; optionally publish the transaction onchain with the approval so other owners find it without a link
 - ENS and `.wei` names wherever an address is accepted (onchain resolution only)

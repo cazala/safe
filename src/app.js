@@ -153,7 +153,7 @@ function home() {
     list,
     h(
       'div.panel.create',
-      h('div', h('b', 'Create a new Safe'), h('p.mut', !c ? 'Connect a wallet to create a Safe.' : c.canCreate ? 'A shared account on ' + c.name + ' that several owners control together.' : 'Safe’s contracts are not deployed on ' + c.name + ', so new Safes can’t be created here.')),
+      h('div', h('b', 'Create a new Safe'), h('p.mut', !c ? 'Connect a wallet to create a Safe.' : c.canCreate ? 'A shared account on ' + c.name + ' that several owners control together (Safe v' + c.version + ').' : 'Safe’s contracts are not deployed on ' + c.name + ', so new Safes can’t be created here.')),
       c && c.canCreate && h('button', { onclick: () => (location.hash = '/new') }, icon(...ICONS.plus), ' Create'),
     ),
     h('p.foot', 'Everything is read from the chain through your wallet. Your saved Safes stay in this browser.'),
@@ -164,12 +164,7 @@ function home() {
 function savedSafes(redraw) {
   const l = recent.sorted();
   if (!l.length) return null;
-  const iconBtn = (name, title, fn, on) => {
-    const b = h('button.ib' + (on ? '.on' : ''), { title, 'aria-label': title });
-    b.append(icon(...ICONS[name]));
-    b.onclick = (e) => (e.preventDefault(), e.stopPropagation(), fn());
-    return b;
-  };
+  const iconBtn = iconButton;
   const row = (e) => {
     const title = e.label || e.ref || 'Safe ' + short(e.address), here = st.chainId === e.chainId;
     const name = h('b.name', title);
@@ -237,7 +232,7 @@ function createView() {
           ['Chain', c.name + ' · chainId ' + st.chainId],
           ['Owners', h('ol.owners', k.owners.map((o) => h('li', named(o), o === st.account.toLowerCase() && [' ', h('b.ok', 'you')])))],
           ['Threshold', k.threshold + ' of ' + k.owners.length],
-          ['Singleton', [addr(c.singleton), c.mainnet ? ' (Safe v1.4.1)' : ' (SafeL2 v1.4.1)']],
+          ['Singleton', [addr(c.singleton), (c.mainnet ? ' (Safe v' : ' (SafeL2 v') + c.version + ')']],
           ['Factory', addr(c.factory)],
           ['Fallback', [addr(c.fallback), ' (CompatibilityFallbackHandler)']],
           ['Salt nonce', String(k.salt)],
@@ -273,16 +268,44 @@ const TABS = [
 const link = (tab, q) => '#/' + st.ref + (tab && tab !== 'assets' ? '/' + tab : '') + (q ? '?' + new URLSearchParams(q) : '');
 const chip = (text, cls = '') => h('span.chip' + cls, text);
 
+/** Small icon-only button. */
+function iconButton(name, title, fn, on) {
+  const b = h('button.ib' + (on ? '.on' : ''), { title, 'aria-label': title });
+  b.append(icon(...ICONS[name]));
+  b.onclick = (e) => (e.preventDefault(), e.stopPropagation(), fn());
+  return b;
+}
+
 /** `back`: [href, text] for the single back link; defaults to Home. */
 function safeHeader(s, back = ['#', '‹ Home']) {
   const c = chain(), me = st.account && s.owners.includes(st.account.toLowerCase());
   const title = h('h1', st.safeName || 'Safe ' + short(s.address));
   if (!st.safeName)
     nameOf(s.address, st.chainId).then((n) => n && ((st.safeName = n), put(title, n)), () => {});
+  // Rename in place: the nickname is shared with the list on Home.
+  const rename = iconButton('edit', 'Rename this Safe', () => {
+    const cur = (recent.find(s.chainId, s.address) || {}).label || '';
+    const inp = h('input.rename.big', { value: cur, placeholder: st.refName || 'Name this Safe', maxlength: 40 });
+    const done = (save) => {
+      if (save) {
+        const v = inp.value.trim().slice(0, 40);
+        recent.update(s.chainId, s.address, { label: v });
+        st.safeName = v || st.refName || null;
+      }
+      put(title, st.safeName || 'Safe ' + short(s.address));
+      inp.replaceWith(row);
+    };
+    inp.onkeydown = (k) => (k.key === 'Enter' ? done(true) : k.key === 'Escape' ? done(false) : null);
+    inp.onblur = () => inp.isConnected && done(true);
+    row.replaceWith(inp);
+    inp.focus();
+    inp.select();
+  });
+  const row = h('div.titlerow', title, rename);
   return h(
     'div.safehead',
     h('a.back', { href: back[0] }, back[1]),
-    title,
+    row,
     h('div.sub', addr(s.address)),
     h(
       'div.chips',
@@ -538,7 +561,7 @@ function bulkForm(s, q) {
           const p = await need();
           if (p.calls.length > 1 && !chain().canBatch) throw Error('MultiSendCallOnly is not deployed on ' + chain().name + ': send one transfer at a time.');
           st.named = p.names;
-          await showReview(newTx(s, p.calls.length > 1 ? batch(st.chainId, p.calls) : p.calls[0]));
+          await showReview(newTx(s, p.calls.length > 1 ? batch(chain().multiSendCallOnly, p.calls) : p.calls[0]));
         },
         out,
         '.primary',
@@ -743,7 +766,7 @@ function batchBody() {
     h('ol.calls', st.batch.map((x, i) => h('li', h('span', callLabel(x)), h('button.link', { onclick: () => (st.batch.splice(i, 1), renderBatch(true)) }, 'remove')))),
     h(
       'div.actions',
-      n > 1 ? button('Review batch', async () => (closeBatch(), (st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(st.chainId, st.batch)))), out, '.primary') : h('span.mut', 'Add at least one more call to batch'),
+      n > 1 ? button('Review batch', async () => (closeBatch(), (st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(chain().multiSendCallOnly, st.batch)))), out, '.primary') : h('span.mut', 'Add at least one more call to batch'),
       h('button', { onclick: () => ((st.batch = []), (st.batchNames = {}), renderBatch()) }, 'Clear'),
     ),
     out,
@@ -766,7 +789,7 @@ function renderBatch(keep) {
   const badge = h('button.batchbtn', { 'aria-label': 'Batch: ' + batchWord(n), 'aria-expanded': String(keep && wasOpen) }, 'Batch ', h('span.badge', String(n)));
   badge.onclick = () => (bb.querySelector('.batchpop') ? closeBatch() : bb.append(h('div.dropdown.batchpop', h('div.head', h('b', 'Batch · ' + batchWord(n))), batchBody())));
   put(bb, badge, keep && wasOpen && h('div.dropdown.batchpop', h('div.head', h('b', 'Batch · ' + batchWord(n))), batchBody()));
-  const reviewNow = n > 1 && button('Review', async () => ((st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(st.chainId, st.batch)))), null, '.primary');
+  const reviewNow = n > 1 && button('Review', async () => ((st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(chain().multiSendCallOnly, st.batch)))), null, '.primary');
   put(
     bq,
     h(
@@ -1203,7 +1226,7 @@ async function route() {
   let m = /^\/([^/?]+)(?:\/([a-z]+))?(?:\?(.*))?$/.exec(path), p;
   if (m && m[1] === 'new') m = null;
   try {
-    if (path === '/new') return put(main, chain() && chain().canCreate ? createView() : bad(chain() ? 'Safe v1.4.1 is not deployed on ' + chain().name + '.' : 'Connect a wallet first.'));
+    if (path === '/new') return put(main, chain() && chain().canCreate ? createView() : bad(chain() ? 'Safe’s contracts are not deployed on ' + chain().name + '.' : 'Connect a wallet first.'));
     if (path.startsWith('tx=')) (p = importPayload(path)), (m = [0, p.tx.safe, 'review']);
     if (!m) return put(main, home()), renderBatch();
     if (!chain()) throw Error('Connect a wallet to open a Safe.');
@@ -1213,7 +1236,7 @@ async function route() {
       if (!st.safe || st.safe.address !== address) put(main, h('p.mut', 'Loading ' + ref + '…'));
       const s = await readSafe(address);
       if (n !== seq) return;
-      if (!st.safe || st.safe.address !== s.address) st.safeName = ((recent.find(s.chainId, s.address) || {}).label) || (isAddr(ref) ? null : ref);
+      if (!st.safe || st.safe.address !== s.address) (st.refName = isAddr(ref) ? null : ref), (st.safeName = (recent.find(s.chainId, s.address) || {}).label || st.refName);
       recent.touch(s.chainId, s.address, isAddr(ref) ? null : ref);
       st.safe = s;
       st.stale = false;

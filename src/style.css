@@ -216,3 +216,6 @@ input.rename { padding: 4px 8px; font: inherit; font-size: 15px; font-weight: 60
   .panel.create { flex-direction: column; align-items: stretch; }
 }
 .chip.warn { color: #c98a00; border-color: #c98a00; }
+.titlerow { display: flex; align-items: center; gap: 6px; }
+.titlerow button.ib { margin-top: 4px; }
+input.rename.big { margin: 4px 0 2px; font-size: 20px; font-weight: 700; max-width: 420px; }
