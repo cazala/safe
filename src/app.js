@@ -1,6 +1,6 @@
 // safe.wei — app shell, routing and views.
 import { cd, fmt, fmtShort, hex, isAddr, isHex, keccakText, parse, strip, utf8, ZERO } from './abi.js';
-import { chainInfo, label } from './chains.js';
+import { chainInfo, HANDLERS, label } from './chains.js';
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review } from './review.js';
 import * as rpc from './rpc.js';
@@ -935,6 +935,18 @@ function whatIs(contract, s) {
 function settingsTab(s) {
   const me = st.account && st.account.toLowerCase(), n = s.owners.length;
   const self = (data) => ({ to: s.address, value: 0n, data });
+  // The fallback handler, with a shortcut to Safe's canonical one when it is missing or unknown.
+  const fallbackView = () => {
+    const known = s.fallback && HANDLERS[s.fallback], want = chain().libFor(s.version, 'handler'), fbOut = h('div');
+    const fix = want && !known && h('div.actions', button((s.fallback ? 'Replace with' : 'Set') + ' Safe’s CompatibilityFallbackHandler ' + HANDLERS[want], async () => showReview(newTx(s, self(cd(S.setFallbackHandler, want)))), fbOut));
+    if (!s.fallback) return [warn('No fallback handler: this Safe cannot sign messages (EIP-1271), and contracts that send tokens with safe-transfer callbacks (ERC-721, ERC-1155) may refuse it.'), fix, fbOut];
+    return [
+      addr(s.fallback),
+      h('div.mut', known ? 'Safe’s CompatibilityFallbackHandler ' + known + '. It handles calls the Safe itself does not implement, such as EIP-1271 signature checks and token callbacks.' : 'Not a fallback handler safe.wei recognizes. It receives every call the Safe does not implement and affects signature validation.'),
+      fix,
+      fbOut,
+    ];
+  };
   const prevOf = (o) => (s.owners.indexOf(o) === 0 ? SENTINEL : s.owners[s.owners.indexOf(o) - 1]);
   /** Review / Add to batch for a Safe self-call built by `mk` (async, may throw). */
   const acts = (mk, out) =>
@@ -1025,7 +1037,7 @@ function settingsTab(s) {
       ['Version', s.version || '(unreadable)'],
       ['Nonce', String(s.nonce) + ' (next transaction)'],
       ['Singleton', addr(s.singleton)],
-      ['Fallback handler', s.fallback ? [addr(s.fallback), h('div.mut', 'Handles calls the Safe itself does not implement, such as EIP-1271 signature checks and token callbacks.')] : 'none'],
+      ['Fallback handler', fallbackView()],
       ['Chain', chain().name + ' · chainId ' + s.chainId],
     ]),
   ];
@@ -1692,7 +1704,10 @@ async function showMessage(m, sigs = [], nav = 'push') {
   if (nav === 'push') history.pushState(null, '', h2);
   else if (nav === 'replace') history.replaceState(null, '', h2);
   const ok = c.onchain === c.local;
-  put(rv, messageHead(m, c), ok ? messageStep(m, c) : h('div.step.blocked', h('h3', 'This message cannot be signed here'), h('p', 'Resolve the problem above first.')), messageDetails(m, c));
+  const blocked = c.onchain
+    ? h('div.step.blocked', h('h3', 'This message cannot be signed here'), h('p', 'The Safe computes a different hash. Do not sign it.'))
+    : h('div.step.blocked', h('h3', 'This Safe cannot sign messages yet'), h('p', 'It needs a fallback handler that validates signatures (EIP-1271). Settings can set Safe’s CompatibilityFallbackHandler, with the owners’ approval.'), h('div.actions', h('a.btn', { href: link('settings') }, 'Open Settings')));
+  put(rv, messageHead(m, c), ok ? messageStep(m, c) : blocked, messageDetails(m, c));
   scrollTo(0, 0);
 }
 
