@@ -593,7 +593,7 @@ function safeHeader(s, back) {
     // (and warned about below when it matters). Not being an owner is said where it changes what you can do.
     h(
       'div.sub.hmeta',
-      addr(s.address, null, short(s.address), true),
+      addr(s.address, null, back ? null : short(s.address), true), // review screens show every address in full
       h('span.dot', '·'),
       h('span', s.threshold + ' of ' + s.owners.length + ' owners'),
       me && [h('span.dot', '·'), h('span.ok', 'You’re an owner')],
@@ -1564,7 +1564,7 @@ function nextStep(r) {
       h(
         'section.rvapprovals',
         h('div.rvsec', h('h3', 'Approvals · ' + count), h('span.grow'), button('Refresh', () => showReview(t, st.sigs, 'replace'), out, '.link')),
-        h('ul.owners.shortaddr', s.owners.map((o) => h('li', addr(o), approved.includes(o) ? h('b.ok', '✓ approved onchain') : signed.includes(o) ? h('b.ok', '✓ signed') : h('span.mut', 'waiting'), o === me && h('span.mut', '(you)')))),
+        h('ul.owners', s.owners.map((o) => h('li', addr(o), approved.includes(o) ? h('b.ok', '✓ approved onchain') : signed.includes(o) ? h('b.ok', '✓ signed') : h('span.mut', 'waiting'), o === me && h('span.mut', '(you)')))),
         st.rejected.map((x) => warn('Ignored signature: ' + x.reason + '.')),
         !current && !ready && h('p.mut', 'Queued: it can execute once nonce ' + s.nonce + ' has.'),
         owner && !isCancel(t) && h('p.cancel', h('span.mut', 'Changed your mind after signing? '), h('button.link', { onclick: () => ((st.named = {}), showReview(newTx(s, { to: s.address, nonce: t.nonce }))) }, 'Cancel it with a replacement'), h('span.mut', ': an empty transaction with the same nonce, which the owners approve and execute instead.')),
@@ -1817,7 +1817,7 @@ function messageStep(m, c) {
     h(
       'section.rvapprovals',
       h('div.rvsec', h('h3', 'Signatures · ' + count), h('span.grow'), button('Refresh', () => showMessage(m, st.msgSigs, 'replace'), out, '.link')),
-      h('ul.owners.shortaddr', s.owners.map((o) => h('li', addr(o), signed.includes(o) ? h('b.ok', '✓ signed') : h('span.mut', 'waiting'), o === me && h('span.mut', '(you)')))),
+      h('ul.owners', s.owners.map((o) => h('li', addr(o), signed.includes(o) ? h('b.ok', '✓ signed') : h('span.mut', 'waiting'), o === me && h('span.mut', '(you)')))),
       c.rejected.map((x) => warn('Ignored signature: ' + x.reason + '.')),
     ),
   ];
