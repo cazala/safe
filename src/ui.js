@@ -108,10 +108,11 @@ const face = (a, shown) => {
  * One name at most: label, else ENS / WNS, else the address. The full address is on hover,
  * and clicking it copies, like the copy button.
  */
-export function addr(a, note, shown) {
+export function addr(a, note, shown, plain) {
   const isAddr = a.length === 42;
   const c = copy(a, 'Copy ' + (isAddr ? 'address' : 'hash'));
-  const el = h('span.addr', { 'data-addr': isAddr ? a.toLowerCase() : null }, face(a, shown), c, isAddr && tagButton(a), note && [' ', note]);
+  // `plain`: always the address itself, with copy only (e.g. under a title that already shows the name).
+  const el = h('span.addr', { 'data-addr': isAddr && !plain ? a.toLowerCase() : null }, plain ? h('code', { title: a }, shown || a) : face(a, shown), c, isAddr && !plain && tagButton(a), note && [' ', note]);
   el.shown = shown;
   el.firstChild.onclick = faceClick;
   return el;

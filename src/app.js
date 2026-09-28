@@ -556,7 +556,7 @@ function safeHeader(s, back = ['#', '‹ Home']) {
     'div.safehead',
     h('a.back', { href: back[0] }, back[1]),
     row,
-    h('div.sub', addr(s.address)),
+    h('div.sub', addr(s.address, null, null, true)),
     h(
       'div.chips',
       chip(c.name),
