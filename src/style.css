@@ -383,7 +383,6 @@ a.srow.other { opacity: .6; }
 p.onote { margin: 4px 0 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--mut); font-size: 13px; }
 /* Assets: aligned figures, actions on hover, one footer row */
 table.assets td.num { font-variant-numeric: tabular-nums; }
-table.assets td.act { width: 1%; white-space: nowrap; }
 .racts { display: inline-flex; align-items: center; gap: 4px; opacity: 0; transition: opacity .12s; }
 table.assets tr:hover .racts, table.assets tr:focus-within .racts { opacity: 1; }
 @media (hover: none) { .racts { opacity: 1; } }
@@ -394,3 +393,31 @@ button.link.addlink { display: inline-flex; align-items: center; gap: 4px; color
 button.link.addlink svg { width: 14px; height: 14px; }
 button.link.addlink:hover { text-decoration: underline; }
 .addtoken { margin-top: 8px; }
+/* Addresses: short by default; full where you sign */
+span.af { display: none; }
+.fulladdr span.af { display: inline; }
+.fulladdr span.as { display: none; }
+/* Assets: actions beside the asset name */
+.arow { display: flex; align-items: center; gap: 12px; }
+.arow .grow { flex: 1; }
+table.assets td.num { width: 1%; white-space: nowrap; padding-right: 0; padding-left: 16px; }
+table.assets th.num { padding-right: 0; }
+/* Header breadcrumb and Safe switcher */
+header .left { display: flex; align-items: center; gap: 4px; min-width: 0; }
+#crumb { display: flex; align-items: center; gap: 4px; min-width: 0; }
+#crumb .slash { color: var(--line); font-size: 18px; margin: 0 2px; }
+button.crumbbtn { display: inline-flex; align-items: center; gap: 4px; max-width: 42vw; padding: 4px 6px 4px 8px; border: 0; border-radius: 8px; background: none; color: var(--fg); font-weight: 600; font-size: 14px; }
+button.crumbbtn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.crumbbtn svg { flex: none; width: 14px; height: 14px; color: var(--mut); }
+button.crumbbtn:hover { background: var(--card); }
+.crumbmenu { left: 0; right: auto; min-width: 280px; max-width: min(380px, calc(100vw - 32px)); max-height: 60vh; overflow: auto; }
+.crumbmenu a { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; color: var(--fg); font-weight: 400; font-size: 14px; }
+.crumbmenu a:hover { background: var(--bg); }
+.crumbmenu a.on .cname { font-weight: 600; }
+.crumbmenu a.on::before { content: ''; width: 6px; height: 6px; margin-left: -2px; border-radius: 50%; background: var(--fg); }
+.crumbmenu .cname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumbmenu .grow { flex: 1; }
+.crumbmenu code { color: var(--mut); font-size: 12px; }
+.crumbmenu .chip { padding: 0 6px; font-size: 11px; }
+.crumbmenu a.all { margin-top: 4px; border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; color: var(--mut); }
+@media (max-width: 600px) { header a.brand { font-size: 0; gap: 0; } header a.brand svg { width: 20px; height: 20px; } }

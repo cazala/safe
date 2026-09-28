@@ -100,7 +100,11 @@ export function setName(a, n) {
 /** What an address shows: the viewer's label, else its ENS / WNS name, else the address (or `shown`). */
 const face = (a, shown) => {
   const k = a.length === 42 && a.toLowerCase(), l = k && labels.get(a), n = k && names.get(k);
-  return l ? h('b.lbl', { title: a }, l) : n ? h('b.lbl.ens', { title: a }, n) : h('code', { title: a }, shown || a);
+  // Addresses show short (0xabcd…ffff), full on hover and copy. Inside `.fulladdr` (what you sign) they
+  // show in full: a look-alike address with the same first and last characters is the classic trap.
+  if (l) return h('b.lbl', { title: a }, l);
+  if (n) return h('b.lbl.ens', { title: a }, n);
+  return h('code', { title: a }, shown || (k ? [h('span.as', short(a)), h('span.af', a)] : a));
 };
 
 /**

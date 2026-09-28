@@ -209,6 +209,28 @@ async function openTarget(ref, wantChain) {
   throw new Gate(switchView(1, ref + ' is a name on Ethereum', 'ENS and .wei names resolve on Ethereum, and your wallet is on ' + chain().name + '. Switch to Ethereum, or open the Safe by its 0x address.'));
 }
 
+// ---- header breadcrumb: safe.wei / <Safe> ▾, with a switcher to your other saved Safes ----
+function setCrumb(s) {
+  const el = $('crumb');
+  if (!s) return put(el);
+  const here = recent.keyOf({ chainId: s.chainId, address: s.address });
+  const m = h('div.hmenu.crumbmenu', { hidden: true });
+  const nameOfEntry = (e) => e.label || e.ref || labels.get(e.address) || 'Safe ' + short(e.address);
+  const items = recent.sorted().map((e) =>
+    h(
+      'a' + (recent.keyOf(e) === here ? '.on' : ''),
+      { href: '#/' + (e.ref || e.address), onclick: () => ((m.hidden = true), (st.intent = true)) },
+      h('span.cname', nameOfEntry(e)),
+      h('span.grow'),
+      e.chainId !== st.chainId && h('span.chip', label(e.chainId).name),
+      nameOfEntry(e) !== 'Safe ' + short(e.address) && h('code', short(e.address)),
+    ),
+  );
+  put(m, items, h('a.all', { href: '#/', onclick: () => (m.hidden = true) }, 'All Safes'));
+  const btn = h('button.crumbbtn', { 'aria-haspopup': 'menu', title: 'Switch Safe', onclick: () => (m.hidden = !m.hidden) }, h('span', st.safeName || 'Safe ' + short(s.address)), icon('m6 9 6 6 6-6'));
+  put(el, h('span.slash', '/'), h('div.gearwrap.crumbwrap', btn, m));
+}
+
 // ---- views ----
 function home() {
   const c = chain(), out = h('div');
@@ -460,7 +482,7 @@ function createView() {
       put(
         plan,
         h('h2', 'Deployment summary'),
-        h('div.panel.summary',
+        h('div.panel.summary.fulladdr',
         kv([
           ['Predicted address', h('b', addr(at))],
           ['Chain', c.name + ' · chainId ' + st.chainId],
@@ -518,7 +540,7 @@ const link = (tab, q) => '#/' + st.ref + (tab && tab !== 'assets' ? '/' + tab : 
 const chip = (text, cls = '') => h('span.chip' + cls, text);
 
 /** `back`: [href, text] for the single back link; defaults to Home. */
-function safeHeader(s, back = ['#', 'Home']) {
+function safeHeader(s, back) {
   const c = chain(), me = st.account && s.owners.includes(st.account.toLowerCase());
   const title = h('h1', st.safeName || 'Safe ' + short(s.address));
   if (!st.safeName)
@@ -536,6 +558,7 @@ function safeHeader(s, back = ['#', 'Home']) {
       }
       put(title, st.safeName || 'Safe ' + short(s.address));
       inp.replaceWith(title);
+      setCrumb(s);
     };
     inp.onkeydown = (k) => (k.key === 'Enter' ? done(true) : k.key === 'Escape' ? done(false) : null);
     inp.onblur = () => inp.isConnected && done(true);
@@ -554,7 +577,7 @@ function safeHeader(s, back = ['#', 'Home']) {
   const row = h('div.titlerow', title, rename);
   return h(
     'div.safehead',
-    h('a.back', { href: back[0] }, icon('m15 6-6 6 6 6'), back[1]),
+    back && h('a.back', { href: back[0] }, icon('m15 6-6 6 6 6'), back[1]),
     row,
     // One quiet line: the chain is the wallet's, the balance is in Assets, the version is in Settings
     // (and warned about below when it matters). Not being an owner is said where it changes what you can do.
@@ -582,6 +605,7 @@ function tabBar(tab) {
 /** Renders the Safe page shell and returns the content element. */
 function page(s, tab, ...content) {
   put(main, st.flash && h('p.ok', st.flash), safeHeader(s), tabBar(tab), h('div.tab', ...content), bq);
+  setCrumb(s);
   st.flash = null;
   renderBatch();
 }
@@ -635,7 +659,9 @@ const prefilled = () => warn('Prefilled from a link. Check every recipient, amou
 function assetsTab(s) {
   const c = chain(), rows = h('div', h('p.mut', 'Loading balances…')), pend = h('div');
   // Actions show on row hover (always on touch). Nothing to send: no Send.
-  const acts = (bal, href, extra) => h('td.act', h('span.racts', extra, bal > 0n ? h('a.btn', { href }, 'Send') : h('span.btn.off', { title: 'Nothing to send' }, 'Send')));
+  // Actions sit next to the asset and show on row hover (always on touch), so balances stay flush right.
+  const acts = (bal, href, extra) => h('span.racts', extra, bal > 0n ? h('a.btn', { href }, 'Send') : h('span.btn.off', { title: 'Nothing to send' }, 'Send'));
+  const asset = (name, sub, actions) => h('td', h('div.arow', h('div', name, sub), h('span.grow'), actions));
   const removeBtn = (t) =>
     !t.listed && h('button.ib', { title: 'Remove from your token list', 'aria-label': 'Remove ' + t.symbol, onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), delete st.tokens[t.address], draw()) }, icon(...ICONS.close));
   const addIn = h('input', { placeholder: 'Token address 0x…', spellcheck: 'false' }), addOut = h('div');
@@ -660,18 +686,17 @@ function assetsTab(s) {
       rows,
       h(
         'table.assets',
-        h('tr', h('th', 'Asset'), h('th.num', 'Balance'), h('th', '')),
-        h('tr', h('td', h('b', c.sym), h('div.mut', c.sym === 'ETH' ? 'Ether' : 'Native token')), h('td.num', { title: fmt(s.balance) + ' ' + c.sym }, amt2(s.balance, 18)), acts(s.balance, link('send'))),
+        h('tr', h('th', 'Asset'), h('th.num', 'Balance')),
+        h('tr', asset(h('b', c.sym), h('div.mut', c.sym === 'ETH' ? 'Ether' : 'Native token'), acts(s.balance, link('send'))), h('td.num', { title: fmt(s.balance) + ' ' + c.sym }, amt2(s.balance, 18))),
         held().map((t) =>
           h(
             'tr',
-            h('td', h('b', t.symbol), h('div.mut', addr(t.address))),
+            asset(h('b', t.symbol), h('div.mut', addr(t.address)), acts(st.bal[t.address] || 0n, link('send', { token: tokenSpec(t) }), removeBtn(t))),
             h(
               'td.num',
               { title: st.bal[t.address] == null ? null : fmt(st.bal[t.address], t.decimals) + ' ' + t.symbol },
               st.bal[t.address] == null ? h('span.mut', 'unreadable') : amt2(st.bal[t.address], t.decimals),
             ),
-            acts(st.bal[t.address] || 0n, link('send', { token: tokenSpec(t) }), removeBtn(t)),
           ),
         ),
       ),
@@ -1328,13 +1353,14 @@ function importer() {
 }
 
 // ---- review screen ----
-const rv = h('div');
+const rv = h('div.fulladdr'); // what gets signed: addresses in full
 /** Review a transaction on its own screen. `nav`: 'push' (from a form), 'replace' (refresh), 'none' (from the URL). */
 async function showReview(tx, sigs = [], nav = 'push') {
   // One back link: to the screen that opened this review, else the Transactions tab.
   if (nav === 'push') st.backTo = location.hash && !location.hash.startsWith('#tx=') ? location.hash : null;
   else if (nav === 'none') st.backTo = null;
   put(main, safeHeader(st.safe, [st.backTo || link('transactions'), 'Back']), rv);
+  setCrumb(st.safe);
   put(rv, h('p.mut', 'Checking the transaction…'));
   const r = await review(tx, st.safe, st.chainId);
   const c = await checkSigs(st.safe, r.local, sigs);
@@ -1488,6 +1514,7 @@ function txView(r) {
 let seq = 0;
 async function route() {
   const n = ++seq;
+  setCrumb(null);
   const path = location.hash.slice(1);
   let m = /^\/([^/?]+)(?:\/([a-z]+))?(?:\?(.*))?$/.exec(path), p;
   if (m && m[1] === 'new') m = null;
