@@ -83,8 +83,11 @@ header a.brand { display: inline-flex; align-items: center; gap: 6px; font-size:
 .safehead { margin: 14px 0 0; }
 .safehead h1 { font-size: 22px; margin: 4px 0 2px; overflow-wrap: anywhere; }
 .safehead .sub { color: var(--mut); }
-a.back { display: inline-block; color: var(--mut); text-decoration: none; font-size: 13px; padding: 4px 0; }
-a.back:hover { color: var(--fg); }
+/* Back links (Safe page, Create, gates): an arrow and a word, big enough to find */
+a.back, a.homeback { display: inline-flex; align-items: center; gap: 2px; margin-left: -8px; padding: 6px 12px 6px 4px; border-radius: 8px; color: var(--mut); text-decoration: none; font-size: 14px; font-weight: 500; }
+a.back svg, a.homeback svg { width: 18px; height: 18px; }
+a.back:hover, a.homeback:hover { color: var(--fg); background: var(--card); }
+p.gateback a.back { margin-left: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
 .chip { display: inline-block; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; color: var(--mut); white-space: nowrap; }
 .chip.ok { color: var(--ok); border-color: var(--ok); }
@@ -267,9 +270,6 @@ p.lead { margin: 4px 0 8px; }
 p.importhint { margin: 20px 0 0; text-align: center; font-size: 13px; }
 p.importhint button.link { font-size: 13px; color: var(--fg); }
 /* Create a Safe: same shell as Home */
-a.homeback { display: inline-flex; align-items: center; gap: 2px; padding: 4px 8px 4px 2px; color: var(--mut); font-size: 13px; text-decoration: none; }
-a.homeback svg { width: 16px; height: 16px; }
-a.homeback:hover { color: var(--fg); }
 .newsafe .hero { margin-top: 8px; }
 .newsafe .panel > label { margin-top: 16px; }
 .newsafe .panel > label:first-child { margin-top: 0; }
