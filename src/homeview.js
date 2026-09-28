@@ -68,7 +68,7 @@ export function mountSafes(root, chainId) {
     walk(n);
     return h(
       'div.saferow.node.folder',
-      { role: 'button', tabindex: 0, onclick: () => go([...path, n.id], 1), onkeydown: (k) => k.key === 'Enter' && go([...path, n.id], 1) },
+      { role: 'button', tabindex: 0, onclick: () => go([...path, n.id], 1), onkeydown: (k) => { if (k.key === 'Enter') go([...path, n.id], 1); } },
       h('span.ficon', icon(...FOLDER)),
       h('div.info', h('b.name', recent.folderName(n)), h('div.meta', h('span', names.slice(0, 3).join(', ') + (names.length > 3 ? ', …' : '')))),
       h('span.go', icon(...ICONS.next)),

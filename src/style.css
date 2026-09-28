@@ -265,16 +265,10 @@ p.empty { margin: 18px 0; text-align: center; color: var(--mut); font-size: 14px
 .lrow .acts { opacity: 1; }
 b.lbl { font-weight: 600; }
 button.copy.tag svg { width: 13px; height: 13px; }
-dialog.sheet { width: min(440px, calc(100vw - 32px)); padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--fg); box-shadow: 0 20px 60px rgba(0, 0, 0, .4); }
-dialog.sheet::backdrop { background: rgba(0, 0, 0, .45); }
-dialog.sheet h3 { margin: 0 0 10px; font-size: 16px; }
-dialog.sheet code.full { display: block; margin-bottom: 8px; font-size: 12px; color: var(--mut); overflow-wrap: anywhere; }
 button.link.danger { color: var(--bad); margin-left: auto; }
 .htabs .grow { flex: 1; }
-dialog.sheet.wide { width: min(520px, calc(100vw - 32px)); }
 .bsec { margin: 16px 0 4px; padding-top: 12px; border-top: 1px solid var(--line); }
 .bsec:first-of-type { border-top: 0; padding-top: 0; }
-.actions.end { justify-content: flex-end; margin-bottom: 0; }
 .actions input[type=file] { width: auto; border: 0; padding: 0; }
 .opts { display: grid; gap: 8px; margin: 12px 0; }
 label.opt { display: flex; gap: 10px; align-items: flex-start; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--fg); cursor: pointer; }
@@ -282,3 +276,31 @@ label.opt input { width: auto; margin-top: 3px; }
 label.opt span { display: flex; flex-direction: column; gap: 2px; }
 ul.importlabels { max-height: 30vh; overflow: auto; margin: 6px 0; padding-left: 18px; font-size: 13px; }
 ul.importlabels code { font-size: 11px; overflow-wrap: anywhere; }
+/* ---- dialogs (sheets) ---- */
+dialog.sheet { width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; padding: 0; border: 1px solid var(--line); border-radius: 16px; background: var(--card); color: var(--fg); box-shadow: 0 24px 70px rgba(0, 0, 0, .45); }
+dialog.sheet.wide { width: min(540px, calc(100vw - 32px)); }
+dialog.sheet::backdrop { background: rgba(0, 0, 0, .5); backdrop-filter: blur(2px); }
+.dhead { display: flex; align-items: center; gap: 12px; padding: 16px 16px 0 20px; }
+.dhead h3 { flex: 1; margin: 0; font-size: 17px; }
+.dicon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); color: var(--fg); flex: none; }
+.dicon svg { width: 17px; height: 17px; }
+.dbody { padding: 8px 20px 20px; }
+.dbody label.f { margin: 16px 0 6px; color: var(--mut); font-size: 13px; font-weight: 500; }
+.dbody input, .dbody textarea { padding: 10px 12px; border-radius: 10px; font-size: 14px; }
+.dbody input.plain { font-family: system-ui, sans-serif; font-size: 15px; }
+.dbody input:focus, .dbody textarea:focus { outline: 2px solid var(--fg); outline-offset: -1px; }
+.addrbox { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.addrbox code { flex: 1; font-size: 13px; }
+.fhint { margin-top: 6px; color: var(--mut); font-size: 12px; min-height: 0; overflow-wrap: anywhere; }
+.fhint:empty { display: none; }
+.fhint code { font-size: 12px; }
+.dfoot { display: flex; align-items: center; gap: 8px; margin-top: 22px; }
+.dfoot .grow { flex: 1; }
+.dfoot button:not(.link) { padding: 9px 18px; border-radius: 10px; font-weight: 500; }
+.dfoot button.link.danger { margin: 0; }
+p.lead { margin: 4px 0 8px; }
+@media (max-width: 600px) {
+  /* bottom sheet on phones */
+  dialog.sheet, dialog.sheet.wide { box-sizing: border-box; width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 18px 18px 0 0; border-width: 1px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  .dbody input, .dbody textarea { font-size: 16px; }
+}

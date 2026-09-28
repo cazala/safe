@@ -12,7 +12,12 @@ export function h(tag, attrs, ...kids) {
   if (attrs && (typeof attrs !== 'object' || attrs instanceof Node || Array.isArray(attrs))) kids.unshift(attrs);
   else
     for (const k in attrs)
-      if (k.startsWith('on')) el[k] = attrs[k];
+      if (k.startsWith('on')) {
+        const f = attrs[k];
+        el[k] = function (e) {
+          f.call(this, e); // return value ignored: a handler returning false must never cancel the event
+        };
+      }
       else if (attrs[k] == null || attrs[k] === false) continue;
       else if (k === 'class') el.classList.add(...String(attrs[k]).split(' ').filter(Boolean)); // adds to the tag's classes
       else el.setAttribute(k, attrs[k]);
@@ -97,42 +102,91 @@ function tagButton(a) {
   return b;
 }
 
-/** Dialog to set, change or remove a label. With no address, it asks for one too. */
-export function labelDialog(a) {
-  const cur = a && labels.get(a);
-  const who = h('input', { placeholder: '0x…', spellcheck: 'false', value: a || null });
-  const name = h('input', { placeholder: 'e.g. Treasury, Alice, Payroll', maxlength: 40, value: cur || null });
-  const err = h('div');
-  const d = h('dialog.sheet');
+// Optional name resolution for addresses typed into the label dialog (set by the app).
+let resolver = null;
+export const setResolver = (f) => (resolver = f);
+
+/** A modal sheet with a header (icon, title, close) and the given body; returns { d, close }. */
+export function sheet(iconName, title, wide) {
+  const d = h('dialog.sheet' + (wide ? '.wide' : ''));
   const close = () => (d.close(), d.remove());
-  const save = () => {
-    const x = (a || who.value.trim()).toLowerCase();
-    if (!/^0x[0-9a-f]{40}$/.test(x)) return put(err, h('p.bad', 'Enter a 0x address (40 hex characters).'));
-    if (!name.value.trim()) return put(err, h('p.bad', 'Enter a label.'));
-    labels.set(x, name.value);
-    close();
-  };
-  name.onkeydown = who.onkeydown = (k) => k.key === 'Enter' && (k.preventDefault(), save());
-  put(
-    d,
-    h('h3', cur ? 'Edit label' : 'Add a label'),
-    a ? h('code.full', a) : [h('label', 'Address'), who],
-    h('label', 'Label'),
-    name,
-    h('p.mut.small', 'Labels are saved in this browser and shown instead of the address.'),
-    err,
-    h(
-      'div.actions',
-      h('button.primary', { onclick: save }, 'Save'),
-      h('button', { onclick: close }, 'Cancel'),
-      cur && h('button.link.danger', { onclick: () => (labels.set(a, ''), close()) }, 'Remove label'),
-    ),
-  );
   d.addEventListener('close', () => d.remove());
   d.addEventListener('click', (e) => e.target === d && close()); // backdrop
+  const x = h('button.ib.dclose', { title: 'Close', 'aria-label': 'Close', onclick: close });
+  x.append(icon(...ICONS.close));
+  const head = h('div.dhead', h('span.dicon', icon(...ICONS[iconName])), h('h3', title), x);
+  const body = h('div.dbody');
+  put(d, head, body);
   document.body.append(d);
   d.showModal();
+  return { d, body, close, setTitle: (t) => put(head.querySelector('h3'), t) };
+}
+
+/** Dialog to set, change or remove a label. With no address, it asks for one (0x or name) too. */
+export function labelDialog(a) {
+  const cur = a && labels.get(a);
+  const { body, close } = sheet('tag', cur ? 'Edit label' : 'Add a label');
+  const who = !a && h('input.mono', { placeholder: '0x… or name.eth / name.wei', spellcheck: 'false', autocomplete: 'off' });
+  const whoNote = h('div.fhint');
+  const name = h('input.plain', { placeholder: 'Treasury, Alice, Payroll…', maxlength: 40, value: cur || null, autocomplete: 'off' });
+  const err = h('div');
+  const save = h('button.primary', 'Save');
+  let target = a ? a.toLowerCase() : null;
+  const valid = () => (save.disabled = !name.value.trim() || !(a || who.value.trim()));
+  const resolveWho = async () => {
+    const v = who.value.trim();
+    target = null;
+    put(whoNote);
+    if (/^0x[0-9a-fA-F]{40}$/.test(v)) target = v.toLowerCase();
+    else if (/\.(eth|wei)$/i.test(v) && resolver) {
+      put(whoNote, 'Resolving…');
+      try {
+        target = await resolver(v);
+        if (who.value.trim() === v) put(whoNote, '→ ', h('code', target));
+      } catch (e) {
+        if (who.value.trim() === v) put(whoNote, h('span.bad', e.message));
+      }
+    } else if (v) put(whoNote, h('span.bad', 'Enter a 0x address (40 hex characters) or a .eth / .wei name.'));
+    return target;
+  };
+  const submit = async () => {
+    put(err);
+    if (!a && !(await resolveWho())) return;
+    if (!name.value.trim()) return put(err, h('p.bad', 'Enter a label.'));
+    labels.set(target, name.value);
+    close();
+  };
+  save.onclick = submit;
+  name.oninput = valid;
+  name.onkeydown = (k) => {
+    if (k.key === 'Enter') k.preventDefault(), submit();
+  };
+  if (who) {
+    who.oninput = () => (valid(), put(whoNote));
+    who.onchange = resolveWho;
+    who.onkeydown = (k) => {
+      if (k.key === 'Enter') k.preventDefault(), name.focus();
+    };
+  }
+  valid();
+  put(
+    body,
+    h('label.f', 'Address'),
+    a ? h('div.addrbox', h('code', a), copy(a, 'Copy address')) : [who, whoNote],
+    h('label.f', 'Label'),
+    name,
+    h('div.fhint', 'Shown instead of the address everywhere in safe.wei. Saved only in this browser.'),
+    err,
+    h(
+      'div.dfoot',
+      cur && h('button.link.danger', { onclick: () => (labels.set(a, ''), close()) }, 'Remove label'),
+      h('span.grow'),
+      h('button', { onclick: close }, 'Cancel'),
+      save,
+    ),
+  );
   (a ? name : who).focus();
+  if (a) name.select();
 }
 
 export const warn = (...t) => h('p.warn', ...t);
