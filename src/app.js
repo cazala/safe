@@ -24,6 +24,12 @@ import { identify } from './zodiac.js';
 import { checkMessage, combine, isValid, KINDS, signMessage } from './message.js';
 
 const st = { account: null, chainId: null, safe: null, tokens: {}, named: {}, batch: [], batchNames: {} };
+let framed = false;
+try {
+  framed = window.top !== window.self;
+} catch {
+  framed = true; // a cross-origin parent: framed
+}
 
 /** An address input: a 0x address, or a .eth / .wei name resolved onchain (remembered for display and re-checks). */
 async function target(v) {
@@ -146,7 +152,7 @@ class Gate extends Error {
 const chainName = (id) => label(id).name;
 
 function gateCard(title, text, ...rest) {
-  return h('div.home.gate', h('div.panel.gatecard', h('span.mark', icon(...ICONS.shield)), h('h2', title), text && h('p.mut', text), ...rest), h('p.gateback', h('a.back', { href: '#/' }, icon('m15 6-6 6 6 6'), 'Home')));
+  return h('div.home.gate', h('div.panel.gatecard', h('span.mark', icon(...ICONS.shield)), h('h2', title), text && h('p.mut', text), ...rest), !framed && h('p.gateback', h('a.back', { href: '#/' }, icon('m15 6-6 6 6 6'), 'Home')));
 }
 
 function noWalletView() {
@@ -1413,12 +1419,39 @@ const button = (label, fn, out, cls = '') => {
 };
 
 /** What the transaction does, in plain words, with anything risky right under it. */
+/** An empty transaction from the Safe to itself: what replaces (cancels) another one at the same nonce. */
+const isCancel = (t) => t.to === t.safe && t.data === '0x' && !t.value && !t.operation;
+
 function reviewHead(r) {
   const t = r.tx;
+  // Before anyone signs, the nonce can still change (to queue after another pending transaction).
+  const nonce = h('span', ' · nonce ' + t.nonce);
+  if (!st.sigs.length)
+    nonce.append(
+      ' ',
+      h('button.link', {
+        onclick: () => {
+          const inp = h('input.nonce', { value: String(t.nonce), inputmode: 'numeric', 'aria-label': 'Nonce' });
+          const apply = () => {
+            const v = inp.value.trim();
+            if (!/^\d+$/.test(v) || BigInt(v) < st.safe.nonce) return inp.classList.add('invalid');
+            showReview({ ...t, nonce: BigInt(v) }, [], 'replace');
+          };
+          inp.onkeydown = (e) => {
+            if (e.key === 'Enter') apply();
+            if (e.key === 'Escape') showReview(t, st.sigs, 'replace');
+          };
+          put(nonce, ' · nonce ', inp, ' ', h('button.link', { onclick: apply }, 'apply'), h('span.mut', ' (the Safe is at ' + st.safe.nonce + ')'));
+          inp.focus();
+          inp.select();
+        },
+      }, 'change'),
+    );
   return h(
     'section.rvhead',
-    h('div.rvkicker', r.batch ? 'Batch of ' + r.inner.length + ' calls' : 'Transaction', ' · nonce ' + t.nonce),
-    r.batch ? h('ol.rvcalls', r.inner.map((c) => h('li', callLabel(c, st.named)))) : h('h2.rvtitle', callLabel(t, st.named)),
+    h('div.rvkicker', r.batch ? 'Batch of ' + r.inner.length + ' calls' : 'Transaction', nonce),
+    r.batch ? h('ol.rvcalls', r.inner.map((c) => h('li', callLabel(c, st.named)))) : h('h2.rvtitle', isCancel(t) ? 'Replacement for nonce ' + t.nonce + ' (an empty transaction)' : callLabel(t, st.named)),
+    isCancel(t) && h('p.mut', 'Executing this uses up nonce ' + t.nonce + ', so any other transaction with that nonce can no longer execute. The Safe sends nothing to itself.'),
     r.danger.map((d) => h('p.bad.danger', d)),
     r.errors.map((e) => bad(e)),
     r.warnings.map((w) => warn(w)),
@@ -1512,6 +1545,7 @@ function nextStep(r) {
         h('ul.owners.shortaddr', s.owners.map((o) => h('li', addr(o), approved.includes(o) ? h('b.ok', '✓ approved onchain') : signed.includes(o) ? h('b.ok', '✓ signed') : h('span.mut', 'waiting'), o === me && h('span.mut', '(you)')))),
         st.rejected.map((x) => warn('Ignored signature: ' + x.reason + '.')),
         !current && !ready && h('p.mut', 'Queued: it can execute once nonce ' + s.nonce + ' has.'),
+        owner && !isCancel(t) && h('p.cancel', h('span.mut', 'Changed your mind after signing? '), h('button.link', { onclick: () => ((st.named = {}), showReview(newTx(s, { to: s.address, nonce: t.nonce }))) }, 'Cancel it with a replacement'), h('span.mut', ': an empty transaction with the same nonce, which the owners approve and execute instead.')),
       ),
     );
   })().catch((e) => box.replaceChildren(bad(e.message)));
@@ -1813,6 +1847,11 @@ async function route() {
 setResolver((v) => resolveName(v.trim().toLowerCase(), st.chainId));
 
 // ---- boot ----
+// safe.wei never runs inside another page: a frame could overlay a crafted transaction and trick clicks.
+if (framed) {
+  put(main, gateCard('Open safe.wei in its own tab', 'For your safety, safe.wei does not run inside another page.', h('div.actions', h('a.btn', { href: location.href, target: '_blank', rel: 'noopener' }, 'Open in a new tab'))));
+  throw Error('safe.wei refuses to run in a frame');
+}
 window.onhashchange = route;
 let booted = false;
 discover(() => {

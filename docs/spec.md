@@ -849,6 +849,10 @@ ERC-8244 gateways such as `w4eth.io` still depend on DNS, and most injected wall
 
 ---
 
+### Framing
+
+The page refuses to run inside a frame (`window.top !== window.self`): gateways cannot set `frame-ancestors`, and a framing page could overlay a crafted `#tx=` review to trick clicks. It shows a card with a link to open it in its own tab.
+
 ## 16. Safe version support
 
 - create: the newest canonical release present on the chain (v1.5.0, else v1.4.1)

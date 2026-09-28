@@ -229,6 +229,11 @@ safe.wei decodes ERC-20 transfers and approvals and Safe settings on its own. Ot
 - **Approve onchain** calls the Safe's `approveHash`. It costs gas and is recorded in the Safe. With **Publish the details too** (on by default), the transaction's details are appended to the approval, so other owners find it under Transactions without any link (a few hundred gas more, shown next to the option).
 - Both count the same toward the threshold, and they can be mixed.
 
+### Nonce: queueing and cancelling
+
+- A new transaction takes the Safe's next nonce. Before anyone signs it, **change** next to the nonce sets another one, e.g. to queue it after a transaction that is still collecting signatures. Later nonces show as queued.
+- To cancel a transaction that owners already signed, owners use **Cancel it with a replacement** (under Approvals): an empty transaction from the Safe to itself with the same nonce. Once it executes, the nonce is used up and the original can never execute.
+
 ### Executing
 
 - Executing submits the transaction with the collected signatures (`execTransaction`). Any wallet can do it once the threshold is met; an owner who executes counts as an approval.
@@ -311,6 +316,7 @@ Before any approval, signature or execution:
 - **Warnings** for: DELEGATECALL outside the canonical batch contract, enabling a module, setting a guard or fallback handler, unlimited approvals, owner and threshold changes, a Safe-management call aimed at another contract, non-zero gas refund fields, DELEGATECALL into an address without code, and untested Safe versions.
 - **Names** are re-resolved right before acting.
 - **Nothing remote**: the page loads no scripts, fonts or images from anywhere; there are no analytics.
+- **No framing**: safe.wei refuses to run inside another page, so a site cannot overlay a crafted transaction on top of it.
 
 ## 17. What is stored in your browser
 
