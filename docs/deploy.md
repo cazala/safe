@@ -12,13 +12,27 @@ The footer shows the build ID and, at runtime, the app contract serving the page
 
 ## Replacing the WalletConnect project ID
 
-The project ID lives in `config/walletconnect.json` (outside `src/`, so it does not change the build ID) and is built into a tiny first chunk, cut at the `<!--config-->` marker. If the ID is ever banned:
+The WalletConnect project ID (`config/walletconnect.json`) is built into its own tiny first chunk: the page's head up to the `<!--config-->` marker, about 150 bytes. Everything after the marker is in chunks 1…8. Changing the ID therefore changes only chunk 0 and, since the app contract lists its chunks, the app contract; chunks 1…8 keep their addresses and are reused. `test/unit/deployplan.test.mjs` pins this, and it was checked on the real build (a different ID changed only chunk 0 and the app). The config is outside `src/`, so the build ID in the footer stays the same.
 
-1. Put the new ID in `config/walletconnect.json` and commit it.
-2. Run the deployer as usual. Chunks 1… already exist onchain and are skipped: only the new head chunk (~60k gas) and the new app contract (~590k gas) are deployed.
-3. Point `safe.wei` at the new app contract (`setAddr`, ~50k gas).
+When: the relay refuses the ID (WalletConnect bans it, or the project is deleted). Users see "the project ID was not accepted" when connecting. Until a new deployment is live, anyone can paste their own ID in the Dapps tab (WalletConnect project), and it applies to both directions of WalletConnect.
 
-Roughly 0.7M gas instead of a full deploy (~42M). Meanwhile, users can paste their own project ID in the app.
+**The catch: build from the deployed code.** Chunks 1…8 are reused only if everything after the marker is byte-for-byte what was deployed, i.e. the same `src/` tree. If `main` has moved on since the deploy, rebuilding from `main` changes every chunk and becomes a full deploy (~42M gas). So start from the commit that was deployed (the `deployed-<n>` tag from the deploy steps below; `deploy/1.json` also records the chunks and `contentHash`).
+
+Steps:
+
+1. Create a new project on the WalletConnect (Reown) dashboard and copy its project ID. If it restricts domains, allow the gateway you use and `safe.caza.la`.
+2. Check out the deployed code in a separate worktree, and put the new ID there:
+   ```bash
+   git worktree add ../safe-deployed <deployed tag or commit>
+   cd ../safe-deployed && npm ci
+   echo '{ "projectId": "<new id>" }' > config/walletconnect.json
+   npm run build
+   ```
+3. Check the plan before sending anything: start the deployer (`node scripts/deployer/serve.mjs`) and connect a wallet on Ethereum. Chunks 1…8 must show as already deployed, and only chunk 0 and SafeWeiApp as to be deployed (about 60k + 590k gas). If more steps appear, the build does not match the deployed code: stop and find the right commit.
+4. Deploy (the deployer's Deploy button, or `PRIVATE_KEY=0x… node scripts/deploy.mjs --rpc <mainnet rpc>`), then point `safe.wei` at the new app contract with `setAddr` (~50k gas; `node scripts/name.mjs --rpc <rpc> --app <new app>`).
+5. Commit the new `config/walletconnect.json` and `deploy/1.json` in the worktree and tag that commit (`deployed-<n+1>`), then bring the new ID to `main` too (safe.caza.la picks it up on the next CI deploy).
+
+Total: roughly 0.7M gas instead of a full deploy (~42M).
 
 ## Cost
 
@@ -54,7 +68,10 @@ Do not skip ahead: pointing `safe.wei` is the only step that changes what users 
    ```bash
    PRIVATE_KEY=0x… node scripts/deploy.mjs --rpc <mainnet rpc>
    ```
-   The script is idempotent: re-running it skips contracts that already exist. It finishes by comparing `html()` with `dist/index.html` and writes `deploy/1.json` (address, chunks, `contentHash`, runtime `codeHash`, gas). Commit that file.
+   The script is idempotent: re-running it skips contracts that already exist. It finishes by comparing `html()` with `dist/index.html` and writes `deploy/1.json` (address, chunks, `contentHash`, runtime `codeHash`, gas). Commit that file, and tag the deployed commit so it can be rebuilt byte for byte later (e.g. to replace the WalletConnect project ID, above):
+   ```bash
+   git tag deployed-1 && git push origin deployed-1
+   ```
 5. **Verify source** on Etherscan:
    ```bash
    forge verify-contract <app> contract/SafeWeiApp.sol:SafeWeiApp --chain mainnet \
