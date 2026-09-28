@@ -29,7 +29,7 @@ export function mountSafes(root, chainId) {
   const detach = (items, n) => items.splice(items.findIndex((x) => same(x, n)), 1);
 
   // ---- rows ----
-  function safeRow(n, m, withIcon) {
+  function safeRow(n, m) {
     const e = m.get(n.k), here = chainId() === e.chainId;
     const title = e.label || e.ref || 'Safe ' + short(e.address);
     const name = h('b.name', title);
@@ -52,7 +52,6 @@ export function mountSafes(root, chainId) {
     const el = h(
       'a.saferow.node' + (here ? '' : '.other'),
       { href: '#/' + (e.ref || e.address), title: here ? null : 'Switch your wallet to ' + label(e.chainId).name + ' to open this Safe' },
-      withIcon && h('span.ficon', icon(...ICONS.shield)),
       h('div.info', h('div.nline', name, e.pinned && h('span.pinned', icon(...ICONS.pin))), h('div.meta', h('code', short(e.address)), h('span.chip', label(e.chainId).name), h('span', recent.ago(e.at)))),
       h(
         'div.acts',
@@ -72,8 +71,7 @@ export function mountSafes(root, chainId) {
     return h(
       'div.saferow.node.folder',
       { role: 'button', tabindex: 0, onclick: () => go([...path, n.id], 1), onkeydown: (k) => { if (k.key === 'Enter') go([...path, n.id], 1); } },
-      h('span.ficon', icon(...FOLDER)),
-      h('div.info', h('b.name', recent.folderName(n)), h('div.meta', h('span', names.slice(0, 3).join(', ') + (names.length > 3 ? ', …' : '')))),
+      h('div.info', h('div.nline', h('span.finl', icon(...FOLDER)), h('b.name', recent.folderName(n))), h('div.meta', h('span', (n.name ? names.length + (names.length === 1 ? ' Safe · ' : ' Safes · ') : '') + names.slice(0, 3).join(', ') + (names.length > 3 ? ', …' : '')))),
       h('span.go', icon(...ICONS.next)),
     );
   }
@@ -82,10 +80,8 @@ export function mountSafes(root, chainId) {
   function levelView() {
     const t = recent.tree(), m = meta(), items = levelOf(t, path), f = folderAt(t, path);
     if (path.length && !f) return (path = []), levelView(); // folder vanished (e.g. emptied)
-    // With folders on this level, Safes get an icon too so every name lines up.
-    const mixed = items.some((n) => n.t === 'f');
     const rows = view(items, m).map((n) => {
-      const el = n.t === 's' ? safeRow(n, m, mixed) : folderRow(n, m);
+      const el = n.t === 's' ? safeRow(n, m) : folderRow(n, m);
       el.node = n;
       dragify(el);
       return el;

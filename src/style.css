@@ -346,3 +346,6 @@ th { white-space: nowrap; }
 /* Name and pin share one line; while renaming, the input takes the name's place without moving the row. */
 .saferow .nline { display: flex; align-items: center; min-width: 0; }
 .saferow .nline input.rename { flex: 1; min-width: 0; margin: -3px 0 -3px -7px; padding: 2px 6px; border-radius: 6px; }
+/* Folders: a small folder glyph inline with the name, so every row starts at the same edge. */
+.saferow .finl { display: inline-flex; margin-right: 7px; color: var(--mut); }
+.saferow .finl svg { width: 16px; height: 16px; }
