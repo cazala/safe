@@ -479,6 +479,7 @@ function createView() {
     btn,
     async () => {
       put(plan);
+      st.named = {}; // only the names typed here, not ones left from an earlier screen (or chain)
       if (!st.account) throw Error('Connect a wallet first.');
       if (!/^\d+$/.test(threshold.value.trim()) || !/^\d+$/.test(salt.value.trim())) throw Error('Threshold and salt must be whole numbers.');
       const list = await Promise.all(owners.value.split(/[\s,]+/).filter(Boolean).map(target));
@@ -2032,7 +2033,7 @@ function dappsTab(s) {
     put(
       list,
       mine.length
-        ? h('div.slist', mine.map((x) => h('div.srow', h('span.nline', h('b.name', x.peer.name || 'Unnamed dapp')), x.peer.url && h('code.sa', String(x.peer.url).replace(/^https?:\/\//, '')), h('span.grow'), h('span.mut.small', 'since ' + recent.ago(x.at)), button('Disconnect', () => wc.disconnect(x.topic).then(draw), out, '.link'))))
+        ? h('div.slist', mine.map((x) => h('div.srow.dapp', h('span.nline', h('b.name', x.peer.name || 'Unnamed dapp')), x.peer.url && h('code.sa', String(x.peer.url).replace(/^https?:\/\//, '')), h('span.grow'), h('span.mut.small', 'since ' + recent.ago(x.at)), button('Disconnect', () => wc.disconnect(x.topic).then(draw), out, '.link'))))
         : h('p.empty', 'No dapps connected to this Safe.'),
     );
   };
