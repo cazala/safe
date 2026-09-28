@@ -270,6 +270,7 @@ p.lead { margin: 4px 0 8px; }
 p.importhint { margin: 20px 0 0; text-align: center; font-size: 13px; }
 p.importhint button.link { font-size: 13px; color: var(--fg); }
 /* Create a Safe: same shell as Home */
+.home.newsafe { max-width: none; }
 .newsafe .hero { margin-top: 8px; }
 .newsafe .panel > label { margin-top: 16px; }
 .newsafe .panel > label:first-child { margin-top: 0; }
