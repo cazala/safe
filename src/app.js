@@ -178,7 +178,7 @@ function home() {
 }
 
 
-/** Backup & sync: export as a link / JSON / file, or import (with a preview before anything changes). */
+/** Backup & sync: export as a link or JSON, or import by pasting one (with a preview before anything changes). */
 function backupDialog(incoming) {
   const { body: d, close, setTitle } = sheet('gear', 'Backup & sync', true);
   const words = (c) => [c.safes + ' Safe' + (c.safes === 1 ? '' : 's'), c.labels + ' label' + (c.labels === 1 ? '' : 's'), c.abis + ' ABI' + (c.abis === 1 ? '' : 's'), c.tokens + ' token' + (c.tokens === 1 ? '' : 's')].join(' · ');
@@ -193,7 +193,6 @@ function backupDialog(incoming) {
       return b;
     };
     const ta = h('textarea', { placeholder: 'Paste a safe.wei link or backup JSON', spellcheck: 'false', rows: 3 });
-    const file = h('input', { type: 'file', accept: '.json,application/json', hidden: true });
     const inErr = h('div');
     const next = async (text) => {
       try {
@@ -202,27 +201,21 @@ function backupDialog(incoming) {
         put(inErr, h('p.bad', e.message.startsWith('Unexpected') || e.message.includes('JSON') ? 'That does not look like a safe.wei backup.' : e.message));
       }
     };
-    file.onchange = async () => file.files[0] && next(await file.files[0].text());
     setTitle('Backup & sync');
     put(
       d,
-      h('p.mut.small.lead', 'Move your saved Safes, folders, labels, ABIs and added tokens to another device. Nothing is uploaded: it all travels in the link or file.'),
+      h('p.mut.small.lead', 'Move your saved Safes, folders, labels, ABIs and added tokens to another device. Nothing is uploaded: it all travels in the link or JSON.'),
       h('div.bsec', h('b', 'Export'), h('div.mut.small', words(backup.counts(data)))),
       h(
         'div.actions',
         btn('Copy link', async (b) => (await navigator.clipboard.writeText(await backup.link(data)), done(b, '✓ Link copied')), '.primary'),
         btn('Copy JSON', async (b) => (await navigator.clipboard.writeText(JSON.stringify(data, null, 2)), done(b, '✓ Copied'))),
-        btn('Download .json', async () => {
-          const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })), download: 'safe.wei-backup.json' });
-          a.click();
-          setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-        }),
       ),
       h('p.mut.small', 'Open the link on your other device, or import the JSON there.'),
       out,
       h('div.bsec', h('b', 'Import')),
       ta,
-      h('div.dfoot', h('button', { onclick: () => file.click() }, 'Choose file…'), file, h('span.grow'), h('button.primary', { onclick: () => next(ta.value) }, 'Continue')),
+      h('div.dfoot', h('span.grow'), h('button.primary', { onclick: () => next(ta.value) }, 'Continue')),
       inErr,
     );
   }
