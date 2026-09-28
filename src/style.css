@@ -219,3 +219,8 @@ input.rename { padding: 4px 8px; font: inherit; font-size: 15px; font-weight: 60
 .titlerow { display: flex; align-items: center; gap: 6px; }
 .titlerow button.ib { margin-top: 4px; }
 input.rename.big { box-sizing: border-box; max-width: calc(100% - 22px); height: auto; margin: 3px -7px 1px; padding: 0 6px; border-radius: 6px; font: 700 22px/1.45 system-ui, sans-serif; }
+.panel .alt { display: flex; align-items: center; gap: 4px; margin: 16px -18px -16px; padding: 12px 18px; border-top: 1px solid var(--line); border-radius: 0 0 14px 14px; color: var(--fg); text-decoration: none; font-size: 14px; }
+.panel a.alt:hover { background: var(--bg); }
+.panel a.alt svg { width: 14px; height: 14px; margin-left: auto; color: var(--mut); }
+.panel p.alt { margin-bottom: -16px; }
+.saved { margin-top: 36px; }

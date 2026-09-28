@@ -146,16 +146,17 @@ function home() {
   const draw = () => put(list, savedSafes(draw));
   draw();
   const c = chain();
+  // Two ways in (open, create) live together at the top; your Safes are content below.
+  const create = !c
+    ? h('p.alt.mut', 'Connect a wallet to create a new Safe.')
+    : c.canCreate
+      ? h('a.alt', { href: '#/new' }, h('span.mut', 'New to Safe?'), ' ', h('b', 'Create one'), icon(...ICONS.next))
+      : h('p.alt.mut', 'Safe’s contracts are not deployed on ' + c.name + ', so new Safes can’t be created here.');
   return h(
     'div.home',
     h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'safe.wei'), h('p', 'Your Safe, straight from the chain. No servers, no sign-ups: just your wallet.')),
-    h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), out),
+    h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), out, create),
     list,
-    h(
-      'div.panel.create',
-      h('div', h('b', 'Create a new Safe'), h('p.mut', !c ? 'Connect a wallet to create a Safe.' : c.canCreate ? 'A shared account on ' + c.name + ' that several owners control together (Safe v' + c.version + ').' : 'Safe’s contracts are not deployed on ' + c.name + ', so new Safes can’t be created here.')),
-      c && c.canCreate && h('button', { onclick: () => (location.hash = '/new') }, icon(...ICONS.plus), ' Create'),
-    ),
     h('p.foot', 'Everything is read from the chain through your wallet. Your saved Safes stay in this browser.'),
   );
 }
