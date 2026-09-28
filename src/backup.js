@@ -29,7 +29,7 @@ const tokenChains = () => {
 export function collect() {
   const tokens = {};
   for (const c of tokenChains()) tokens[c] = read('tokens:' + c, []);
-  return { app: 'safe.wei', v: 1, at: new Date().toISOString(), safes: read('safes', []), tree: read('tree', []), labels: read('labels', {}), abis: read('abis', {}), tokens };
+  return { app: 'safe.wei', v: 1, at: new Date().toISOString(), safes: read('safes', []), tree: read('tree', []), labels: read('labels', {}), labelsAt: read('labelsAt', {}), abis: read('abis', {}), tokens };
 }
 
 export const counts = (d) => ({
@@ -65,6 +65,7 @@ export async function parse(text) {
   const addr = (a) => typeof a === 'string' && /^0x[0-9a-f]{40}$/.test(a);
   d.safes = d.safes.filter((e) => e && addr(e.address) && Number.isInteger(e.chainId)).map((e) => ({ chainId: e.chainId, address: e.address, ref: typeof e.ref === 'string' ? e.ref.slice(0, 80) : null, label: typeof e.label === 'string' ? e.label.slice(0, 40) : '', pinned: !!e.pinned, at: Number(e.at) || Date.now() }));
   d.labels = Object.fromEntries(Object.entries(d.labels || {}).filter(([a, l]) => addr(a) && typeof l === 'string' && l.trim()).map(([a, l]) => [a, l.trim().slice(0, 40)]));
+  d.labelsAt = Object.fromEntries(Object.entries(d.labelsAt || {}).filter(([a, t]) => d.labels[a] && Number.isFinite(t)));
   d.abis = Object.fromEntries(Object.entries(d.abis || {}).filter(([k, v]) => /^\d+:0x[0-9a-f]{40}$/.test(k) && typeof v === 'string'));
   d.tokens = Object.fromEntries(Object.entries(d.tokens || {}).filter(([c, l]) => /^\d+$/.test(c) && Array.isArray(l)).map(([c, l]) => [c, l.filter((t) => t && addr(t.address) && Number.isInteger(t.decimals))]));
   d.tree = Array.isArray(d.tree) ? d.tree : [];
@@ -81,6 +82,7 @@ export function apply(d, mode) {
     write('safes', d.safes);
     write('tree', d.tree);
     write('labels', d.labels);
+    write('labelsAt', d.labelsAt);
     write('abis', d.abis);
     for (const [c, l] of Object.entries(d.tokens)) write('tokens:' + c, l);
     return;
@@ -89,7 +91,10 @@ export function apply(d, mode) {
   write('safes', [...safes, ...d.safes.filter((e) => !have.has(key(e)))]);
   // Imported folders go after the current layout; Safes already placed here keep their place.
   write('tree', [...read('tree', []), ...d.tree]);
-  write('labels', { ...d.labels, ...read('labels', {}) });
+  const mine = read('labels', {});
+  write('labels', { ...d.labels, ...mine });
+  // Dates follow the label that is kept: imported ones only for labels that were new here.
+  write('labelsAt', { ...Object.fromEntries(Object.entries(d.labelsAt).filter(([a]) => !mine[a])), ...read('labelsAt', {}) });
   write('abis', { ...d.abis, ...read('abis', {}) });
   for (const [c, l] of Object.entries(d.tokens)) {
     const cur = read('tokens:' + c, []), seen = new Set(cur.map((t) => t.address));
