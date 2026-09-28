@@ -1,6 +1,6 @@
 // safe.wei — app shell, routing and views.
 import { cd, fmt, fmtShort, hex, isAddr, isHex, keccakText, parse, strip, utf8, ZERO } from './abi.js';
-import { chainInfo, gatewayOf, handlerName, label } from './chains.js';
+import { chainInfo, gatewayOf, handlerName, KNOWN_IDS, label } from './chains.js';
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review, signMessageOf } from './review.js';
 import * as rpc from './rpc.js';
@@ -19,10 +19,11 @@ import { mountSafes } from './homeview.js';
 import * as labels from './labels.js';
 import * as backup from './backup.js';
 import * as recent from './recent.js';
-import { discover, get, list, remember, remembered } from './wallets.js';
+import { add, discover, get, list, remember, remembered } from './wallets.js';
 import { identify } from './zodiac.js';
 import { checkMessage, combine, isValid, KINDS, onchainSignCall, signMessage } from './message.js';
-import { create as wcCreate } from './wc.js';
+import { connector, provider, create as wcCreate } from './wc.js';
+import { qr, qrPath } from './qr.js';
 
 const st = { account: null, chainId: null, safe: null, tokens: {}, named: {}, batch: [], batchNames: {} };
 let framed = false;
@@ -118,8 +119,11 @@ document.addEventListener('keydown', (e) => e.key === 'Escape' && closeDrop());
 function popover(view) {
   const err = h('div');
   const item = (label, fn) => h('button', { onclick: () => fn().catch((e) => put(err, h('p.bad', e.message || String(e)))) }, label);
-  if (view === 'menu')
-    return put(drop, h('div.dropdown', h('div.head', h('div', h('b', wallet.name), h('div', chain().name + ' · chain ' + st.chainId))), item('Switch wallet', async () => popover('pick')), item('Disconnect', async () => (closeDrop(), disconnect())), err));
+  if (view === 'menu') {
+    // A WalletConnect wallet does not drive the chain here: switch among the chains it approved.
+    const other = wallet.key === 'walletconnect' ? ((ownerConn.session() || {}).chains || []).filter((c) => c !== st.chainId) : [];
+    return put(drop, h('div.dropdown', h('div.head', h('div', h('b', wallet.name), h('div', chain().name + ' · chain ' + st.chainId))), other.map((c) => item('Switch to ' + chainName(c), async () => (closeDrop(), await switchChain(c)))), item('Switch wallet', async () => popover('pick')), item('Disconnect', async () => (closeDrop(), disconnect())), err));
+  }
   // Wallet list: every wallet except the one already connected.
   const ws = list().filter((w) => !st.account || w.key !== wallet.key);
   put(
@@ -185,6 +189,7 @@ async function switchChain(id) {
   try {
     await rpc.rpc('wallet_switchEthereumChain', [{ chainId: '0x' + id.toString(16) }]);
   } catch (e) {
+    if (e && e.code === 4902 && wallet && wallet.key === 'walletconnect') throw Error(peerName() + ' did not approve ' + chainName(id) + ' when it connected. Disconnect, then connect again and approve ' + chainName(id) + '.');
     throw Error(e && e.code === 4902 ? 'Your wallet does not know ' + chainName(id) + '. Add it to your wallet first.' : e.code === 4001 ? 'Switch cancelled.' : 'Your wallet could not switch to ' + chainName(id) + '. Switch it from the wallet.');
   }
 }
@@ -1937,6 +1942,76 @@ const wc = wcCreate({
   },
 });
 
+// ---- WalletConnect, the other way: an owner's wallet elsewhere (e.g. on a phone) signs here ----
+// safe.wei is the dapp: it shows a QR code, the wallet approves, and signing requests go to it.
+// A phone wallet cannot serve reads, so those go to WalletConnect's RPC, with the same project ID.
+const WC_OWNER = 'safe.wei:wcowner';
+const SVGNS = 'http://www.w3.org/2000/svg';
+const ownerConn = connector({
+  projectId: wcProject,
+  load: () => {
+    try {
+      return JSON.parse(localStorage.getItem(WC_OWNER));
+    } catch {
+      return null;
+    }
+  },
+  save: (x) => {
+    try {
+      localStorage.setItem(WC_OWNER, JSON.stringify(x));
+    } catch {}
+  },
+  onEvent: (e) => ownerWallet.notify(e),
+});
+const peerName = () => (ownerConn.session() && ownerConn.session().peer.name) || 'your wallet';
+
+/** The QR code for a new connection; closing it cancels. Returns a function that hides it. */
+function showPairing(c) {
+  const { d, body, close } = sheet('phone', 'Connect with WalletConnect');
+  let done = false;
+  d.addEventListener('close', () => done || c.cancel());
+  const g = qr(c.uri), n = g.length + 8, svg = document.createElementNS(SVGNS, 'svg'), bg = document.createElementNS(SVGNS, 'rect'), path = document.createElementNS(SVGNS, 'path');
+  svg.setAttribute('viewBox', '0 0 ' + n + ' ' + n);
+  svg.setAttribute('shape-rendering', 'crispEdges');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', 'WalletConnect QR code');
+  for (const [k, v] of Object.entries({ width: n, height: n, fill: '#fff' })) bg.setAttribute(k, v);
+  path.setAttribute('d', qrPath(g));
+  path.setAttribute('fill', '#000');
+  svg.append(bg, path);
+  const cp = h('button', 'Copy link');
+  cp.onclick = () => toClipboard(c.uri).then(() => (put(cp, '✓ Copied'), setTimeout(() => put(cp, 'Copy link'), 1500)), () => {});
+  put(
+    body,
+    h('p.mut', 'Scan this code with the wallet app on your phone, then approve the connection there.'),
+    h('div.qrcode', svg),
+    h('div.actions.qracts', cp, h('a.btn', { href: c.uri }, 'Open wallet app')),
+    h('p.mut.small', 'On this device? “Open wallet app” hands the link to an installed wallet.'),
+  );
+  return () => ((done = true), close());
+}
+/** While a request waits for the owner's wallet: say where to confirm it. */
+function showAsking(method) {
+  const { body, close } = sheet('phone', 'Confirm in ' + peerName());
+  put(body, h('p.mut', (method === 'eth_sendTransaction' ? 'The transaction' : 'The signature request') + ' was sent to ' + peerName() + '. Open it on your phone to review and confirm; this closes when it answers.'));
+  return close;
+}
+const ownerWallet = provider(ownerConn, {
+  rpcUrl: (id) => 'https://rpc.walletconnect.org/v1/?chainId=eip155:' + id + '&projectId=' + wcProject(),
+  chains: KNOWN_IDS,
+  metadata: { name: 'safe.wei', description: 'A minimal Safe interface, served onchain', url: location.origin, icons: [] },
+  pair: showPairing,
+  asking: showAsking,
+});
+add({
+  key: 'walletconnect',
+  get name() {
+    const s = ownerConn.session();
+    return s && s.peer.name ? s.peer.name + ' (WalletConnect)' : 'WalletConnect';
+  },
+  provider: ownerWallet,
+});
+
 async function wcIncoming(r, s) {
   const m = r.method, answer = (result, error) => wc.respond(r.topic, r.id, result, error).catch(() => {}).then(renderWcBar);
   if (m === 'eth_chainId') return answer('0x' + s.chainId.toString(16));
@@ -2136,4 +2211,5 @@ discover(() => {
 }
 refreshWallet().then(route, route).then(footer, footer);
 wc.restore().catch(() => {});
+if (remembered() === 'walletconnect') ownerConn.restore().catch(() => {});
 renderWcBar();

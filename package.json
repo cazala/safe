@@ -16,6 +16,7 @@
     "@noble/hashes": "^2.4.0",
     "@walletconnect/sign-client": "^2.25.0",
     "esbuild": "^0.28.2",
+    "jsqr": "^1.4.0",
     "viem": "^2.56.9"
   }
 }

@@ -497,3 +497,6 @@ button#connect { white-space: nowrap; }
 .wcreq { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; border: 1px solid var(--fg); border-radius: 10px; background: var(--card); font-size: 14px; }
 .wcreq .grow { flex: 1; }
 p.wcfrom { margin: 0 0 10px; padding: 8px 12px; border-radius: 8px; background: var(--card); font-size: 13px; }
+.qrcode { display: flex; justify-content: center; margin: 12px 0; }
+.qrcode svg { width: min(300px, 100%); height: auto; border-radius: 8px; }
+.qracts { justify-content: center; }
