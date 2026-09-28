@@ -23,6 +23,7 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | any chain | 53,698 | 20,959 | 49,465 | 3,857 | runtime contract probing, popover, chain labels |
 | tabs + builder | 74,212 | 27,773 | 64,938 | 8,266 | Safe page tabs, ABI encoder + transaction builder |
 | home + labels | 103,493 | 38,152 | 86,289 | 16,149 | saved Safes with folders/drag and drop, Settings, labels |
+| backup & sync | 110,535 | 40,358 | 92,573 | 16,907 | export link/JSON/file, import preview + merge/replace |
 
 The page is now just over the 100 KB "good" line (under the 200 KB limit). Most recent growth is Home conveniences (folders, labels) and the Settings tab.
 
