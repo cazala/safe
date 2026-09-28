@@ -309,7 +309,7 @@ p.gateback a:hover { color: var(--fg); }
 .panel.nowallet p { margin: 0; font-size: 14px; }
 button#connect.nowallet { color: var(--mut); border-style: dashed; }
 /* ---- Home, returning: search-or-open bar, then your Safes as one list ---- */
-.home.returning { padding-top: 20px; }
+.home.returning { max-width: none; padding-top: 20px; }
 .hbar { display: flex; align-items: center; gap: 8px; }
 label.sfield { flex: 1; min-width: 0; position: relative; display: flex; align-items: center; margin: 0; }
 label.sfield svg { position: absolute; left: 12px; width: 16px; height: 16px; color: var(--mut); pointer-events: none; }
