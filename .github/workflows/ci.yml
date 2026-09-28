@@ -20,3 +20,53 @@ jobs:
         env:
           ANVIL: anvil
           FORGE: forge
+
+  # Cloudflare Pages: main → production (safe.caza.la), a PR → a preview at <branch>.<project>.pages.dev.
+  # Runs only after the tests pass, and only where the secrets exist (not for PRs from forks).
+  deploy:
+    needs: test
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      deployments: write
+    env:
+      PROJECT: safe-wei
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # The page is one file; the site adds headers that refuse framing (the app refuses it too).
+      - run: |
+          mkdir site && cp dist/index.html site/
+          printf '/*\n  X-Frame-Options: DENY\n  Content-Security-Policy: frame-ancestors '"'"'none'"'"'\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer\n' > site/_headers
+      - name: Create the Pages project if missing
+        run: npx --yes wrangler@3 pages project create "$PROJECT" --production-branch=main || true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy site --project-name=${{ env.PROJECT }} --branch=${{ github.head_ref || 'main' }} --commit-hash=${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Comment the preview URL on the PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          URL: ${{ steps.deploy.outputs.deployment-url }}
+          ALIAS: ${{ steps.deploy.outputs.pages-deployment-alias-url }}
+        with:
+          script: |
+            const mark = '<!-- pages-preview -->';
+            const body = `${mark}\n**Preview:** ${process.env.ALIAS || process.env.URL}\n\nThis commit: ${process.env.URL} (${context.payload.pull_request.head.sha.slice(0, 7)})`;
+            const { owner, repo } = context.repo, issue_number = context.issue.number;
+            const old = (await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number })).find((c) => c.body.includes(mark));
+            if (old) await github.rest.issues.updateComment({ owner, repo, comment_id: old.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
