@@ -40,6 +40,7 @@ export const S = {
   isValidSignature: '1626ba7e',
   signMessage: '85a5affe',
   signedMessages: '5ae6bd37',
+  domainSeparator: 'f698da25',
 };
 
 export const T = {

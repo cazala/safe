@@ -80,3 +80,22 @@ test('only the canonical SignMessageLib with exact calldata is recognized', asyn
   assert.ok(other.danger.some((d) => /DELEGATECALL/.test(d)));
   assert.equal((await review(newTx(s, { ...call, data: call.data + '00' }), s, 1)).signMessage, null);
 });
+
+// Safe's ExtensibleFallbackHandler has no getMessageHash: the SafeMessage hash is checked through the
+// Safe's domainSeparator instead, and signatures (offchain and onchain) must still validate.
+for (const [v, handler] of [['1.4.1', '0x2f55e8b20d0b9fefa187aa7d00b6cbe563605bf5'], ['1.5.0', '0x85a8ca358d388530ad0fb95d0cb89dd44fc242c3']]) {
+  test(v + ' with ExtensibleFallbackHandler: messages are signed offchain and onchain', async (t) => {
+    if ((await f.rpc('eth_getCode', [handler, 'latest'])) === '0x') return t.skip('handler not deployed at the fork block');
+    const safe = await deploySafe(f.rpc, v, [A, B, C], 2, undefined, handler);
+    const m = { chainId: 1, safe, kind: 1, content: hex(utf8('extensible ' + v)) };
+    const c0 = await checkMessage(m);
+    assert.equal(c0.via, 'domainSeparator');
+    assert.equal(c0.onchain, c0.local);
+    const sigs = [await signMessage(m, A), await signMessage(m, B)];
+    const c = await checkMessage(m, sigs);
+    assert.equal(await isValid(safe, c.hash, combine(c.valid, 2)), true);
+    const s = await readSafe(safe), tx = newTx(s, onchainSignCall(LIBS[line(v)].signMessage[0], describe({ kind: 1, content: hex(utf8('onchain extensible')) }).hash));
+    await execute(tx, X, [await sign(tx, A), await sign(tx, C)]);
+    assert.equal(await isValid(safe, describe({ kind: 1, content: hex(utf8('onchain extensible')) }).hash, '0x'), true);
+  });
+}

@@ -1,7 +1,7 @@
 // Tiny calldata decoder (spec §9). Decodes only exact, canonical encodings of a
 // handful of selectors; anything else is shown raw. Never guesses.
 import { strip } from './abi.js';
-import { HANDLERS } from './chains.js';
+import { handlerName } from './chains.js';
 import { S } from './sel.js';
 
 const MAX = (1n << 256n) - 1n;
@@ -42,8 +42,8 @@ export function decode(t) {
     if (label === 'Enable module') danger.push('DANGEROUS: ENABLE MODULE. A module can execute any transaction from this Safe without owner signatures.');
     if (label === 'Set guard') danger.push('DANGEROUS: SET GUARD. A guard runs on every transaction and can block all future ones, including removing it.');
     if (label === 'Set fallback handler')
-      HANDLERS[v.handler]
-        ? warnings.push('Sets Safe’s canonical CompatibilityFallbackHandler ' + HANDLERS[v.handler] + '. It handles EIP-1271 signature checks and token callbacks for this Safe.')
+      handlerName(v.handler)
+        ? warnings.push('Sets Safe’s ' + handlerName(v.handler) + ' as the fallback handler. It handles EIP-1271 signature checks and token callbacks for this Safe.')
         : danger.push('DANGEROUS: SET FALLBACK HANDLER. It receives every unknown call to the Safe and affects EIP-1271 signature validation.');
   }
   if (label === 'ERC-20 approve' && v.amount === MAX) danger.push('UNLIMITED APPROVAL: ' + v.spender + ' may spend the entire balance of this token, now and in the future.');

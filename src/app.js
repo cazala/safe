@@ -1,6 +1,6 @@
 // safe.wei — app shell, routing and views.
 import { cd, fmt, fmtShort, hex, isAddr, isHex, keccakText, parse, strip, utf8, ZERO } from './abi.js';
-import { chainInfo, gatewayOf, HANDLERS, label } from './chains.js';
+import { chainInfo, gatewayOf, handlerName, label } from './chains.js';
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review, signMessageOf } from './review.js';
 import * as rpc from './rpc.js';
@@ -937,13 +937,15 @@ function settingsTab(s) {
   const self = (data) => ({ to: s.address, value: 0n, data });
   // The fallback handler, with a shortcut to Safe's canonical one when it is missing or unknown.
   const fallbackView = () => {
-    const known = s.fallback && HANDLERS[s.fallback], want = chain().libFor(s.version, 'handler'), fbOut = h('div');
-    const fix = want && !known && h('div.actions', button((s.fallback ? 'Replace with' : 'Set') + ' Safe’s CompatibilityFallbackHandler ' + HANDLERS[want], async () => showReview(newTx(s, self(cd(S.setFallbackHandler, want)))), fbOut));
-    if (!s.fallback) return [warn('No fallback handler: this Safe cannot sign messages (EIP-1271), and contracts that send tokens with safe-transfer callbacks (ERC-721, ERC-1155) may refuse it.'), fix, fbOut];
+    const known = s.fallback && handlerName(s.fallback), want = chain().libFor(s.version, 'handler'), fbOut = h('div');
+    // The default is Safe's CompatibilityFallbackHandler for this Safe's release line.
+    const fix = (text, note) =>
+      want && [h('div.actions', button(text, async () => showReview(newTx(s, self(cd(S.setFallbackHandler, want)))), fbOut)), h('div.mut.small', 'Safe’s ' + handlerName(want) + '. ' + note)];
+    if (!s.fallback) return [warn('No fallback handler: this Safe cannot sign messages (EIP-1271), and contracts that send tokens with safe-transfer callbacks (ERC-721, ERC-1155) may refuse it.'), fix('Set default handler', 'The owners approve the change.'), fbOut];
     return [
       addr(s.fallback),
-      h('div.mut', known ? 'Safe’s CompatibilityFallbackHandler ' + known + '. It handles calls the Safe itself does not implement, such as EIP-1271 signature checks and token callbacks.' : 'Not a fallback handler safe.wei recognizes. It receives every call the Safe does not implement and affects signature validation.'),
-      fix,
+      h('div.mut', known ? 'Safe’s ' + known + '. It handles calls the Safe itself does not implement, such as EIP-1271 signature checks and token callbacks.' : 'Not a fallback handler safe.wei recognizes. It receives every call the Safe does not implement and affects signature validation.'),
+      !known && fix('Reset to default handler', 'Anything that relies on the current handler stops working.'),
       fbOut,
     ];
   };
@@ -1834,7 +1836,7 @@ function messageDetails(m, c) {
       ['Content', m.kind === 2 ? h('code.mono', m.content) : [h('code.mono', m.content), copy(m.content, 'Copy')]],
       ['Message hash', [h('code', c.hash), copy(c.hash, 'Copy'), h('div.mut', 'What the app asks the Safe about: isValidSignature(hash, signature).')]],
       ['SafeMessage hash', [h('b', addr(c.local)), h('div.mut', 'What the owners sign: SafeMessage(bytes message) with message = the hash above, for this Safe.')]],
-      ['Safe’s own hash', c.onchain ? [addr(c.onchain), ' ', c.onchain === c.local ? h('b.ok', '✓ verified') : h('b.bad', '✗ MISMATCH')] : h('b.bad', 'unavailable')],
+      ['Safe’s own hash', c.onchain ? [addr(c.onchain), ' ', c.onchain === c.local ? h('b.ok', '✓ verified') : h('b.bad', '✗ MISMATCH'), c.via === 'domainSeparator' && h('div.mut', 'This Safe’s handler (' + handlerName(c.s.fallback) + ') has no getMessageHash; it builds the standard SafeMessage hash, so the Safe’s domain separator was checked instead.')] : h('b.bad', 'unavailable')],
     ]),
   );
 }
