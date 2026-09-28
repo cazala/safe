@@ -562,7 +562,7 @@ Preferred structure:
 ### Home
 
 - Open a Safe (address or name), with Create as a secondary action in the same panel
-- Your Safes: every opened Safe is saved in the browser. Drag to reorder (touch: long-press), drop one Safe onto another to make a folder (named "N safes" until renamed), onto a folder to move it in, onto the back bar to move it up. Folders nest, open with a short slide, and can be renamed or split back into their parent. Pinned Safes stay on top of their level. Pin, rename and remove (with undo) per Safe.
+- Safes: every opened Safe is saved in the browser. Drag to reorder (touch: long-press), drop one Safe onto another to make a folder (named "N safes" until renamed), onto a folder to move it in, onto the back bar to move it up. Folders nest, open with a short slide, and can be renamed or split back into their parent. Pinned Safes stay on top of their level. Pin, rename and remove (with undo) per Safe.
 - Backup & sync (cog next to the Home tabs): export Safes, layout, labels, ABIs and added tokens as a link (deflated in the URL fragment) or JSON; import shows a preview first, including every incoming label with its address, and offers Merge (never overwrites what is already here) or Replace. Nothing is uploaded.
 - Labels: any address can be labeled (tag icon next to it, or Home → Labels). A labeled address shows its label instead of the address or an ENS/WNS name everywhere; the full address stays on hover and in copy. Stored in this browser.
 

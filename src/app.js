@@ -146,12 +146,12 @@ function home() {
   input.onkeydown = (e) => {
     if (e.key === 'Enter') open.click(); // never return false here: that would cancel every keystroke
   };
-  // Your Safes | Labels
+  // Safes | Labels
   const body = h('div');
   const tab = (id, text) => h('button.htab', { class: st.homeTab === id ? 'on' : null, onclick: () => ((st.homeTab = id), show()) }, text);
   const bar = h('div.htabs');
   const show = () => {
-    put(bar, tab('safes', 'Your Safes'), tab('labels', 'Labels'), h('span.grow'), iconButton('gear', 'Backup & sync: move your Safes, labels and ABIs to another device', () => backupDialog()));
+    put(bar, tab('safes', 'Safes'), tab('labels', 'Labels'), h('span.grow'), iconButton('gear', 'Backup & sync: move your Safes, labels and ABIs to another device', () => backupDialog()));
     if (st.homeTab === 'labels') return put(body, labelsView());
     const l = h('div.saved');
     if (recent.safes().length) mountSafes(l, () => st.chainId);
