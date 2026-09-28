@@ -1,21 +1,14 @@
 // Safes opened in this browser: a per-viewer convenience in localStorage, never required.
 // Entry: { chainId, address, ref (name it was opened by, if any), label (nickname), pinned, at (ms) }.
-const KEY = 'safe.wei:safes';
+import { load, store } from './store.js';
+
 const same = (e, chainId, address) => e.chainId === chainId && e.address === address;
 
 export function safes() {
-  try {
-    const l = JSON.parse(localStorage.getItem(KEY) || '[]');
-    return Array.isArray(l) ? l.filter((e) => e && typeof e.address === 'string') : [];
-  } catch {
-    return [];
-  }
+  const l = load('safes', []);
+  return Array.isArray(l) ? l.filter((e) => e && typeof e.address === 'string') : [];
 }
-const write = (l) => {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(l));
-  } catch {}
-};
+const write = (l) => store('safes', l);
 
 /** Pinned first, then most recently opened. */
 export const sorted = () => safes().sort((a, b) => (b.pinned | 0) - (a.pinned | 0) || b.at - a.at);
@@ -51,21 +44,12 @@ export function ago(ms) {
 
 // ---- layout: order and folders (iOS-style), kept in sync with the saved Safes ----
 // Node: { t: 's', k: '<chainId>:<address>' } | { t: 'f', id, name, items: [node] }. Folders nest.
-const TREE = 'safe.wei:tree';
 export const keyOf = (e) => e.chainId + ':' + e.address;
 const readTree = () => {
-  try {
-    const t = JSON.parse(localStorage.getItem(TREE) || '[]');
-    return Array.isArray(t) ? t : [];
-  } catch {
-    return [];
-  }
+  const t = load('tree', []);
+  return Array.isArray(t) ? t : [];
 };
-export const saveTree = (t) => {
-  try {
-    localStorage.setItem(TREE, JSON.stringify(t));
-  } catch {}
-};
+export const saveTree = (t) => store('tree', t);
 
 /** The layout, reconciled: saved Safes missing from it go on top (newest first); removed ones and empty folders disappear. */
 export function tree() {

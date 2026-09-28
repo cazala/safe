@@ -14,7 +14,7 @@ import { checkName, isName, nameOf, resolveName } from './names.js';
 import { batch, unpack } from './multisend.js';
 import { parseCSV } from './csv.js';
 import { encodeCall, humanSig, matchCall, parseAbi, parseValue } from './abicoder.js';
-import { $, act, addr, bad, copy, h, icon, iconButton, ICONS, kv, labelDialog, put, setName, setResolver, toClipboard, sheet, short, warn } from './ui.js';
+import { $, act, addr, bad, copy, copyButton, h, icon, iconButton, ICONS, kv, NS, labelDialog, put, setName, setResolver, toClipboard, sheet, short, warn } from './ui.js';
 import { mountSafes } from './homeview.js';
 import * as labels from './labels.js';
 import * as backup from './backup.js';
@@ -24,6 +24,7 @@ import { identify } from './zodiac.js';
 import { checkMessage, combine, isValid, KINDS, onchainSignCall, signMessage } from './message.js';
 import { connector, provider, create as wcCreate } from './wc.js';
 import { qr, qrPath } from './qr.js';
+import { load, store } from './store.js';
 
 const st = { account: null, chainId: null, safe: null, tokens: {}, named: {}, batch: [], batchNames: {} };
 let framed = false;
@@ -64,13 +65,9 @@ let wallet = null; // { key, name, provider } in use, or null
 async function refreshWallet() {
   if (!wallet) {
     st.chainId = st.account = st.chain = null;
-    put($('connect'), list().length ? 'Connect' : 'No wallet');
-    $('connect').classList.toggle('nowallet', !list().length);
-    $('connect').title = list().length ? '' : 'No wallet found in this browser';
+    put($('connect'), 'Connect');
     return;
   }
-  $('connect').classList.remove('nowallet');
-  $('connect').title = '';
   [st.chainId, [st.account = null] = []] = await Promise.all([rpc.chainId(), rpc.accounts()]);
   if (!st.chain || st.chain.id !== st.chainId) st.chain = await chainInfo(st.chainId);
   // The connected chain lives on the account button, subtly, and in its menu.
@@ -131,7 +128,7 @@ function popover(view) {
     h(
       'div.dropdown',
       h('div.head', st.account && h('button.back', { onclick: () => popover('menu'), 'aria-label': 'Back' }, '‹'), st.account ? 'Switch wallet' : 'Connect a wallet'),
-      ws.length ? ws.map((w) => item(w.name, async () => (await connectTo(w), closeDrop()))) : h('div.empty', st.account ? 'No other wallet found.' : 'No wallet found. Install or enable a browser wallet.'),
+      ws.length ? ws.map((w) => item(w.name, async () => (await connectTo(w), closeDrop()))) : h('div.empty', 'No other wallet found.'),
       err,
     ),
   );
@@ -158,17 +155,6 @@ const chainName = (id) => label(id).name;
 
 function gateCard(title, text, ...rest) {
   return h('div.home.gate', h('div.panel.gatecard', h('span.mark', icon(...ICONS.shield)), h('h2', title), text && h('p.mut', text), ...rest), !framed && h('p.gateback', h('a.back', { href: '#/' }, icon('m15 6-6 6 6 6'), 'Home')));
-}
-
-function noWalletView() {
-  const b = h('button', 'Copy link to this page');
-  b.onclick = () => toClipboard(location.href).then(() => (put(b, '✓ Link copied'), setTimeout(() => put(b, 'Copy link to this page'), 1500)), () => {});
-  return gateCard(
-    'safe.wei needs a wallet',
-    'It reads your Safe and signs through your wallet, with no servers in between. No wallet was found in this browser.',
-    h('ul.gatesteps', h('li', h('b', 'On a computer: '), 'install a browser wallet extension, then reload this page.'), h('li', h('b', 'On a phone: '), 'open this page in your wallet app’s built-in browser.')),
-    h('div.actions', b),
-  );
 }
 
 /** Connect a wallet to continue; with one wallet and a fresh click, it asks right away. */
@@ -208,7 +194,6 @@ async function openTarget(ref, wantChain) {
   const saved = recent.safes().filter((e) => e.address === lower || e.ref === ref);
   // Call it what the user calls it: its saved name, a label, the name it was opened by, else a short address.
   const what = (saved.find((e) => e.label) || {}).label || (isAddr(ref) ? labels.get(lower) || 'Safe ' + short(ref) : ref);
-  if (!list().length) throw new Gate(noWalletView());
   if (!chain()) throw new Gate(connectView('open ' + what));
   // A transaction link says its chain; a saved Safe known only on another chain says it too.
   const want = wantChain || (saved.length && !saved.some((e) => e.chainId === st.chainId) && st.skipChain !== lower ? saved[0].chainId : null);
@@ -273,9 +258,7 @@ function homeFirstRun(c, openRef, out) {
   return h(
     'div.home',
     h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'safe.wei'), h('p', 'Your Safe, straight from the chain. No servers, everything stays in your browser.')),
-    !list().length
-      ? h('div.panel.nowallet', h('b', 'No wallet found'), h('p.mut', 'safe.wei reads and signs through your wallet, with no servers in between. On a computer, install a browser wallet extension and reload. On a phone, open this page in your wallet app’s browser.'))
-      : h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), !c && h('p.fhint.connecthint', 'You’ll connect your wallet to open it. safe.wei reads the Safe through your wallet.'), out, create),
+    h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), !c && h('p.fhint.connecthint', 'You’ll connect your wallet to open it. safe.wei reads the Safe through your wallet.'), out, create),
     h('p.importhint', h('span.mut', 'Moving from another device? '), h('button.link', { onclick: () => backupDialog() }, 'Import a backup'), nl > 0 && [h('span.mut', ' · '), h('button.link', { onclick: labelsSheet }, 'Labels (' + nl + ')')]),
   );
 }
@@ -309,9 +292,7 @@ function homeReturning(c, openRef, out, fail) {
     const first = openRow.querySelector('a.srow') || (hits && hits.length === 1 && listRoot.querySelector('a.srow'));
     if (first) first.click();
   };
-  const note = !list().length
-    ? 'No wallet found in this browser. Your Safes are listed, but opening one needs a wallet.'
-    : !c && 'You’ll connect your wallet when you open a Safe.';
+  const note = !c && 'You’ll connect your wallet when you open a Safe.';
   return h(
     'div.home.returning',
     h(
@@ -1136,27 +1117,9 @@ const callLabel = (x, names = st.batchNames) => {
 
 // ---- transaction builder (Custom tab), in the spirit of Etherscan's "Write Contract" ----
 // Every ABI pasted or uploaded is kept in one browser-local map, "<chainId>:<address>" → ABI text.
-const ABIS = 'safe.wei:abis';
-const abiMap = () => {
-  try {
-    return JSON.parse(localStorage.getItem(ABIS) || '{}');
-  } catch {
-    return {};
-  }
-};
-const loadAbi = (addr) => {
-  const k = st.chainId + ':' + addr;
-  let v = abiMap()[k];
-  try {
-    v = v || localStorage.getItem('safe.wei:abi:' + k); // earlier per-contract key
-  } catch {}
-  return v || null;
-};
-const storeAbi = (addr, text) => {
-  try {
-    localStorage.setItem(ABIS, JSON.stringify({ ...abiMap(), [st.chainId + ':' + addr]: text }));
-  } catch {}
-};
+const abiMap = () => load('abis', {});
+const loadAbi = (addr) => abiMap()[st.chainId + ':' + addr] || null;
+const storeAbi = (addr, text) => store('abis', { ...abiMap(), [st.chainId + ':' + addr]: text });
 // ---- call signatures: names for calls safe.wei cannot decode on its own ----
 // They come from the ABI used in Custom, or with a #tx= link. A call is shown decoded only if its
 // values re-encode to exactly its calldata (abicoder.js → matchCall): the names are someone's
@@ -1446,10 +1409,10 @@ const button = (label, fn, out, cls = '') => {
   return b;
 };
 
-/** What the transaction does, in plain words, with anything risky right under it. */
 /** An empty transaction from the Safe to itself: what replaces (cancels) another one at the same nonce. */
 const isCancel = (t) => t.to === t.safe && t.data === '0x' && !t.value && !t.operation;
 
+/** What the transaction does, in plain words, with anything risky right under it. */
 function reviewHead(r) {
   const t = r.tx;
   // Before anyone signs, the nonce can still change (to queue after another pending transaction).
@@ -1588,14 +1551,8 @@ function nextStep(r) {
   return box;
 }
 
-/** The share link (with the signatures collected so far), a copy button, and the less common extras. */
+const copyLink = (url, primary) => copyButton('Copy link', url, primary ? '.primary' : '');
 /** A share link (carrying the signatures so far) with Copy link as its action, plus the rarer extras. */
-/** A "Copy link" button that confirms for a moment. */
-function copyLink(url, primary) {
-  const b = h('button' + (primary ? '.primary' : ''), 'Copy link');
-  b.onclick = () => toClipboard(url).then(() => (put(b, '✓ Copied'), setTimeout(() => put(b, 'Copy link'), 1500)), () => {});
-  return b;
-}
 function shareBlock(url, primary, { what = 'transaction', json, merge } = {}) {
   const b = copyLink(url, primary);
   const more = merge && h('div.sharemore', { hidden: true }, h('p.mut', 'Got a link back with more signatures? Paste it to merge them here.'), merge);
@@ -1795,8 +1752,7 @@ function messageStep(m, c) {
   } else if (ready) {
     const sig = combine(c.valid, s.threshold), status = h('p.rvhash', 'Checking with the Safe…');
     isValid(m.safe, c.hash, sig).then((ok) => put(status, ok ? [h('b.ok', '✓'), ' The Safe accepts this signature (isValidSignature).'] : h('b.bad', '✗ The Safe rejects this signature.')));
-    const b = h('button.primary', 'Copy signature');
-    b.onclick = () => toClipboard(sig).then(() => (put(b, '✓ Copied'), setTimeout(() => put(b, 'Copy signature'), 1500)), () => {});
+    const b = copyButton('Copy signature', sig, '.primary');
     step = h('div.step.go', h('h3', 'Signature ready'), h('p', count + ' collected. Give this signature to the app that asked for it.'), h('div.row', h('input.mono', { readonly: true, value: sig, onclick: (e) => e.target.select(), 'aria-label': 'Signature' }), b), status, wcFor(m) && wcSendSig(sig));
   } else if (!me) step = h('div.step', h('h3', 'Connect a wallet to sign'), h('p', count + ' so far. Owners sign with their wallet; you can also send this link to them.'), share(false));
   else if (owner && !mine)
@@ -1874,7 +1830,6 @@ async function route() {
   try {
     if (path.startsWith('import=')) return put(main, home()), backupDialog(path);
     if (path === '/new') {
-      if (!list().length) throw new Gate(noWalletView());
       if (!chain()) throw new Gate(connectView('create a Safe'));
       return put(main, chain().canCreate ? createView() : bad('Safe’s contracts are not deployed on ' + chain().name + '.'));
     }
@@ -1917,7 +1872,7 @@ setResolver((v) => resolveName(v.trim().toLowerCase(), st.chainId));
 // ---- WalletConnect: this Safe in other dapps ----
 // Dapps connect with their wc: link (Dapps tab). Their requests show in a bar on every page;
 // transactions and signatures go through the normal review, then the answer goes back to the dapp.
-const WC_STATE = 'safe.wei:wc', WC_OWN = 'safe.wei:wcproject';
+const WC_OWN = 'safe.wei:wcproject';
 const wcOwn = () => {
   try {
     return localStorage.getItem(WC_OWN) || '';
@@ -1932,18 +1887,8 @@ const WC_ASK = ['eth_sendTransaction', 'personal_sign', 'eth_signTypedData', 'et
 const WC_READS = ['eth_call', 'eth_getBalance', 'eth_blockNumber', 'eth_estimateGas', 'eth_getCode', 'eth_getTransactionCount', 'eth_getTransactionReceipt', 'eth_getTransactionByHash', 'eth_getBlockByNumber', 'eth_gasPrice', 'eth_maxPriorityFeePerGas', 'eth_feeHistory', 'eth_getLogs', 'eth_getStorageAt'];
 const wc = wcCreate({
   projectId: wcProject,
-  load: () => {
-    try {
-      return JSON.parse(localStorage.getItem(WC_STATE));
-    } catch {
-      return null;
-    }
-  },
-  save: (x) => {
-    try {
-      localStorage.setItem(WC_STATE, JSON.stringify(x));
-    } catch {}
-  },
+  load: () => load('wc', null),
+  save: (x) => store('wc', x),
   onEvent: (e) => {
     if (e.type === 'request') wcIncoming(e.request, e.session);
     if (e.type === 'sessions') renderWcBar(), st.onWc && st.onWc();
@@ -1953,22 +1898,10 @@ const wc = wcCreate({
 // ---- WalletConnect, the other way: an owner's wallet elsewhere (e.g. on a phone) signs here ----
 // safe.wei is the dapp: it shows a QR code, the wallet approves, and signing requests go to it.
 // A phone wallet cannot serve reads, so those go to WalletConnect's RPC, with the same project ID.
-const WC_OWNER = 'safe.wei:wcowner';
-const SVGNS = 'http://www.w3.org/2000/svg';
 const ownerConn = connector({
   projectId: wcProject,
-  load: () => {
-    try {
-      return JSON.parse(localStorage.getItem(WC_OWNER));
-    } catch {
-      return null;
-    }
-  },
-  save: (x) => {
-    try {
-      localStorage.setItem(WC_OWNER, JSON.stringify(x));
-    } catch {}
-  },
+  load: () => load('wcowner', null),
+  save: (x) => store('wcowner', x),
   onEvent: (e) => ownerWallet.notify(e),
 });
 const peerName = () => (ownerConn.session() && ownerConn.session().peer.name) || 'your wallet';
@@ -1978,7 +1911,7 @@ function showPairing(c) {
   const { d, body, close } = sheet('phone', 'Connect with WalletConnect');
   let done = false;
   d.addEventListener('close', () => done || c.cancel());
-  const g = qr(c.uri), n = g.length + 8, svg = document.createElementNS(SVGNS, 'svg'), bg = document.createElementNS(SVGNS, 'rect'), path = document.createElementNS(SVGNS, 'path');
+  const g = qr(c.uri), n = g.length + 8, svg = document.createElementNS(NS, 'svg'), bg = document.createElementNS(NS, 'rect'), path = document.createElementNS(NS, 'path');
   svg.setAttribute('viewBox', '0 0 ' + n + ' ' + n);
   svg.setAttribute('shape-rendering', 'crispEdges');
   svg.setAttribute('role', 'img');
@@ -1987,8 +1920,7 @@ function showPairing(c) {
   path.setAttribute('d', qrPath(g));
   path.setAttribute('fill', '#000');
   svg.append(bg, path);
-  const cp = h('button', 'Copy link');
-  cp.onclick = () => toClipboard(c.uri).then(() => (put(cp, '✓ Copied'), setTimeout(() => put(cp, 'Copy link'), 1500)), () => {});
+  const cp = copyButton('Copy link', c.uri);
   put(
     body,
     h('p.mut', 'Scan this code with the wallet app on your phone, then approve the connection there.'),

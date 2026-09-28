@@ -5,6 +5,7 @@ import { bytes, cd, strip, word } from './abi.js';
 import { MAINNET, SAFE } from './chains.js';
 import { call, rpc } from './rpc.js';
 import { S } from './sel.js';
+import { load, store } from './store.js';
 
 const W = (h, i) => BigInt('0x' + (h.slice(i * 64, i * 64 + 64) || '0'));
 const txt = (h, at) => new TextDecoder().decode(bytes(h.slice((at + 1) * 64, (at + 1) * 64 + Number(W(h, at)) * 2)));
@@ -75,16 +76,5 @@ export async function meta(address, chainName = 'this chain') {
 }
 
 // Unlisted tokens the viewer added: a per-browser convenience, never required.
-const KEY = (chainId) => 'safe.wei:tokens:' + chainId;
-export const saved = (chainId) => {
-  try {
-    return JSON.parse(localStorage.getItem(KEY(chainId)) || '[]');
-  } catch {
-    return [];
-  }
-};
-export const save = (chainId, list) => {
-  try {
-    localStorage.setItem(KEY(chainId), JSON.stringify(list));
-  } catch {}
-};
+export const saved = (chainId) => load('tokens:' + chainId, []);
+export const save = (chainId, list) => store('tokens:' + chainId, list);

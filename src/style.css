@@ -91,7 +91,6 @@ a.back, a.homeback { display: inline-flex; align-items: center; gap: 2px; margin
 a.back svg, a.homeback svg { width: 18px; height: 18px; }
 a.back:hover, a.homeback:hover { color: var(--fg); background: var(--card); }
 p.gateback a.back { margin-left: 0; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
 .chip { display: inline-block; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; color: var(--mut); white-space: nowrap; }
 .chip.ok { color: var(--ok); border-color: var(--ok); }
 .chip.bad { color: var(--bad); border-color: var(--bad); }
@@ -110,7 +109,6 @@ table.assets th { text-align: left; font-weight: 500; color: var(--mut); font-si
 table.assets td { padding: 10px 8px 10px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
 table.assets code { font-size: 12px; }
 .num { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
-td.act { width: 1%; text-align: right; }
 a.btn { white-space: nowrap; overflow-wrap: normal; display: inline-block; padding: 5px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--fg); text-decoration: none; font-size: 14px; }
 a.callout { display: block; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-left: 3px solid var(--fg); border-radius: 6px; background: var(--card); color: var(--fg); text-decoration: none; }
 .card.txrow { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; }
@@ -299,17 +297,11 @@ th { white-space: nowrap; }
 .gatecard .gatebtns { justify-content: center; flex-wrap: wrap; margin-top: 18px; }
 .gatecard .gatebtns button { padding: 10px 18px; border-radius: 8px; }
 .gatecard .actions { justify-content: center; }
-ul.gatesteps { max-width: 400px; margin: 16px auto 0; padding: 0; list-style: none; text-align: left; font-size: 14px; }
-ul.gatesteps li { margin: 8px 0; color: var(--mut); }
-ul.gatesteps b { color: var(--fg); font-weight: 600; }
 p.gatealt { margin: 12px 0 0; font-size: 13px; }
 p.gateback { text-align: center; font-size: 13px; }
 p.gateback a { color: var(--mut); text-decoration: none; }
 p.gateback a:hover { color: var(--fg); }
 .panel .connecthint { margin: 10px 0 0; font-size: 13px; color: var(--mut); }
-.panel.nowallet b { display: block; margin-bottom: 6px; font-size: 14px; }
-.panel.nowallet p { margin: 0; font-size: 14px; }
-button#connect.nowallet { color: var(--mut); border-style: dashed; }
 /* ---- Home, returning: search-or-open bar, then your Safes as one list ---- */
 .home.returning { max-width: none; padding-top: 20px; }
 .hbar { display: flex; align-items: center; gap: 8px; }
@@ -376,13 +368,10 @@ a.srow.other { opacity: .6; }
 .node.merge { background: var(--bg); box-shadow: inset 0 0 0 2px var(--fg); }
 .srow .grow { flex: 1; }
 .srow.dapp { padding-right: 14px; }
-.tsym { display: flex; align-items: center; gap: 8px; }
-.tsym button.link { padding: 0; }
 /* Safe header: one quiet line under the title */
 .hmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--mut); font-size: 13px; }
 .hmeta .dot { opacity: .6; }
 .hmeta .ok { color: var(--ok, #3fb950); }
-p.onote { margin: 4px 0 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--mut); font-size: 13px; }
 /* Assets: aligned figures, actions on hover, one footer row */
 table.assets td.num { font-variant-numeric: tabular-nums; }
 .racts { display: inline-flex; align-items: center; gap: 4px; opacity: 0; transition: opacity .12s; }

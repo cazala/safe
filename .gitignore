@@ -4,3 +4,6 @@ cache/
 out/
 .env
 deploy/local-*.json
+.DS_Store
+*.log
+.claude/settings.local.json
