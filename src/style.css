@@ -111,12 +111,7 @@ a.callout { display: block; margin: 12px 0; padding: 10px 12px; border: 1px soli
 .card.txrow { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; }
 .card.txrow > button { grid-row: 1 / span 3; grid-column: 2; }
 .card.txrow .chip { margin-left: 8px; }
-.batchbar { position: sticky; bottom: 0; z-index: 5; margin: 24px -16px -64px; padding: 10px 16px; background: var(--card); border-top: 2px solid var(--fg); box-shadow: 0 -6px 20px rgba(0, 0, 0, .15); }
-.batchbar details { border: 0; margin: 0; }
-.batchbar ol { margin: 4px 0; padding-left: 22px; max-height: 30vh; overflow: auto; }
-.batchbar .actions { margin: 6px 0 0; }
 @media (max-width: 600px) {
-  .batchbar { margin: 24px -12px -48px; padding: 8px 12px; }
   nav.tabs a { padding: 10px 7px; font-size: 14px; }
   .card.txrow { grid-template-columns: 1fr; }
   .card.txrow > button { grid-row: auto; grid-column: auto; justify-self: start; }
@@ -147,3 +142,27 @@ ol.owners > li, ul.owners > li { margin: 6px 0; }
 .row.inline { flex-wrap: wrap; margin: 10px 0 0; }
 .row.inline select.th { width: auto; }
 .card > b:first-child { display: block; margin-bottom: 6px; }
+.right { display: flex; align-items: center; gap: 8px; }
+#batch { position: relative; }
+.batchbtn { display: inline-flex; align-items: center; gap: 2px; }
+.batchpop { width: 440px; padding: 4px 12px 8px; }
+.batchpop .head { margin: 0 -12px 6px; padding: 6px 12px; }
+ol.calls { margin: 6px 0; padding-left: 22px; max-height: 45vh; overflow: auto; }
+ol.calls li { margin: 6px 0; }
+ol.calls li > span { margin-right: 8px; }
+p.added { margin: 4px 0 0; padding: 0; background: none; font-size: 13px; }
+/* Desktop: header badge + popover. The bottom bar only exists on narrow screens. */
+.batchbar { display: none; }
+@media (max-width: 700px) {
+  #batch { display: none; }
+  body.hasbar { padding-bottom: 96px; }
+  .batchbar { display: flex; align-items: flex-start; gap: 8px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: var(--card); border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(0, 0, 0, .25); }
+  .batchbar details { flex: 1; min-width: 0; border: 0; margin: 0; }
+  .batchbar details[open] { max-height: 60vh; overflow: auto; }
+  .batchbar summary { padding: 6px 0; }
+  .batchbar details[open] + .quick { display: none; }
+}
+.batchpop .actions button { border: 1px solid var(--line); background: var(--card); padding: 6px 12px; text-align: center; }
+.batchpop .actions button.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.batchpop button.link { padding: 0; }
+.batchbar details[open] summary .mut { display: none; }

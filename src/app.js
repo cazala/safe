@@ -644,41 +644,77 @@ function settingsTab(s) {
   ];
 }
 
-// ---- batch bar (MultiSendCallOnly) ----
-const bq = h('div');
+// ---- batch (MultiSendCallOnly) ----
+// Desktop: a counter in the header that opens a popover. Mobile: a bar fixed to the bottom
+// of the screen that expands upward. Both render the same list; CSS picks one by width.
+const bq = h('div'); // mobile bottom bar (lives in the Safe page)
+const bb = $('batch'); // desktop header badge + popover
 const queue = (call) => {
   Object.assign(st.batchNames, st.named);
   st.batch.push(call);
-  renderBatch(true);
+  renderBatch();
+  flashAdded();
 };
-function renderBatch(open) {
+/** Inline confirmation next to whatever button added the call. */
+let lastClicked = null; // the button that triggered an action (focus is lost while it is disabled)
+document.addEventListener('click', (e) => (lastClicked = e.target.closest('button')), true);
+function flashAdded() {
+  const n = st.batch.length, el = lastClicked && lastClicked.isConnected && lastClicked.closest('.actions');
+  if (!el) return;
+  const note = el.parentNode.querySelector(':scope > .added') || h('p.ok.added');
+  put(note, '✓ Added to batch (' + n + ' call' + (n > 1 ? 's' : '') + ')');
+  el.after(note);
+}
+const batchWord = (n) => n + ' call' + (n > 1 ? 's' : '');
+/** The batch contents and actions, shared by the popover and the bottom bar. */
+function batchBody() {
   const out = h('div'), n = st.batch.length;
-  const prev = bq.querySelector('details');
+  return [
+    h('p.mut.small', 'Runs atomically in one Safe transaction: if one call fails, none happen.'),
+    h('ol.calls', st.batch.map((x, i) => h('li', h('span', callLabel(x)), h('button.link', { onclick: () => (st.batch.splice(i, 1), renderBatch(true)) }, 'remove')))),
+    h(
+      'div.actions',
+      n > 1 ? button('Review batch', async () => (closeBatch(), (st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(st.chainId, st.batch)))), out, '.primary') : h('span.mut', 'Add at least one more call to batch'),
+      h('button', { onclick: () => ((st.batch = []), (st.batchNames = {}), renderBatch()) }, 'Clear'),
+    ),
+    out,
+  ];
+}
+const closeBatch = () => {
+  const p = bb.querySelector('.batchpop');
+  if (p) p.remove();
+  const d = bq.querySelector('details');
+  if (d) d.open = false;
+};
+document.addEventListener('pointerdown', (e) => !e.target.closest('#batch') && bb.querySelector('.batchpop') && bb.querySelector('.batchpop').remove());
+document.addEventListener('keydown', (e) => e.key === 'Escape' && closeBatch());
+
+/** Re-render both views. `keep` keeps an open popover / expanded bar open. */
+function renderBatch(keep) {
+  const n = st.batch.length, onSafe = st.safe && main.querySelector('.safehead');
+  const wasOpen = !!bb.querySelector('.batchpop'), wasExpanded = !!(bq.querySelector('details') || {}).open;
+  if (!n || !onSafe) return put(bb), put(bq), document.body.classList.remove('hasbar');
+  const badge = h('button.batchbtn', { 'aria-label': 'Batch: ' + batchWord(n), 'aria-expanded': String(keep && wasOpen) }, 'Batch ', h('span.badge', String(n)));
+  badge.onclick = () => (bb.querySelector('.batchpop') ? closeBatch() : bb.append(h('div.dropdown.batchpop', h('div.head', h('b', 'Batch · ' + batchWord(n))), batchBody())));
+  put(bb, badge, keep && wasOpen && h('div.dropdown.batchpop', h('div.head', h('b', 'Batch · ' + batchWord(n))), batchBody()));
+  const reviewNow = n > 1 && button('Review', async () => ((st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(st.chainId, st.batch)))), null, '.primary');
   put(
     bq,
-    n > 0 &&
-      h(
-        'div.batchbar',
-        h(
-          'details',
-          { open: open || (prev && prev.open) || null },
-          h('summary', h('b', 'Batch · ' + n + ' call' + (n > 1 ? 's' : '')), h('span.mut', ' runs atomically in one Safe transaction')),
-          h('ol', st.batch.map((x, i) => h('li', callLabel(x), ' ', h('button.link', { onclick: () => (st.batch.splice(i, 1), renderBatch(true)) }, 'remove')))),
-        ),
-        h(
-          'div.actions',
-          n > 1 ? button('Review batch', async () => ((st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(st.chainId, st.batch)))), out, '.primary') : h('span.mut', 'Add at least one more call to batch'),
-          h('button', { onclick: () => ((st.batch = []), (st.batchNames = {}), renderBatch()) }, 'Clear'),
-        ),
-        out,
-      ),
+    h(
+      'div.batchbar',
+      h('details', { open: (keep && wasExpanded) || null }, h('summary', h('b', 'Batch · ' + batchWord(n)), h('span.mut', ' tap to view')), batchBody()),
+      reviewNow && h('div.quick', reviewNow),
+    ),
   );
+  document.body.classList.add('hasbar');
 }
 const callLabel = (x) => {
   const d = decode({ ...x, safe: st.safe.address }), tok = d && d.label.startsWith('ERC-20') && tokenOf(x.to);
   // Safe settings: "Change threshold · threshold 3", "Add owner · owner vitalik.eth → 0x…, threshold 2"
   if (d && x.to === st.safe.address)
     return [d.label, ' · ', d.args.map((a, i) => [i ? ', ' : '', a.name + ' ', a.type === 'address' ? named(a.value, st.batchNames) : String(a.value)])];
+  const note = !d && st.notes[strip(x.data || '0x').toLowerCase()];
+  if (note) return [h('code', note.sig.replace(/\(.+\)$/, '(…)')), ' on ', named(x.to, st.batchNames), x.value ? ' · ' + fmt(x.value) + ' ' + chain().sym : ''];
   return d
     ? [d.label, tok ? ' ' + amount(d.args.at(-1).value, tok) : '', ' → ', named((d.args.find((a) => a.name === 'to' || a.name === 'spender') || d.args[0]).value, st.batchNames), tok ? '' : [' on ', named(x.to, st.batchNames)]]
     : [fmt(x.value || 0n) + ' ' + chain().sym + ' → ', named(x.to, st.batchNames), x.data && x.data !== '0x' ? ' with ' + (x.data.length - 2) / 2 + ' bytes of calldata' : ''];
@@ -1091,7 +1127,7 @@ async function route() {
   try {
     if (path === '/new') return put(main, chain() && chain().canCreate ? createView() : bad(chain() ? 'Safe v1.4.1 is not deployed on ' + chain().name + '.' : 'Connect a wallet first.'));
     if (path.startsWith('tx=')) (p = importPayload(path)), (m = [0, p.tx.safe, 'review']);
-    if (!m) return put(main, home());
+    if (!m) return put(main, home()), renderBatch();
     if (!chain()) throw Error('Connect a wallet to open a Safe.');
     const ref = decodeURIComponent(m[1]), tab = m[2] || 'assets', q = new URLSearchParams(m[3] || '');
     const address = isAddr(ref) ? ref.toLowerCase() : await target(ref);
