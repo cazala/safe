@@ -131,7 +131,7 @@ Below it:
 - **One line** with the short address (click to copy), the policy ("3 of 5 owners") and "You're an owner" when that applies.
 - **Warnings** only when relevant: an untested or unsupported version, or a transaction guard.
 
-Tabs: **Assets**, **Send**, **Transactions**, **Custom**, **Dapps**, **Settings**. A badge on Transactions counts pending transactions found onchain.
+Tabs: **Assets**, **Send**, **Transactions**, **Custom**, **Dapps**, **Settings**. On phones the first three stay in the row and the rest are under **More ▾**, which shows the tab's name when one of them is open. A badge on Transactions counts pending transactions found onchain.
 
 ## 5. Assets
 

@@ -583,7 +583,7 @@ Safe header (always visible):
 
 The app brand is a distinct logo mark in the top bar, so it cannot be mistaken for a Safe named `safe.wei`.
 
-Tabs (each has its own URL, so Back and links work):
+Tabs (each has its own URL, so Back and links work; on phones Custom, Dapps and Settings sit behind a "More" tab, which takes the open tab's name):
 
 - **Assets** (default): balances with a Send action per asset; add a token by address; a callout when pending transactions exist
 - **Send**: one recipient (asset picker, recipient, amount, Max) or Many (CSV)

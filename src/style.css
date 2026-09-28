@@ -98,6 +98,15 @@ nav.tabs { display: flex; gap: 2px; margin: 14px 0 0; border-bottom: 1px solid v
 nav.tabs a { padding: 10px 12px; color: var(--mut); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; font-weight: 500; }
 nav.tabs a:hover { color: var(--fg); }
 nav.tabs a.on { color: var(--fg); border-bottom-color: var(--fg); }
+nav.tabs .tabmore { display: none; position: relative; }
+nav.tabs .tabmore summary { display: flex; align-items: center; gap: 4px; padding: 10px 7px; user-select: none; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--mut); font-size: 14px; font-weight: 500; white-space: nowrap; list-style: none; cursor: pointer; }
+nav.tabs .tabmore { margin: 0; border: 0; }
+nav.tabs .tabmore summary::before { content: none; }
+nav.tabs .tabmore summary.on { color: var(--fg); border-bottom-color: var(--fg); }
+nav.tabs .tabmore[open] summary svg { transform: rotate(180deg); }
+nav.tabs .tabmore .dropdown { min-width: 160px; }
+nav.tabs .tabmore .dropdown a { padding: 8px 10px; margin: 0; border: 0; border-radius: 4px; color: var(--fg); font-size: 14px; }
+nav.tabs .tabmore .dropdown a:hover, nav.tabs .tabmore .dropdown a.on { background: var(--bg); }
 .badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: var(--fg); color: var(--bg); font-size: 11px; line-height: 18px; text-align: center; }
 .tab { padding-top: 8px; }
 .tab > h2:first-child { margin-top: 12px; }
@@ -116,6 +125,9 @@ a.callout { display: block; margin: 12px 0; padding: 10px 12px; border: 1px soli
 .card.txrow .chip { margin-left: 8px; }
 @media (max-width: 600px) {
   nav.tabs a { padding: 10px 7px; font-size: 14px; }
+  nav.tabs { overflow: visible; }
+  nav.tabs a.extra { display: none; }
+  nav.tabs .tabmore { display: block; }
   .card.txrow { grid-template-columns: 1fr; }
   .card.txrow > button { grid-row: auto; grid-column: auto; justify-self: start; }
 }
@@ -487,3 +499,6 @@ p.wcfrom { margin: 0 0 10px; padding: 8px 12px; border-radius: 8px; background: 
 .qrcode { display: flex; justify-content: center; margin: 12px 0; }
 .qrcode svg { width: min(300px, 100%); height: auto; border-radius: 8px; }
 .qracts { justify-content: center; }
+@media (max-width: 360px) {
+  nav.tabs a, nav.tabs .tabmore summary { padding-left: 5px; padding-right: 5px; }
+}

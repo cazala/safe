@@ -593,13 +593,20 @@ function safeHeader(s, back) {
   );
 }
 
+// On phones the day-to-day tabs stay in the row and these go behind "More" (desktop shows all six).
+const MORE = ['custom', 'dapps', 'settings'];
 function tabBar(tab) {
   const n = st.pending ? st.pending.found.length : 0;
+  const a = ([id, text], cls) => h('a' + cls, { href: link(id), class: id === tab ? 'on' : null, 'aria-current': id === tab ? 'page' : null }, text, id === 'transactions' && n > 0 && h('span.badge', String(n)));
+  const cur = MORE.includes(tab) && TABS.find(([id]) => id === tab);
   return h(
     'nav.tabs',
-    TABS.map(([id, text]) => h('a', { href: link(id), class: id === tab ? 'on' : null, 'aria-current': id === tab ? 'page' : null }, text, id === 'transactions' && n > 0 && h('span.badge', String(n)))),
+    TABS.map((t) => a(t, MORE.includes(t[0]) ? '.extra' : '')),
+    h('details.tabmore', h('summary', { class: cur ? 'on' : null }, cur ? cur[1] : 'More', icon('m6 9 6 6 6-6')), h('div.dropdown', TABS.filter(([id]) => MORE.includes(id)).map((t) => a(t, '')))),
   );
 }
+// Close the More menu on a tap anywhere else.
+document.addEventListener('pointerdown', (e) => document.querySelectorAll('details.tabmore[open]').forEach((d) => d.contains(e.target) || (d.open = false)));
 
 /** Renders the Safe page shell and returns the content element. */
 function page(s, tab, ...content) {
