@@ -1,6 +1,6 @@
 // Safe protocol: state reads. Everything is read from the Safe contract itself.
 import { a, arr, B, cd, encode, isAddr, keccakHex, str, strip, u, word, ZERO } from './abi.js';
-import { VERSIONS } from './chains.js';
+import { operable, TESTED } from './chains.js';
 import { call, chainId, rpc, send, wait } from './rpc.js';
 import { S, T } from './sel.js';
 
@@ -31,7 +31,8 @@ export async function readSafe(addr) {
     address: addr,
     chainId: chain,
     version,
-    supported: VERSIONS.includes(version),
+    supported: operable(version),
+    tested: TESTED.includes(version),
     owners,
     threshold,
     nonce,

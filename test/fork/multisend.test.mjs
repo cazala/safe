@@ -21,7 +21,7 @@ after(() => f.stop());
 const bal = async (a) => BigInt(await f.rpc('eth_getBalance', [a, 'latest']));
 const dest = () => '0x' + Math.floor(Math.random() * 2 ** 48).toString(16).padStart(40, 'b');
 
-for (const v of ['1.3.0', '1.4.1']) {
+for (const v of ['1.3.0', '1.4.1', '1.5.0']) {
   test(v + ': batch of ETH + WETH transfers + a self-call executes atomically', async () => {
     const safe = await deploySafe(f.rpc, v, [A], 1);
     await tx(f.rpc, A, safe, '0x', 10n ** 18n);

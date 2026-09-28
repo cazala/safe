@@ -20,7 +20,7 @@ test('hardcoded mainnet addresses have code on chain', async () => {
   for (const v of Object.values(V)) for (const addr of Object.values(v)) assert.notEqual(await f.rpc('eth_getCode', [addr, 'latest']), '0x', addr);
 });
 
-for (const version of ['1.3.0', '1.4.1']) {
+for (const version of ['1.3.0', '1.4.1', '1.5.0']) {
   test('readSafe on a fresh ' + version + ' Safe', async () => {
     const owners = ACCOUNTS.slice(0, 3);
     const safe = await deploySafe(f.rpc, version, owners, 2);

@@ -23,7 +23,7 @@ async function funded(version, owners, threshold) {
 const dest = () => '0x' + Math.floor(Math.random() * 2 ** 48).toString(16).padStart(40, 'e');
 const bal = async (a) => BigInt(await f.rpc('eth_getBalance', [a, 'latest']));
 
-for (const v of ['1.3.0', '1.4.1']) {
+for (const v of ['1.3.0', '1.4.1', '1.5.0']) {
   test(v + ': 2-of-3 with two EIP-712 signatures, executed by a non-owner', async () => {
     const s = await funded(v, [A, B, C], 2);
     const t = newTx(s, { to: dest(), value: 5n });

@@ -24,7 +24,7 @@ async function funded(version, owners, threshold) {
 }
 const dest = () => '0x' + Math.floor(Math.random() * 2 ** 48).toString(16).padStart(40, 'd');
 
-for (const v of ['1.3.0', '1.4.1']) {
+for (const v of ['1.3.0', '1.4.1', '1.5.0']) {
   test(v + ': 1-of-1 executes in a single transaction (executor pre-validated, no approveHash)', async () => {
     const s = await funded(v, [A], 1);
     const to = dest();

@@ -215,3 +215,4 @@ input.rename { padding: 4px 8px; font: inherit; font-size: 15px; font-weight: 60
   .hero { margin: 16px 0; }
   .panel.create { flex-direction: column; align-items: stretch; }
 }
+.chip.warn { color: #c98a00; border-color: #c98a00; }

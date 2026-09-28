@@ -43,9 +43,21 @@ export const label = (id) => {
   return { name, sym };
 };
 
-// Safe versions this app can operate. SafeTx typehash, domain, approveHash and
-// execTransaction are identical across these.
-export const VERSIONS = ['1.3.0', '1.4.1'];
+// Safe versions tested end to end (test/fork). SafeTx typehash, EIP-712 domain, approveHash
+// and execTransaction are identical across them.
+export const TESTED = ['1.3.0', '1.4.1', '1.5.0'];
+
+/**
+ * Versions this app will operate. The app is immutable, so it cannot learn about future Safe
+ * releases: any version from 1.3.0 up is allowed, and untested ones get a warning. That is
+ * safe because nothing is signed unless the locally computed SafeTx hash equals the Safe's own
+ * getTransactionHash (spec §6): a future version that changed the format would be refused.
+ * Before 1.3.0 the EIP-712 domain had no chainId, so those versions are refused outright.
+ */
+export const operable = (v) => {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v || '');
+  return !!m && (+m[1] > 1 || (+m[1] === 1 && +m[2] >= 3));
+};
 
 /** Chain info for `id`, probing the connected wallet for the contracts each feature needs. */
 export async function chainInfo(id) {

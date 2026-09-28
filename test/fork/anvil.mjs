@@ -31,6 +31,11 @@ export const V = {
     factory: '0xa6b71e26c5e0845f74c812102ca7114b6a896ab2',
     fallback: '0xf48f2b2d2a534e402487b3ee7c18c33aec0fe5e4',
   },
+  '1.5.0': {
+    singleton: '0xff51a5898e281db6dfc7855790607438df2ca44b',
+    factory: '0x14f2982d601c9458f93bd70b218933a6f8165e7b',
+    fallback: '0x3efcbb83a4a7afcb4f68d501e2c2203a38be77f4',
+  },
   '1.4.1': {
     singleton: '0x41675c099f32341bf84bfc5382af534df5c7461a',
     factory: '0x4e1dcf7ad4e460cfd30791ccc4f9c8a4f820ec67',

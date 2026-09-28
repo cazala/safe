@@ -288,11 +288,12 @@ function safeHeader(s, back = ['#', '‹ Home']) {
       'div.chips',
       chip(c.name),
       chip(s.threshold + ' of ' + s.owners.length + ' owners'),
-      chip('v' + (s.version || '?'), s.supported ? '' : '.bad'),
+      chip('v' + (s.version || '?'), s.supported ? (s.tested ? '' : '.warn') : '.bad'),
       h('span.chip', { title: fmt(s.balance) + ' ' + c.sym }, fmtShort(s.balance) + ' ' + c.sym),
       me ? chip('You are an owner', '.ok') : st.account && chip('Not an owner'),
     ),
-    !s.supported && bad('Unsupported Safe version "' + s.version + '". Only 1.3.0 and 1.4.1 are supported; signing is disabled.'),
+    !s.supported && bad('Unsupported Safe version "' + s.version + '". Versions before 1.3.0 use a different signing format; signing is disabled.'),
+    s.supported && !s.tested && warn('Safe ' + s.version + ' is newer than this version of safe.wei was tested with. It should work: every transaction is checked against the Safe’s own hash before you sign, so an incompatible change would be refused.'),
     s.guard && warn('This Safe has a transaction guard (' + s.guard + '). It can block or alter the execution of any transaction.'),
   );
 }

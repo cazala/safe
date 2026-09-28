@@ -41,7 +41,8 @@ export async function review(tx, s, walletChain) {
   if (r.chain && r.chain !== r.local) err('FATAL: SafeTx hash mismatch. The locally computed hash differs from the Safe’s getTransactionHash. Do not sign.');
   if (tx.chainId !== walletChain) err('Transaction is for chain ' + tx.chainId + ' but the wallet is on chain ' + walletChain + '.');
   if (tx.safe !== s.address) err('Transaction is for a different Safe (' + tx.safe + ').');
-  if (!s.supported) err('Unsupported Safe version "' + s.version + '".');
+  if (!s.supported) err('Unsupported Safe version "' + s.version + '". Versions before 1.3.0 use a different signing format.');
+  if (s.supported && !s.tested) warn('This Safe runs version ' + s.version + ', which safe.wei was not tested with. The transaction hash still had to match the Safe’s own getTransactionHash.');
   if (tx.nonce < s.nonce) err('Nonce ' + tx.nonce + ' was already used (Safe nonce is ' + s.nonce + '). Rebuild the transaction.');
   if (tx.nonce > s.nonce) warn('Queued: nonce ' + tx.nonce + ' can only execute after nonce ' + s.nonce + ' has executed.');
   // A DELEGATECALL into an address without code does nothing, yet succeeds and burns the nonce.
