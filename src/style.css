@@ -326,7 +326,7 @@ p.hnote { margin: 10px 2px 0; color: var(--mut); font-size: 13px; }
 .openlist + .saved { margin-top: 8px; }
 /* The list: one card, a row per Safe or folder; folders open in place. */
 .slist { border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
-.srow { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 4px 8px 4px 14px; color: var(--fg); text-decoration: none; font-size: 14px; }
+.srow { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 4px 8px 4px calc(14px + var(--d, 0) * 22px); color: var(--fg); text-decoration: none; font-size: 14px; }
 .slist .srow + .srow, .slist .srow + .fwrap, .slist .fwrap + .srow, .slist .fwrap + .fwrap, .kids > :first-child { border-top: 1px solid var(--line); }
 .srow:not(.removed):hover { background: var(--bg); }
 a.srow.other { opacity: .6; }
@@ -345,13 +345,13 @@ a.srow.other { opacity: .6; }
 .srow.removed { border-style: dashed; color: var(--mut); }
 .openlist .srow { gap: 6px; }
 .srow.folder { cursor: pointer; }
-.srow .caret { display: inline-flex; margin-left: -6px; color: var(--mut); transition: transform .15s ease; }
+.srow .caret { display: inline-flex; margin-left: -4px; color: var(--mut); transition: transform .15s ease; }
 .srow .caret svg { width: 14px; height: 14px; }
 .srow.folder.open .caret { transform: rotate(90deg); }
 .srow .finl { display: inline-flex; margin-right: 7px; color: var(--mut); }
 .srow .finl svg { width: 16px; height: 16px; }
 .srow .count { padding: 0 7px; border-radius: 999px; background: var(--bg); color: var(--mut); font-size: 11px; line-height: 18px; }
-.kids { padding-left: 22px; border-top: 1px solid var(--line); }
+.kids { border-top: 1px solid var(--line); }
 .kids > .srow:first-child, .kids > .fwrap:first-child { border-top: 0; }
 .fwrap.carrying > .kids { display: none; }
 @media (max-width: 600px) {
