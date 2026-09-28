@@ -328,3 +328,4 @@ span.addr > code, span.addr > b.lbl { cursor: pointer; }
 span.addr { white-space: nowrap; }
 span.addr > code { white-space: normal; overflow-wrap: anywhere; }
 th { white-space: nowrap; }
+.level .node { -webkit-user-drag: none; -webkit-touch-callout: none; user-select: none; }

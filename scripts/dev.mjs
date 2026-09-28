@@ -7,6 +7,7 @@
 // The injected wallet exists ONLY in this dev server, never in the build.
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { networkInterfaces } from 'node:os';
 import { str } from '../src/abi.js';
 import { shim } from './shim.mjs';
 
@@ -24,7 +25,16 @@ const page = async () => {
 
 createServer(async (req, res) => {
   if (req.url === '/favicon.ico') return res.writeHead(404).end();
+  // The test wallet talks to Anvil through this server, so it also works from other devices on the LAN.
+  if (anvil && req.method === 'POST' && req.url === '/rpc') {
+    const body = await new Response(req).text();
+    const r = await fetch(anvil, { method: 'POST', headers: { 'content-type': 'application/json' }, body }).then((r) => r.text(), (e) => JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32000, message: String(e.message) } }));
+    return res.writeHead(200, { 'content-type': 'application/json' }).end(r);
+  }
   let html = await page();
-  if (anvil) html = html.replace('<head>', '<head>' + shim(anvil));
+  if (anvil) html = html.replace('<head>', '<head>' + shim('/rpc'));
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(html);
-}).listen(port, () => console.log('http://localhost:' + port + (anvil ? '  (test wallet → ' + anvil + ')' : '') + (app ? '  serving html() of ' + app : '')));
+}).listen(port, '0.0.0.0', () => {
+  const lan = Object.values(networkInterfaces()).flat().filter((x) => x.family === 'IPv4' && !x.internal).map((x) => x.address);
+  for (const ip of ['localhost', ...lan]) console.log('http://' + ip + ':' + port + (anvil ? '  (test wallet → ' + anvil + ')' : '') + (app ? '  serving html() of ' + app : ''));
+});

@@ -132,6 +132,9 @@ export function mountSafes(root, chainId) {
 
   // ---- drag and drop (pointer events: mouse drags directly, touch long-presses first) ----
   function dragify(el) {
+    // Rows are links: without this, the browser's own link drag takes over and cancels ours.
+    el.draggable = false;
+    el.addEventListener('dragstart', (e) => e.preventDefault());
     el.addEventListener('pointerdown', (e) => {
       if (e.button || e.target.closest('button, input') || drag) return;
       const s = { el, x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType !== 'mouse', armed: false, move, end };
