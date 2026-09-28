@@ -17,6 +17,7 @@ import { canonical, encodeCall, parseAbi, parseValue } from './abicoder.js';
 import { $, act, addr, bad, copy, h, icon, iconButton, ICONS, kv, labelDialog, put, short, warn } from './ui.js';
 import { mountSafes } from './homeview.js';
 import * as labels from './labels.js';
+import * as backup from './backup.js';
 import * as recent from './recent.js';
 import { discover, get, list, remember, remembered } from './wallets.js';
 import { identify } from './zodiac.js';
@@ -150,7 +151,7 @@ function home() {
   const tab = (id, text) => h('button.htab', { class: st.homeTab === id ? 'on' : null, onclick: () => ((st.homeTab = id), show()) }, text);
   const bar = h('div.htabs');
   const show = () => {
-    put(bar, tab('safes', 'Your Safes'), tab('labels', 'Labels'));
+    put(bar, tab('safes', 'Your Safes'), tab('labels', 'Labels'), h('span.grow'), iconButton('gear', 'Backup & sync: move your Safes, labels and ABIs to another device', () => backupDialog()));
     if (st.homeTab === 'labels') return put(body, labelsView());
     const l = h('div.saved');
     if (recent.safes().length) mountSafes(l, () => st.chainId);
@@ -176,6 +177,93 @@ function home() {
   );
 }
 
+
+/** Backup & sync: export as a link / JSON / file, or import (with a preview before anything changes). */
+function backupDialog(incoming) {
+  const d = h('dialog.sheet.wide');
+  const close = () => (d.close(), d.remove());
+  d.addEventListener('close', () => d.remove());
+  d.addEventListener('click', (e) => e.target === d && close());
+  const words = (c) => [c.safes + ' Safe' + (c.safes === 1 ? '' : 's'), c.labels + ' label' + (c.labels === 1 ? '' : 's'), c.abis + ' ABI' + (c.abis === 1 ? '' : 's'), c.tokens + ' token' + (c.tokens === 1 ? '' : 's')].join(' · ');
+  const refresh = () => (close(), route());
+
+  function exportView() {
+    const data = backup.collect(), out = h('div');
+    const done = (b, text) => (put(b, text), setTimeout(() => put(b, b.dataset.l), 1500));
+    const btn = (text, fn, cls = '') => {
+      const b = h('button' + cls, { 'data-l': text }, text);
+      b.onclick = () => fn(b).catch((e) => put(out, h('p.bad', e.message)));
+      return b;
+    };
+    const ta = h('textarea', { placeholder: 'Paste a safe.wei link or backup JSON', spellcheck: 'false', rows: 3 });
+    const file = h('input', { type: 'file', accept: '.json,application/json' });
+    const inErr = h('div');
+    const next = async (text) => {
+      try {
+        preview(await backup.parse(text));
+      } catch (e) {
+        put(inErr, h('p.bad', e.message.startsWith('Unexpected') || e.message.includes('JSON') ? 'That does not look like a safe.wei backup.' : e.message));
+      }
+    };
+    file.onchange = async () => file.files[0] && next(await file.files[0].text());
+    put(
+      d,
+      h('h3', 'Backup & sync'),
+      h('p.mut.small', 'Move your saved Safes, folders, labels, ABIs and added tokens to another device. Nothing is uploaded: it all travels in the link or file.'),
+      h('div.bsec', h('b', 'Export'), h('div.mut.small', words(backup.counts(data)))),
+      h(
+        'div.actions',
+        btn('Copy link', async (b) => (await navigator.clipboard.writeText(await backup.link(data)), done(b, '✓ Link copied')), '.primary'),
+        btn('Copy JSON', async (b) => (await navigator.clipboard.writeText(JSON.stringify(data, null, 2)), done(b, '✓ Copied'))),
+        btn('Download .json', async () => {
+          const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })), download: 'safe.wei-backup.json' });
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        }),
+      ),
+      h('p.mut.small', 'Open the link on your other device, or import the JSON there.'),
+      out,
+      h('div.bsec', h('b', 'Import')),
+      ta,
+      h('div.actions', h('button', { onclick: () => next(ta.value) }, 'Continue'), h('span.mut.small', 'or'), file),
+      inErr,
+      h('div.actions.end', h('button', { onclick: close }, 'Close')),
+    );
+  }
+
+  function preview(data) {
+    const c = backup.counts(data), mine = labels.all();
+    const mode = { v: 'merge' };
+    const opt = (v, title, desc) =>
+      h('label.opt', h('input', { type: 'radio', name: 'mode', value: v, checked: v === 'merge' ? '' : null, onchange: () => (mode.v = v) }), h('span', h('b', title), h('span.mut.small', desc)));
+    const ls = Object.entries(data.labels);
+    put(
+      d,
+      h('h3', 'Import backup'),
+      h('p', words(c), data.at && h('span.mut', ' · exported ' + new Date(data.at).toLocaleDateString())),
+      ls.length > 0 && [
+        warn('Labels are shown instead of addresses. Check that each one is right before importing, especially if this backup came from someone else.'),
+        h('ul.importlabels', ls.map(([a, l]) => h('li', h('b', l), ' ', h('code', a), mine[a] && mine[a] !== l && h('span.mut', ' (yours stays: ' + mine[a] + ')')))),
+      ],
+      h('div.opts', opt('merge', 'Merge', 'Add what is missing. Nothing you already have is changed.'), opt('replace', 'Replace', 'Delete everything saved in this browser and use the backup instead.')),
+      h(
+        'div.actions',
+        h('button.primary', { onclick: () => {
+          if (mode.v === 'replace' && !confirm('Replace all Safes, labels and ABIs saved in this browser?')) return;
+          backup.apply(data, mode.v);
+          history.replaceState(null, '', '#');
+          refresh();
+        } }, 'Import'),
+        h('button', { onclick: () => (incoming ? close() : exportView()) }, incoming ? 'Cancel' : 'Back'),
+      ),
+    );
+  }
+
+  document.body.append(d);
+  d.showModal();
+  if (incoming) backup.parse(incoming).then(preview, (e) => (exportView(), d.prepend(bad('That link could not be read: ' + e.message))));
+  else exportView();
+}
 
 /** Home → Labels: every label in this browser, with add / edit / remove. */
 function labelsView() {
@@ -1232,6 +1320,7 @@ async function route() {
   let m = /^\/([^/?]+)(?:\/([a-z]+))?(?:\?(.*))?$/.exec(path), p;
   if (m && m[1] === 'new') m = null;
   try {
+    if (path.startsWith('import=')) return put(main, home()), backupDialog(path);
     if (path === '/new') return put(main, chain() && chain().canCreate ? createView() : bad(chain() ? 'Safe’s contracts are not deployed on ' + chain().name + '.' : 'Connect a wallet first.'));
     if (path.startsWith('tx=')) (p = importPayload(path)), (m = [0, p.tx.safe, 'review']);
     if (!m) return put(main, home()), renderBatch();
