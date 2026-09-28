@@ -26,6 +26,16 @@
         "scripts/deployer/serve.mjs"
       ],
       "port": 8080
+    },
+    {
+      "name": "dev-nowallet",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/dev.mjs",
+        "--port",
+        "5177"
+      ],
+      "port": 5177
     }
   ]
 }

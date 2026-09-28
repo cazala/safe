@@ -349,3 +349,24 @@ th { white-space: nowrap; }
 /* Folders: a small folder glyph inline with the name, so every row starts at the same edge. */
 .saferow .finl { display: inline-flex; margin-right: 7px; color: var(--mut); }
 .saferow .finl svg { width: 16px; height: 16px; }
+/* Gates: what an action needs (a wallet, a connection, a chain), instead of an error */
+.gate { padding-top: 40px; }
+.gatecard { text-align: center; padding: 28px 24px 24px; }
+.gatecard .mark { display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 50%; background: var(--bg); border: 1px solid var(--line); }
+.gatecard .mark svg { width: 24px; height: 24px; }
+.gatecard h2 { margin: 14px 0 6px; font-size: 18px; overflow-wrap: anywhere; }
+.gatecard > p.mut { max-width: 400px; margin: 0 auto; font-size: 14px; }
+.gatecard .gatebtns { justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+.gatecard .gatebtns button { padding: 10px 18px; border-radius: 8px; }
+.gatecard .actions { justify-content: center; }
+ul.gatesteps { max-width: 400px; margin: 16px auto 0; padding: 0; list-style: none; text-align: left; font-size: 14px; }
+ul.gatesteps li { margin: 8px 0; color: var(--mut); }
+ul.gatesteps b { color: var(--fg); font-weight: 600; }
+p.gatealt { margin: 12px 0 0; font-size: 13px; }
+p.gateback { text-align: center; font-size: 13px; }
+p.gateback a { color: var(--mut); text-decoration: none; }
+p.gateback a:hover { color: var(--fg); }
+.panel .connecthint { margin: 10px 0 0; font-size: 13px; color: var(--mut); }
+.panel.nowallet b { display: block; margin-bottom: 6px; font-size: 14px; }
+.panel.nowallet p { margin: 0; font-size: 14px; }
+button#connect.nowallet { color: var(--mut); border-style: dashed; }

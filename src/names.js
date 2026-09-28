@@ -68,7 +68,7 @@ async function ens(name) {
 /** Resolve a .eth or .wei name to an address on mainnet. Throws if not found. */
 export async function resolveName(name, chainId) {
   checkName(name);
-  if (chainId !== 1) throw Error('Names resolve on Ethereum mainnet only.');
+  if (chainId !== 1) throw Error('ENS and .wei names resolve on Ethereum only. On this chain, use the 0x address.');
   const addr = name.endsWith('.wei') ? a(await call(MAINNET.wns, cd(S.wnsResolve, namehash(name)))) : await ens(name);
   if (addr === ZERO) throw Error(name + ' does not resolve to an address' + (name.endsWith('.wei') ? ' (unregistered or expired).' : '.'));
   return addr;

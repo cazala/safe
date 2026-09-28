@@ -150,7 +150,9 @@ export function mountSafes(root, chainId) {
   function arm(s) {
     s.armed = true;
     s.el.classList.add('dragging');
-    s.el.setPointerCapture && s.el.setPointerCapture(s.id);
+    try {
+    s.el.setPointerCapture(s.id);
+  } catch {} // the pointer may already be gone (a long-press released just now)
   }
   const clearMarks = () => root.querySelectorAll('.before,.after,.merge,.dropup.over').forEach((x) => x.classList.remove('before', 'after', 'merge', 'over'));
   function hover(x, y) {

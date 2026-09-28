@@ -2,6 +2,7 @@
 //   node scripts/dev.mjs                 serve on :5173
 //   node scripts/dev.mjs --anvil URL     also inject a test wallet backed by an Anvil node,
 //                                        using its unlocked accounts (?acct=N picks one).
+//   ... --port N                         listen on N
 //   ... --onchain 0xAPP                  serve html() read from that deployed app via the node,
 //                                        instead of dist/index.html
 // The injected wallet exists ONLY in this dev server, never in the build.
@@ -14,7 +15,8 @@ import { shim } from './shim.mjs';
 const root = new URL('..', import.meta.url).pathname;
 const i = process.argv.indexOf('--anvil');
 const anvil = i > 0 ? process.argv[i + 1] : null;
-const port = Number(process.env.PORT || (process.argv.includes("--onchain") ? 5174 : 5173));
+const k = process.argv.indexOf('--port');
+const port = Number(k > 0 ? process.argv[k + 1] : process.env.PORT || (process.argv.includes('--onchain') ? 5174 : 5173));
 const j = process.argv.indexOf('--onchain');
 const app = j > 0 ? process.argv[j + 1] : null;
 const page = async () => {
