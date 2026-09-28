@@ -102,7 +102,6 @@ nav.tabs a.on { color: var(--fg); border-bottom-color: var(--fg); }
 .badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: var(--fg); color: var(--bg); font-size: 11px; line-height: 18px; text-align: center; }
 .tab { padding-top: 8px; }
 .tab > h2:first-child { margin-top: 12px; }
-.form { max-width: 560px; }
 .seg { display: inline-flex; margin: 12px 0 4px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 .seg a { padding: 6px 14px; color: var(--mut); text-decoration: none; font-size: 14px; }
 .seg a.on { background: var(--card); color: var(--fg); font-weight: 500; }
@@ -128,7 +127,6 @@ select { appearance: none; -webkit-appearance: none; padding-right: 36px; backgr
 details.err { display: inline; border: 0; margin: 0; }
 details.err summary { display: inline-flex; padding: 0 0 0 8px; font-size: 12px; color: var(--mut); }
 details.err code { display: block; margin-top: 4px; font-size: 11px; color: var(--mut); }
-.form.wide { max-width: 720px; }
 details.method { border: 1px solid var(--line); border-radius: 6px; margin: 8px 0; padding: 0 12px; }
 details.method[open] { padding-bottom: 12px; }
 details.method > summary { font-family: ui-monospace, Menlo, monospace; font-size: 14px; }
