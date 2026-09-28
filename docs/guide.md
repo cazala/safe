@@ -40,7 +40,7 @@ safe.wei is a single HTML page with no backend. It is served from an onchain con
 ### Connecting
 
 - Wallets are discovered with EIP-6963, so several extensions can coexist; a browser that only injects `window.ethereum` shows it as "Browser wallet".
-- **Connect** in the header opens the wallet picker (or connects directly when there is only one wallet). The chosen wallet is remembered.
+- **Connect** in the header opens the wallet picker: the browser's wallets, then **WalletConnect**. The chosen wallet is remembered.
 - Once connected, the header button shows the chain and your short address. Its menu has **Switch wallet** and **Disconnect** (disconnect also asks the wallet to revoke the site's permission where supported).
 
 ### A wallet on your phone (WalletConnect)
@@ -52,7 +52,7 @@ safe.wei is a single HTML page with no backend. It is served from an onchain con
 3. The chain: the menu offers **Switch to …** for every chain the wallet approved when connecting. For another chain, disconnect and connect again.
 4. The connection survives reloads until you disconnect (from safe.wei or from the wallet) or it expires.
 
-Reads cannot go through a phone, so with WalletConnect they go to WalletConnect's RPC (`rpc.walletconnect.org`, with safe.wei's project ID or your own, see [§12b](#12b-using-the-safe-in-other-dapps-walletconnect)). Before connecting, it reads Ethereum. The checks in [§16](#16-what-safe-wei-checks-for-you) are unchanged: nothing is signed unless the locally computed hash equals the Safe's own.
+Reads cannot go through a phone, so with WalletConnect they go to WalletConnect's RPC (`rpc.walletconnect.org`, with safe.wei's project ID or your own, see [§12b](#12b-using-the-safe-in-other-dapps-walletconnect)). Before connecting, it reads Ethereum. The checks in [§16](#16-what-safewei-checks-for-you) are unchanged: nothing is signed unless the locally computed hash equals the Safe's own.
 
 ### When something is missing
 
@@ -60,7 +60,6 @@ safe.wei says what it needs instead of failing after a click:
 
 | State | What you see |
 | --- | --- |
-| No wallet in this browser | Home explains that safe.wei needs a wallet (install an extension on a computer, or open the page in a wallet app's browser on a phone). Links to a Safe show the same explanation with a copy-link button. The header shows a muted "No wallet". |
 | Wallet available, not connected | Home says you will connect when opening a Safe. Opening a Safe (typed, from your list, or **Create**) connects first and then continues to it. A link opened on its own shows "Connect a wallet to open …" with one button per wallet. |
 | Wallet on another chain | A Safe saved on a different chain shows "… is on Polygon" with **Switch to Polygon** (requested right away after a click). For a typed address you can also **Open it on … anyway**. |
 
@@ -132,11 +131,11 @@ Below it:
 - **One line** with the short address (click to copy), the policy ("3 of 5 owners") and "You're an owner" when that applies.
 - **Warnings** only when relevant: an untested or unsupported version, or a transaction guard.
 
-Tabs: **Assets**, **Send**, **Transactions**, **Custom**, **Settings**. A badge on Transactions counts pending transactions found onchain.
+Tabs: **Assets**, **Send**, **Transactions**, **Custom**, **Dapps**, **Settings**. A badge on Transactions counts pending transactions found onchain.
 
 ## 5. Assets
 
-- The native balance, then every token with a non-zero balance: the zOrg TokenList's tokens (on Ethereum) plus tokens you added.
+- The native balance, then the tokens: on Ethereum, every token of the zOrg TokenList with a non-zero balance ("Zero balances hidden" under the table); on every chain, the tokens you added, even at zero.
 - Balances use aligned figures and two decimals when fractional; hover for the exact amount.
 - Hover a row for **Send** (prefilled with that token) and, for tokens you added, **×** to remove them from your list. Send is disabled when the balance is zero.
 - **+ Add token** (under the table) adds any ERC-20 by address. Added tokens are saved in your browser for every Safe on that chain.
@@ -197,6 +196,7 @@ Every call can be reviewed on its own or added to a batch. Nothing is fetched: t
 - **Owners**: the list, marking you. **Add owner** (with the new threshold), and per owner **Replace** or **Remove** (with the resulting threshold).
 - **Threshold**: change how many owners must approve.
 - **Modules**: every enabled module, identified when it is a known Zodiac module (Roles, Delay, Reality, Bridge, Exit, Scope / Meta Guard, Optimistic Governor, Tellor, Connext) by its implementation, with its version, its owner, and a warning for versions the Zodiac team lists as faulty. **Disable** a module.
+- **Enable a module (dangerous)**: enable a module by address, behind a warning that a module can move every asset without the owners.
 - **Guard**: the transaction guard, if any, identified the same way, with **Remove guard**.
 - **Contract**: version, nonce, singleton, fallback handler and chain. The fallback handler is named when it is one of Safe's (CompatibilityFallbackHandler, or ExtensibleFallbackHandler, which CoW Protocol's TWAP orders use). When it is missing, **Set default handler** proposes Safe's CompatibilityFallbackHandler for the Safe's release line; when it is unknown, **Reset to default handler** does (anything that relied on the old handler stops working). Without a handler, a Safe cannot sign messages (EIP-1271).
 
@@ -206,7 +206,7 @@ Every change is a normal Safe transaction: it goes through review and needs the 
 
 Where MultiSendCallOnly is deployed, any send, contract call or settings change can be **added to a batch** instead of reviewed alone.
 
-- On desktop, **Batch N** in the header opens the batch: each call in one line ("ERC-20 transfer 1 MANA → pepe"), with **remove**, **Review batch** and **Clear**.
+- On desktop, **Batch N** in the header opens the batch: each call in one line ("ERC-20 transfer 1 MANA → pepe"), with **remove**, **Review batch** (from two calls up) and **Clear**.
 - On phones, the batch is a bar fixed to the bottom of the screen.
 - The whole batch executes atomically in one Safe transaction (a DELEGATECALL into the canonical MultiSendCallOnly, the only batch target safe.wei accepts; the 1.3.0 one is recognized in existing transactions). If one call fails, none happen.
 - A batch belongs to one Safe; switching Safes starts a new one.

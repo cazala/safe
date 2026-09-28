@@ -49,7 +49,8 @@ A minimal interface for [Safe](https://safe.global) multisig accounts that lives
 
 ## Use it
 
-- Open `safe.wei` through an ERC-8244 gateway, or
+- Open **https://safe.caza.la** (the same page, served by Cloudflare Pages from `main`; every PR gets a preview), or
+- open `safe.wei` through an ERC-8244 gateway, or
 - read the page straight from the contract and serve it locally:
 
 ```bash
@@ -77,7 +78,7 @@ node scripts/dev.mjs --anvil http://127.0.0.1:8545      # http://localhost:5173
 - The fork creates three demo Safes owned by the first three Anvil accounts (1-of-1 v1.4.1, 2-of-3 v1.4.1, 2-of-3 v1.3.0) and prints their addresses.
 - The dev server adds an "Anvil test wallet (dev)" to the wallet picker (EIP-6963). If an extension is installed, pick the test wallet: the extension talks to real mainnet, where the demo Safes do not exist. `?acct=N` picks the Anvil account.
 - It listens on the LAN too (it prints the addresses) and proxies the test wallet's RPC, so a phone on the same network can use the playground.
-- `node scripts/dev.mjs --port N` serves without a test wallet, to try the no-wallet state (or your own extension wallet).
+- `node scripts/dev.mjs --port N` serves without the test wallet, to use your own extension wallet or WalletConnect.
 - `node scripts/wc-dapp.mjs` plays a dapp over the real WalletConnect relay (prints a `wc:` link to paste in the Dapps tab, then sends a signature and a transaction request). `node --test --test-force-exit 'test/net/*.test.mjs'` checks conformance against the official SDK, as the dapp and as the wallet (needs the network).
 - `FORK_URL` and `FORK_BLOCK` change the fork source (default: publicnode mainnet at a pinned block; `FORK_BLOCK=0` forks the latest). Public RPCs keep little history on fast chains, so a long-lived fork of Polygon or an L2 needs an archive RPC.
 
@@ -87,4 +88,5 @@ See [docs/deploy.md](docs/deploy.md): deterministic CREATE2 deployment of the pa
 
 ## Deployments
 
-Not yet deployed to mainnet.
+- Web: https://safe.caza.la, deployed from CI on every merge to `main` (docs/deploy.md → Web hosting).
+- Onchain: not yet deployed to mainnet.

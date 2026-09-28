@@ -1,4 +1,4 @@
-# Safe Apps compatibility (spec §27.1)
+# Safe Apps compatibility
 
 **Status: removed.** A Safe Apps host (sandboxed iframe + SDK `postMessage` protocol) was built in Phase 13 (PR #15) and removed because no major app works with it. This page records why. The implementation is in git history (`src/apps.js` at commit 6c89860). Tested 2026-09-27.
 

@@ -576,10 +576,9 @@ Modeled on how Safe Wallet and wallet UIs split the same content (identity, asse
 
 Safe header (always visible):
 
-- back to Home
-- title: the name the Safe was opened by (`treasury.wei`), else its reverse name, else "Safe 0x1234…abcd"
-- full address with copy
-- chips: chain, "M of N owners", version, native balance, whether the connected wallet is an owner
+- in the header, a breadcrumb `safe.wei / <Safe> ▾` that switches to your other saved Safes
+- title: the name the Safe was opened by (`treasury.wei`), else its nickname or reverse name, else "Safe 0x1234…abcd"
+- one line: short address with copy, "N of M owners", and "You're an owner" when the connected wallet is one
 - banners for an unsupported version or a guard
 
 The app brand is a distinct logo mark in the top bar, so it cannot be mistaken for a Safe named `safe.wei`.
@@ -590,11 +589,12 @@ Tabs (each has its own URL, so Back and links work):
 - **Send**: one recipient (asset picker, recipient, amount, Max) or Many (CSV)
 - **Transactions**: the review in progress, pending transactions found onchain (count badge on the tab), import a shared link
 - **Custom**: transaction builder in the style of Etherscan's Write Contract. Pick a contract and an ABI (built-in ERC-20 / ERC-721 / ERC-1155 / WETH / this Safe, pasted JSON or human-readable signatures, or an uploaded `.json` artifact; remembered per contract in the browser), then fill a write method's typed inputs and Review or Add to batch. Helpers by type: unit multiplier for integers (×10^6/8/9/18/custom, defaulting to the token's decimals), max for uints, keccak256(text) and text→hex for bytes, JSON for arrays and tuples, and prevOwner/prevModule from the owner list for this Safe. Raw calldata stays available. Calls encoded from a user ABI are labeled as such in the review; ABIs are never fetched.
+- **Dapps**: connect the Safe to other dapps with WalletConnect (§27c)
 - **Settings**: owners (add / replace / remove), threshold (change), modules (listed and recognized: Zodiac mastercopies by EIP-1167 implementation, faulty versions flagged, module owner shown; disable; enable behind a danger section), guard (recognized, remove), contract details
 
 Review is its own screen (`#tx=…`) with a single back link to wherever it was opened from. Executing returns to Assets with a confirmation.
 
-Batch: a sticky bar at the bottom of every tab while calls are queued (expand to list/remove, Review batch, Clear).
+Batch: while calls are queued, a **Batch N** button in the header on desktop, a bar at the bottom on phones (list/remove, Review batch, Clear).
 
 Transaction summary (review screen):
 
@@ -869,7 +869,7 @@ Batches are recognized for the canonical MultiSendCallOnly of v1.4.1 and v1.5.0,
 
 ## 17. Deployment support
 
-MVP deployment should use canonical Safe v1.4.1 infrastructure.
+Creation uses canonical Safe v1.5.0 infrastructure, else v1.4.1, whichever is deployed on the chain (probed on connect, §16).
 
 The agent must verify current canonical addresses from authoritative Safe sources before hardcoding them.
 
@@ -877,7 +877,7 @@ Do not rely on remembered addresses.
 
 For each supported chain store only:
 
-- the canonical CREATE2 addresses of Safe v1.4.1 (singleton, SafeL2 singleton, proxy factory, CompatibilityFallbackHandler, MultiSendCallOnly) and Multicall3, identical on every supporting chain
+- the canonical CREATE2 addresses of Safe v1.5.0 and v1.4.1 (singleton, SafeL2 singleton, proxy factory, CompatibilityFallbackHandler, MultiSendCallOnly), SignMessageLib per release line, and Multicall3, identical on every supporting chain
 - a display name and native symbol per well-known chain ID
 
 Mainnet-only registries (read only when connected to chain 1):
@@ -916,7 +916,7 @@ Required tests:
 - mixed prevalidated + ECDSA signatures if supported
 - executor's own prevalidated signature without `approveHash` (1-of-1 and final approver)
 - nonce mismatch rejection
-- all of the above against both Safe v1.3.0 and v1.4.1
+- all of the above against Safe v1.3.0, v1.4.1 and v1.5.0
 
 ### Transaction sharing
 
@@ -1166,7 +1166,7 @@ Do NOT implement:
 - ENS avatar lookup
 - ENS CCIP-read / offchain names
 - bundled ENSIP-15 normalization library
-- WalletConnect SDK
+- the WalletConnect SDK (a minimal client is built in instead, §27c and §27d)
 - Safe Apps (§27)
 - module marketplace
 - guard marketplace
@@ -1252,7 +1252,7 @@ Read:
 - keep only entries with `kind == EVM`, `standard ∈ {NATIVE, ERC20}`, `deployed == true`, `chainId == connected chain`
 - one Multicall3 `aggregate3` (allowFailure) of `balanceOf(safe)` over the filtered list
 
-Also support "add token by address". It reads `decimals()` and `symbol()` from the token and labels it "unlisted". A Safe's visible balances must not depend solely on a third party's curation.
+Also support "add token by address". It reads `decimals()` and `symbol()` from the token and labels it "added by you" ("unlisted" for a token neither listed nor added). A Safe's visible balances must not depend solely on a third party's curation.
 
 Send:
 
@@ -1329,8 +1329,8 @@ Used for owner lists and the connected wallet. Never used as input to transactio
 
 Batches let one Safe transaction do several things atomically (for example approve + swap, or many token transfers).
 
-- use only the canonical `MultiSendCallOnly` (v1.4.1) address from §17
-- the outer Safe transaction is a DELEGATECALL to that address. Display it as "Batch of N calls", not as a dangerous delegatecall, and only for that exact address.
+- use only the canonical `MultiSendCallOnly` addresses: new batches use v1.5.0's, else v1.4.1's (§17); v1.3.0's (canonical and eip155) are recognized in existing transactions
+- the outer Safe transaction is a DELEGATECALL to one of those addresses. Display it as "Batch of N calls", not as a dangerous delegatecall, and only for those exact addresses.
 - decode and display every inner call (to, value, data, decoded action) with the same warnings as single calls
 - `MultiSendCallOnly` rejects nested delegatecalls by design; never use the plain `MultiSend` contract
 
@@ -1380,7 +1380,7 @@ The same client also plays the dapp, so an owner can sign with a wallet elsewher
 
 - signing methods go to the wallet (with a 15-minute expiry, `prompt` set so the phone is notified); rejections keep their code;
 - `eth_chainId` / `eth_accounts` come from the session; `wallet_switchEthereumChain` switches locally among the approved chains (4902 otherwise); `wallet_revokePermissions` deletes the session;
-- every other method is a read, sent to `https://rpc.walletconnect.org/v1/?chainId=eip155:<id>&projectId=<id>`: a phone wallet does not serve `eth_call` or logs over the relay. This is the one exception to "reads through the wallet's RPC", and the build's remote-URL check allows exactly that prefix. It does not weaken §16: the RPC is trusted exactly as a wallet's RPC is (spec, "does NOT protect against a malicious RPC").
+- every other method is a read, sent to `https://rpc.walletconnect.org/v1/?chainId=eip155:<id>&projectId=<id>`: a phone wallet does not serve `eth_call` or logs over the relay. This is the one exception to "reads through the wallet's RPC", and the build's remote-URL check allows exactly that prefix. It does not weaken §6: the RPC is trusted exactly as a wallet's RPC is (spec, "does NOT protect against a malicious RPC").
 - The QR code is rendered by `src/qr.js` (byte mode, level M), tested by decoding with jsQR.
 - Conformance: `test/net/walletconnect-owner.test.mjs` runs the official SDK as the wallet (connect by link, sign, reject, chain event, reload, disconnect both ways).
 
@@ -1389,14 +1389,12 @@ The same client also plays the dapp, so an owner can sign with a wallet elsewher
 Only after MVP:
 
 - compact QR signature exchange
-- owner management UI
-- threshold management UI
-- module management
 - custom RPC selector
-- broader chain support (ENS, WNS and TokenList live on mainnet; using them from other chains needs an L1 read path, which conflicts with the wallet-RPC-only rule)
+- names and the TokenList on other chains (ENS, WNS and the TokenList live on mainnet; using them from other chains needs an L1 read path, which conflicts with the wallet-RPC-only rule)
 - hardware-wallet-specific UX
-- ERC-5219 compatibility if useful
 - alternate fully onchain compression/storage techniques
+
+Done since: owner, threshold and module management (Settings), any EVM chain (§16), ERC-5219 (`contract/SafeWeiApp.sol`), WalletConnect both ways (§27c, §27d).
 
 ---
 

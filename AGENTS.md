@@ -30,7 +30,7 @@ Extend only with optional additions (a new flag bit plus an appended section, a 
 ## Verifying a change
 
 1. `npm run build` and `npm test`; `npm run test:fork` when touching protocol code (`safe.js`, `flow.js`, `share.js`, `message.js`, `review.js`, `pending.js`).
-2. Check it in the browser: `node scripts/fork.mjs` and `node scripts/dev.mjs --anvil http://127.0.0.1:8545` (the Anvil test wallet; `?acct=N` picks the account). Try the real states (owner, non-owner, not connected, no wallet via `--port N` without `--anvil`, phone width), and type into inputs for real.
+2. Check it in the browser: `node scripts/fork.mjs` and `node scripts/dev.mjs --anvil http://127.0.0.1:8545` (the Anvil test wallet; `?acct=N` picks the account). Try the real states (owner, non-owner, not connected, your own or a WalletConnect wallet via `--port N` without `--anvil`, phone width), and type into inputs for real.
 3. Update the docs with the change: `docs/guide.md` (behavior), `docs/links.md` (links), `docs/spec.md` (design), `README.md` (overview).
 
 ## Deploying
