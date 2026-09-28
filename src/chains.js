@@ -33,6 +33,24 @@ export const SAFE141 = RELEASES[1];
 /** Canonical MultiSendCallOnly contracts recognized as batches (only these; spec §26). */
 export const MULTISEND = RELEASES.map((r) => r.multiSendCallOnly);
 
+// Safe's canonical CompatibilityFallbackHandler and SignMessageLib per release line, from
+// safe-global/safe-deployments (1.3.0 exists at a "canonical" and an "eip155" address). A Safe
+// uses the ones of its own line: the 1.5.0 handler relies on functions older Safes lack.
+export const LIBS = {
+  '1.3': { handler: ['0xf48f2b2d2a534e402487b3ee7c18c33aec0fe5e4', '0x017062a1de2fe6b99be3d9d37841fed19f573804'], signMessage: ['0xa65387f16b013cf2af4605ad8aa5ec25a2cba3a2', '0x98ffbbf51bb33a056b08ddf711f289936aaff717'] },
+  '1.4': { handler: ['0xfd0732dc9e303f09fcef3a7388ad10a83459ec99'], signMessage: ['0xd53cd0ab83d845ac265be939c57f53ad838012c9'] },
+  '1.5': { handler: ['0x3efcbb83a4a7afcb4f68d501e2c2203a38be77f4'], signMessage: ['0x4ffef8222648872b3de295ba1e49110e61f5b5aa'] },
+};
+const LINE_VERSION = { '1.3': '1.3.0', '1.4': '1.4.1', '1.5': '1.5.0' };
+/** Known handlers: address → release. */
+export const HANDLERS = Object.fromEntries(Object.entries(LIBS).flatMap(([l, x]) => x.handler.map((a) => [a, LINE_VERSION[l]])));
+export const SIGN_MESSAGE_LIBS = Object.values(LIBS).flatMap((x) => x.signMessage);
+/** The release line whose libraries fit a Safe version (anything newer than 1.5 uses 1.5's). */
+export const line = (v) => {
+  const m = /^1\.(\d+)/.exec(v || '');
+  return !m || +m[1] >= 5 ? '1.5' : +m[1] === 4 ? '1.4' : '1.3';
+};
+
 // Registries that exist on Ethereum mainnet only (names, token list).
 export const MAINNET = {
   ens: '0x00000000000c2e074ec69a0dfb2997ba6c7d2e1e',
@@ -85,6 +103,8 @@ export async function chainInfo(id) {
     }),
   );
   const rel = (probe.find((p) => p.create) || probe[0]).r, batch = probe.find((p) => p.batch);
+  const libs = Object.values(LIBS).flatMap((x) => [...x.handler, ...x.signMessage]);
+  const deployed = new Set((await Promise.all(libs.map(async (a) => (await has(a)) && a))).filter(Boolean));
   return {
     id,
     ...label(id),
@@ -96,5 +116,7 @@ export async function chainInfo(id) {
     canBatch: !!batch,
     canMulticall: await has(SAFE.multicall3),
     mainnet: id === 1,
+    /** The deployed handler / SignMessageLib for a Safe of `version`, or null. */
+    libFor: (version, kind) => LIBS[line(version)][kind].find((a) => deployed.has(a)) || null,
   };
 }
