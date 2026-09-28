@@ -15,6 +15,7 @@ Everything this interface can do, screen by screen. For the links that open a sc
 - [11. Review, approve and execute](#11-review-approve-and-execute)
 - [11b. Signing messages](#11b-signing-messages)
 - [12. Sharing with other owners](#12-sharing-with-other-owners)
+- [12b. Using the Safe in other dapps (WalletConnect)](#12b-using-the-safe-in-other-dapps-walletconnect)
 - [13. Creating a Safe](#13-creating-a-safe)
 - [14. Names, labels and addresses](#14-names-labels-and-addresses)
 - [15. Backup and sync](#15-backup-and-sync)
@@ -264,6 +265,19 @@ The share link carries the transaction and the signatures collected so far, in t
 - Opening the link shows the same review screen, with the signatures already counted; invalid or foreign signatures are listed as ignored.
 
 Alternatively, **Approve onchain** with published details: then no link is needed at all (see [§7](#7-transactions)).
+
+## 12b. Using the Safe in other dapps (WalletConnect)
+
+The **Dapps** tab connects the Safe to any dapp that supports WalletConnect.
+
+- In the dapp, choose WalletConnect and copy its connection link (usually under the QR code, `wc:…`). Paste it in the Dapps tab and **Connect**. The dapp's name and site are shown as the dapp describes itself.
+- **Requests** show in a bar at the top of every page: "Uniswap asks Council to send a transaction". **Review** opens the normal review screen (marked "Requested by … through WalletConnect"); **Reject** tells the dapp no.
+  - A transaction goes through the usual approvals; when it executes, the dapp receives the transaction hash.
+  - A signature request opens the message screen; once the Safe's signature is ready (or signed onchain), **Send to <dapp>** returns it.
+  - Chain and account questions, and read-only calls, are answered automatically (reads through your wallet's RPC).
+- Connections survive reloads; **Disconnect** ends one. Multi-owner approvals take time: a dapp may stop waiting after a few minutes, but the transaction still executes.
+- **WalletConnect project**: safe.wei uses its own project ID. If connecting ever stops working, paste your own (free at dashboard.reown.com) in the Dapps tab.
+- The connection is end-to-end encrypted between safe.wei and the dapp; WalletConnect's relay only carries ciphertext. Nothing is signed or sent without the normal review.
 
 ## 13. Creating a Safe
 
