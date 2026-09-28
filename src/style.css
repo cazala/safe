@@ -303,3 +303,5 @@ p.lead { margin: 4px 0 8px; }
   dialog.sheet, dialog.sheet.wide { box-sizing: border-box; width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 18px 18px 0 0; border-width: 1px 0 0; padding-bottom: env(safe-area-inset-bottom); }
   .dbody input, .dbody textarea { font-size: 16px; }
 }
+p.importhint { margin: 20px 0 0; text-align: center; font-size: 13px; }
+p.importhint button.link { font-size: 13px; color: var(--fg); }

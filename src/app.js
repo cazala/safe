@@ -159,8 +159,12 @@ function home() {
     put(body, l);
   };
   st.homeTab = st.homeTab || 'safes';
-  show();
-  const list = h('div.hlist', bar, body);
+  // Nothing saved yet: no empty tabs, just a way to bring data over from another device.
+  const empty = !recent.safes().length && !Object.keys(labels.all()).length;
+  if (!empty) show();
+  const list = empty
+    ? h('p.importhint', h('span.mut', 'Moving from another device? '), h('button.link', { onclick: () => backupDialog() }, 'Import a backup'))
+    : h('div.hlist', bar, body);
   const c = chain();
   // Two ways in (open, create) live together at the top; your Safes are content below.
   const create = !c
