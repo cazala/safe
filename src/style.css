@@ -320,7 +320,7 @@ label.sfield input { padding: 10px 12px 10px 36px; border-radius: 10px; backgrou
 .split > a.splitmain { gap: 4px; padding: 9px 12px 9px 10px; border-radius: 9px 0 0 9px; }
 .split > button.splitcaret { padding: 0 9px; border-radius: 0 9px 9px 0; color: var(--mut); }
 .split > a.splitmain + button.splitcaret { border-left: 1px solid var(--line); }
-.split > button.splitcaret:only-of-type { border-radius: 9px; }
+.split.solo > button.splitcaret { border-radius: 9px; }
 .split > a.splitmain:hover, .split > button.splitcaret:hover { background: var(--bg); color: var(--fg); }
 .split svg { width: 16px; height: 16px; }
 .gearwrap { position: relative; }
