@@ -1532,7 +1532,9 @@ function nextStep(r) {
           'div.actions',
           button(owner && !mine ? 'Approve and execute' : 'Execute', () => recheck().then(() => execute(t, me, st.sigs)).then(executed), out, '.primary'),
           owner && !mine && button('Sign only', async () => (await recheck(), showReview(t, [...st.sigs, await sign(t, me)], 'replace')), out),
+          copyLink(txUrl(r)),
         ),
+        h('p.fhint', 'Copy link shares it with all the signatures so far: anyone can open it and execute.'),
         out,
       );
     else if (ready) step = h('div.step', h('h3', 'Approved · waiting for nonce ' + s.nonce), h('p', 'This transaction is queued: it can execute once nonce ' + s.nonce + ' has.'), txShare(r, false));
@@ -1588,9 +1590,14 @@ function nextStep(r) {
 
 /** The share link (with the signatures collected so far), a copy button, and the less common extras. */
 /** A share link (carrying the signatures so far) with Copy link as its action, plus the rarer extras. */
-function shareBlock(url, primary, { what = 'transaction', json, merge } = {}) {
+/** A "Copy link" button that confirms for a moment. */
+function copyLink(url, primary) {
   const b = h('button' + (primary ? '.primary' : ''), 'Copy link');
   b.onclick = () => toClipboard(url).then(() => (put(b, '✓ Copied'), setTimeout(() => put(b, 'Copy link'), 1500)), () => {});
+  return b;
+}
+function shareBlock(url, primary, { what = 'transaction', json, merge } = {}) {
+  const b = copyLink(url, primary);
   const more = merge && h('div.sharemore', { hidden: true }, h('p.mut', 'Got a link back with more signatures? Paste it to merge them here.'), merge);
   return h(
     'div.share',
@@ -1606,7 +1613,8 @@ function shareBlock(url, primary, { what = 'transaction', json, merge } = {}) {
   );
 }
 const here = () => location.href.split('#')[0];
-const txShare = (r, primary) => shareBlock(here() + '#' + fragment(r.tx, st.sigs, hintsFor(r.tx)), primary, { json: () => toJSON(r.tx, st.sigs, hintsFor(r.tx)), merge: importer() });
+const txUrl = (r) => here() + '#' + fragment(r.tx, st.sigs, hintsFor(r.tx));
+const txShare = (r, primary) => shareBlock(txUrl(r), primary, { json: () => toJSON(r.tx, st.sigs, hintsFor(r.tx)), merge: importer() });
 
 function actionView(d, t) {
   const tok = d.label.startsWith('ERC-20') && tokenOf(t.to);
