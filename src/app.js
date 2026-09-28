@@ -326,6 +326,9 @@ function moreMenu(canCreate) {
   const caret = h('button.splitcaret', { title: 'More: labels, backup & sync', 'aria-label': 'More', 'aria-haspopup': 'menu', onclick: () => (m.hidden = !m.hidden) }, icon(...CARET));
   return h('div.gearwrap.split' + (canCreate ? '' : '.solo'), canCreate && h('a.splitmain', { href: '#/new', onclick: () => (st.intent = true), title: 'Create a new Safe' }, icon(...ICONS.plus), h('span', 'New')), caret, m);
 }
+// Menus (New ▾, the Safe switcher) close on any click outside them.
+document.addEventListener('pointerdown', (e) => document.querySelectorAll('.hmenu').forEach((m) => !m.parentElement.contains(e.target) && (m.hidden = true)));
+
 function labelsSheet() {
   const { body } = sheet('tag', 'Labels', true);
   body.append(labelsView());
@@ -732,12 +735,8 @@ function sendTab(s, bulkMode, q) {
     () => put(body, bulkMode ? bulkForm(s, q) : sendForm(s, q)),
     (e) => put(body, warn('Could not read token balances: ' + e.message), bulkMode ? bulkForm(s, q) : sendForm(s, q)),
   );
-  return [ownerNote(s), seg, body];
+  return [seg, body];
 }
-
-/** Said where it matters (Send, Custom): a wallet that isn't an owner can prepare, share and execute, not approve. */
-const ownerNote = (s) =>
-  st.account && !s.owners.includes(st.account.toLowerCase()) && h('p.onote', 'This wallet isn’t an owner of this Safe. You can prepare and share transactions for the owners to approve, and execute them once they have, but not approve them yourself.');
 
 function sendForm(s, q) {
   const c = chain(), fromLink = q.has('to') || q.has('amount');
@@ -1188,7 +1187,6 @@ function builder(s) {
   render();
   return h(
     'div.form.wide',
-    ownerNote(s),
     h('p.mut', 'Call any contract from its ABI, or send raw calldata. Review each call, or add several to a batch. Nothing is fetched: the ABI is only used here to encode the call.'),
     h('label', 'Type'),
     mode,
@@ -1415,7 +1413,7 @@ function actionsView(r) {
       ),
       st.rejected.map((x) => warn('Ignored signature: ' + x.reason + '.')),
       !me && h('p.mut', 'Connect a wallet to approve or execute.'),
-      me && !owner && h('p.mut', 'The connected wallet is not an owner: it can execute once enough owners have approved.'),
+      me && !owner && h('p.onote', 'This wallet isn’t an owner of this Safe, so it can’t approve this transaction. Share the link below with an owner to approve it. Once enough owners have, any wallet, including this one, can execute it.'),
       !current && h('p.mut', 'Execution is possible only once the Safe nonce reaches ' + t.nonce + '.'),
       owner &&
         !mine &&
