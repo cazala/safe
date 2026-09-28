@@ -210,7 +210,6 @@ button.ib.on { color: var(--fg); }
 .saferow .go { display: inline-flex; color: var(--mut); }
 input.rename { padding: 4px 8px; font: inherit; font-size: 15px; font-weight: 600; }
 .saferow.removed { justify-content: space-between; border-style: dashed; background: none; }
-.foot { margin: 28px 0 8px; text-align: center; color: var(--mut); font-size: 12px; }
 @media (max-width: 600px) {
   .hero { margin: 16px 0; }
   .panel.create { flex-direction: column; align-items: stretch; }

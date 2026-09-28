@@ -170,10 +170,9 @@ function home() {
       : h('p.alt.mut', 'Safe’s contracts are not deployed on ' + c.name + ', so new Safes can’t be created here.');
   return h(
     'div.home',
-    h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'safe.wei'), h('p', 'Your Safe, straight from the chain. No servers, no sign-ups: just your wallet.')),
+    h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'safe.wei'), h('p', 'Your Safe, straight from the chain. No servers, everything stays in your browser.')),
     h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), out, create),
     list,
-    h('p.foot', 'Everything is read from the chain through your wallet. Your Safes and labels stay in this browser.'),
   );
 }
 
