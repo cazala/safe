@@ -1,7 +1,6 @@
 // Thin EIP-1193 wrapper. The provider is the user's wallet; nothing else is contacted.
 let P;
 export const use = (p) => (P = p);
-export const provider = () => P;
 export const rpc = (method, params = []) => {
   if (!P) throw Error('No wallet found. Install or enable an EIP-1193 wallet.');
   return P.request({ method, params });

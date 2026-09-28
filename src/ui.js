@@ -37,7 +37,7 @@ export const kv = (rows) => h('table.kv', rows.filter(Boolean).map(([k, v]) => h
 
 /** A full address in monospace with a copy button. */
 // Inline SVG icons, built with DOM calls (no markup strings).
-const NS = 'http://www.w3.org/2000/svg';
+export const NS = 'http://www.w3.org/2000/svg';
 export function icon(...paths) {
   const svg = document.createElementNS(NS, 'svg');
   for (const [k, v] of Object.entries({ viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' }))
@@ -71,6 +71,13 @@ export function toClipboard(text) {
   const ok = document.execCommand('copy');
   t.remove();
   return ok ? Promise.resolve() : Promise.reject(Error('Copy failed'));
+}
+
+/** A text button that copies `text` and confirms with "✓ Copied" for a moment. */
+export function copyButton(label, text, cls = '') {
+  const b = h('button' + cls, label);
+  b.onclick = () => toClipboard(text).then(() => (put(b, '✓ Copied'), setTimeout(() => put(b, label), 1500)), () => {});
+  return b;
 }
 
 /** Copy button: a copy icon that turns into a check for a moment. Fixed size, so nothing moves. */

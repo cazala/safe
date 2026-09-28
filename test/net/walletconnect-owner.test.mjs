@@ -1,5 +1,5 @@
 // safe.wei as the dapp: an owner's wallet (played by the official SDK) connects by the QR link,
-// then answers signing requests. Over the real relay; run with `node --test --test-force-exit test/net/`.
+// then answers signing requests. Over the real relay; run with `npm run test:net`.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';

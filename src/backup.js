@@ -2,20 +2,9 @@
 // labels, ABIs, added tokens), as JSON or a link to open on another device.
 // FROZEN FORMAT (#import= links, JSON shape): see docs/links.md → Stability and test/unit/links.test.mjs.
 import { utf8 } from './abi.js';
+import { load as read, store as write } from './store.js';
 
 const P = 'safe.wei:';
-const read = (k, d) => {
-  try {
-    return JSON.parse(localStorage.getItem(P + k)) ?? d;
-  } catch {
-    return d;
-  }
-};
-const write = (k, v) => {
-  try {
-    localStorage.setItem(P + k, JSON.stringify(v));
-  } catch {}
-};
 const tokenChains = () => {
   const out = [];
   try {

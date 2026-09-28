@@ -9,6 +9,7 @@
     "dev": "node scripts/dev.mjs",
     "test": "node --test 'test/unit/*.test.mjs'",
     "test:fork": "node --test --test-concurrency=1 'test/fork/*.test.mjs'",
+    "test:net": "node --test --test-force-exit 'test/net/*.test.mjs'",
     "test:all": "npm run build && npm test && npm run test:fork"
   },
   "license": "MIT",

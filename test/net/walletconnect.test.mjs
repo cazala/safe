@@ -1,5 +1,5 @@
 // Conformance against the real WalletConnect relay: the official SDK plays the dapp, safe.wei's
-// src/wc.js plays the wallet. Needs the network; run with `node --test test/net/`.
+// src/wc.js plays the wallet. Needs the network; run with `npm run test:net`.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';

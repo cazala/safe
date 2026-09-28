@@ -4,6 +4,7 @@
 import { label } from './chains.js';
 import * as labels from './labels.js';
 import * as recent from './recent.js';
+import { load, store } from './store.js';
 import { h, icon, iconButton, ICONS, put, short } from './ui.js';
 
 const FOLDER = ['M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'];
@@ -11,19 +12,11 @@ const FOLDER = ['M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 
 const UNGROUP = ['M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', 'M12 16v-5', 'm9.5 13.5 2.5-2.5 2.5 2.5'];
 
 // Which folders are open, per browser.
-const OPEN = 'safe.wei:open';
 const openSet = () => {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(OPEN) || '[]'));
-  } catch {
-    return new Set();
-  }
+  const l = load('open', []);
+  return new Set(Array.isArray(l) ? l : []);
 };
-const saveOpen = (s) => {
-  try {
-    localStorage.setItem(OPEN, JSON.stringify([...s]));
-  } catch {}
-};
+const saveOpen = (s) => store('open', [...s]);
 
 // One drag at a time, tracked with document listeners registered once.
 let drag = null;
