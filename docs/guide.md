@@ -175,7 +175,7 @@ Parameter helpers:
 - **bytes / bytesN**: **text → hex** (UTF-8) and, for `bytes32`, **keccak256(text)**.
 - **Arrays and tuples**: JSON, e.g. `["0x…", "1"]`, with an example for the exact shape.
 
-Every call can be reviewed on its own or added to a batch. Nothing is fetched: the ABI is only used locally to encode the call, and the review says so ("Encoded here from the ABI you provided").
+Every call can be reviewed on its own or added to a batch. Nothing is fetched: the ABI is only used locally to encode the call. The function's signature travels with the transaction (in share links, JSON and onchain publications), so other owners see the call decoded too (see [§11](#11-review-approve-and-execute)).
 
 ## 9. Settings
 
@@ -216,6 +216,10 @@ Every transaction, however it was built or opened, ends on the review screen.
 
 3. **Approvals**: each owner with ✓ signed, ✓ approved onchain, or waiting, and **Refresh**.
 4. **Transaction details** (collapsed): Safe, chain, nonce, to, value, operation, decoded action (per call for batches), calldata, gas fields, SafeTx hash and the Safe's own hash.
+
+### Calls safe.wei cannot decode by itself
+
+safe.wei decodes ERC-20 transfers and approvals and Safe settings on its own. Other calls are shown decoded when the transaction came with their function signatures (from the Custom tab, or from the app that built the link, such as roles.wei): the function name and each parameter with its value, labeled "Decoded with a function signature that came with this transaction". A signature is used only if the decoded values re-encode to exactly the same calldata, so the values are what will execute, while the names are only a claim by whoever built it. Without a matching signature the call is shown as raw calldata.
 
 ### Sign or approve onchain?
 

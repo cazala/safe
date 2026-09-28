@@ -39,12 +39,23 @@ test('fragment and link round trip preserve chainId and Safe', () => {
 test('JSON round trip and tamper detection', () => {
   const t = randomTx();
   const json = toJSON(t, [sig()]);
-  assert.deepEqual(importPayload(json), { tx: t, sigs: [sig()] });
+  assert.deepEqual(importPayload(json), { tx: t, sigs: [sig()], abi: [] });
   const o = JSON.parse(json);
   o.to = '0x' + '1'.repeat(40);
   assert.throws(() => importPayload(JSON.stringify(o)), /safeTxHash does not match/);
   assert.throws(() => importPayload(JSON.stringify({ ...JSON.parse(json), operation: 2, safeTxHash: undefined })), /operation/);
   assert.throws(() => importPayload(JSON.stringify({ ...JSON.parse(json), value: '1.5', safeTxHash: undefined })), /decimal/);
+});
+
+test('call signatures round trip through links, onchain payloads and JSON', () => {
+  const abi = ['assignRoles(address module, bytes32[] roleKeys, bool[] memberOf)', 'scopeFunction(bytes32 roleKey, address targetAddress, bytes4 selector, (uint8 parent, uint8 paramType, uint8 operator, bytes compValue)[] conditions, uint8 options)'];
+  for (let i = 0; i < 20; i++) {
+    const t = randomTx(), sigs = i % 2 ? [sig()] : [];
+    assert.deepEqual(fromFragment(fragment(t, sigs, abi).slice(3)), { tx: t, sigs, abi });
+    assert.deepEqual(uncompact(compact(t, [], abi), t.chainId, t.safe).abi, abi);
+    assert.deepEqual(importPayload(toJSON(t, sigs, abi)).abi, abi);
+  }
+  assert.throws(() => importPayload(JSON.stringify({ ...JSON.parse(toJSON(randomTx())), abi: 'x' })), /abi must be a list/);
 });
 
 test('a tampered link decodes to a different transaction hash', () => {
@@ -67,6 +78,6 @@ test('malformed payloads are rejected', () => {
   assert.throws(() => uncompact(c + '00', t.chainId, t.safe), /trailing/);
   assert.throws(() => uncompact(c.slice(0, -2), t.chainId, t.safe), /truncated/);
   assert.throws(() => uncompact('0x000000', t.chainId, t.safe), /Not a safe.wei/);
-  assert.throws(() => uncompact('0x53570180' + c.slice(10), t.chainId, t.safe), /unknown flags/);
+  assert.throws(() => uncompact('0x53570110' + c.slice(10), t.chainId, t.safe), /unknown flags/);
   assert.throws(() => importPayload('hello world'), /Paste a safe.wei link/);
 });

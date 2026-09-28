@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { encodeFunctionData, parseAbi as viemParse, toFunctionSelector } from 'viem';
-import { encodeCall, parseAbi, parseValue } from '../../src/abicoder.js';
+import { encodeCall, humanSig, matchCall, parseAbi, parseValue } from '../../src/abicoder.js';
 
 const A = '0x' + '11'.repeat(20), B = '0x' + '22'.repeat(20);
 const CASES = [
@@ -56,4 +56,34 @@ test('parseValue validates and converts user input', () => {
   assert.throws(() => parseValue(P('uint256[2]'), '[1]'), /exactly 2/);
   assert.deepEqual(parseValue(P('tuple', { components: [{ name: 'a', type: 'address' }, { name: 'b', type: 'bool' }] }), '["' + A + '", "false"]'), [A, false]);
   assert.throws(() => parseValue(P('address[]'), 'not json'), /JSON array/);
+});
+
+const lower = (v) => (Array.isArray(v) ? v.map(lower) : typeof v === 'string' ? v.toLowerCase() : v);
+
+test('matchCall decodes what viem encodes, and re-encodes it byte for byte', () => {
+  for (const [sig, args] of CASES) {
+    const data = encodeFunctionData({ abi: viemParse([sig]), functionName: parseAbi(sig)[0].name, args });
+    const m = matchCall([sig], data);
+    assert.ok(m, sig);
+    assert.deepEqual(lower(m.values), lower(toArr(args)), sig);
+    // the printed signature parses back to the same function
+    assert.equal(parseAbi(humanSig(m.f))[0].selector, m.f.selector, sig);
+  }
+});
+
+test('matchCall ignores signatures that do not fit the calldata exactly', () => {
+  const sig = 'function f(address a, bool b, int8 c, bytes4 d, uint256[] e)';
+  const [f] = parseAbi(sig);
+  const good = encodeCall(f, [A, true, -3n, '0x12345678', [1n, 2n]]);
+  assert.ok(matchCall([sig], good));
+  const word = (i) => 10 + i * 64; // hex offset of head word i (after 0x + selector)
+  const patch = (i, w) => good.slice(0, word(i)) + w + good.slice(word(i) + 64);
+  assert.equal(matchCall([sig], patch(0, 'ff' + good.slice(word(0) + 2, word(0) + 64))), null, 'dirty address');
+  assert.equal(matchCall([sig], patch(1, '0'.repeat(63) + '2')), null, 'bool 2');
+  assert.equal(matchCall([sig], patch(2, '0'.repeat(62) + 'ff')), null, 'int8 255');
+  assert.equal(matchCall([sig], patch(3, '12345678' + '0'.repeat(55) + '1')), null, 'dirty bytes4');
+  assert.equal(matchCall([sig], good + '00'), null, 'trailing byte');
+  assert.equal(matchCall([sig], patch(4, (0xc0).toString(16).padStart(64, '0'))), null, 'non-canonical offset');
+  assert.equal(matchCall(['function g(address a)'], good), null, 'other selector');
+  assert.equal(matchCall(['not a signature', sig], good).signature, sig, 'bad lines are skipped');
 });

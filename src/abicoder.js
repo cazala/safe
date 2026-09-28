@@ -1,7 +1,7 @@
 // ABI support for the transaction builder: parse an ABI (JSON, or human-readable
 // "function name(type arg, …)" lines), list its write methods, and ABI-encode calls with
 // any parameter types (static, dynamic, arrays, fixed arrays, tuples).
-import { keccakText, strip, utf8, hex, isAddr, isHex } from './abi.js';
+import { bytes, keccakText, strip, utf8, hex, isAddr, isHex } from './abi.js';
 
 // ---- types ----
 // A param is { name, type, components? } as in JSON ABIs; `type` may carry array suffixes.
@@ -191,3 +191,87 @@ export function parseValue(p, v) {
 }
 
 export { MAX };
+
+// ---- decoding with a signature that came with a transaction (docs/links.md → call signatures) ----
+// The signature is untrusted: it only supplies names. A decode counts only if encoding the decoded
+// values again reproduces the calldata byte for byte, so the values are exactly what will execute.
+
+const rd = (h, pos, n = 64) => {
+  if (pos < 0 || pos + n > h.length) throw Error('out of bounds');
+  return h.slice(pos, pos + n);
+};
+/** A length or offset word, bounded by the data itself (no allocation from attacker-sized numbers). */
+const small = (h, pos) => {
+  const v = BigInt('0x' + rd(h, pos));
+  if (v > BigInt(h.length)) throw Error('length or offset out of range');
+  return Number(v);
+};
+
+function decodeList(ps, h, start) {
+  let head = start;
+  return ps.map((p) => {
+    let v;
+    if (dynamic(p)) (v = decodeAt(p, h, start + small(h, head) * 2)), (head += 64);
+    else (v = decodeAt(p, h, head)), (head += headSize(p) * 2);
+    return v;
+  });
+}
+
+function decodeAt(p, h, pos) {
+  const m = arrayOf(p.type);
+  if (m) {
+    const it = inner(p, m), n = m[2] === '' ? small(h, pos) : Number(m[2]);
+    if (n * 64 > h.length) throw Error('array longer than the data');
+    return decodeList(Array(n).fill(it), h, m[2] === '' ? pos + 64 : pos);
+  }
+  if (p.type === 'tuple') return decodeList(p.components, h, pos);
+  if (p.type === 'bytes' || p.type === 'string') {
+    const n = small(h, pos), b = rd(h, pos + 64, n * 2);
+    return p.type === 'bytes' ? '0x' + b : new TextDecoder('utf-8', { fatal: true }).decode(bytes('0x' + b));
+  }
+  const w = rd(h, pos);
+  if (p.type === 'address') return '0x' + w.slice(24);
+  if (p.type === 'bool') return w.endsWith('1'); // any other word re-encodes differently and is rejected
+  const b = /^bytes(\d+)$/.exec(p.type);
+  if (b) return '0x' + w.slice(0, Number(b[1]) * 2);
+  const i = /^(u?)int(\d*)$/.exec(p.type);
+  if (!i) throw Error('unsupported type ' + p.type);
+  let v = BigInt('0x' + w);
+  if (!i[1] && v >> 255n) v -= 1n << 256n;
+  const [lo, hi] = intRange(p.type);
+  if (v < lo || v > hi) throw Error('out of range for ' + p.type); // the encoder would not catch this
+  return v;
+}
+
+/**
+ * Decode `data` with the first of `signatures` (human-readable lines) whose selector matches and
+ * whose decoded values re-encode to exactly `data`. Returns { f, values, signature } or null.
+ */
+export function matchCall(signatures, data) {
+  const h = strip(data || '0x').toLowerCase();
+  if (h.length < 8) return null;
+  for (const line of signatures || []) {
+    let f;
+    try {
+      [f] = parseAbi(line);
+    } catch {
+      continue;
+    }
+    if (!f || f.selector !== h.slice(0, 8)) continue;
+    try {
+      const values = decodeList(f.inputs, h.slice(8), 0);
+      if (strip(encodeCall(f, values)) === h) return { f, values, signature: line };
+    } catch {}
+  }
+  return null;
+}
+
+/** The human-readable signature of a parsed function, with parameter names: "transfer(address to, uint256 amount)". */
+export function humanSig(f) {
+  const t = (p) => {
+    const m = arrayOf(p.type);
+    if (m) return t(inner(p, m)) + '[' + m[2] + ']';
+    return p.type === 'tuple' ? '(' + p.components.map((c) => t(c) + (c.name ? ' ' + c.name : '')).join(', ') + ')' : canonical(p);
+  };
+  return f.name + '(' + f.inputs.map((p) => t(p) + (p.name && !/^arg\d+$/.test(p.name) ? ' ' + p.name : '')).join(', ') + ')';
+}
