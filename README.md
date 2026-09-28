@@ -24,6 +24,8 @@ A minimal interface for [Safe](https://safe.global) multisig accounts that lives
 - A review screen that says what the transaction does and what to do next, for owners and non-owners alike.
 - Sign offchain for free (EIP-712), or approve onchain, optionally publishing the details so other owners find it without a link.
 - Share by link (the transaction and its signatures travel in the URL fragment), merge signatures from several links, execute once the threshold is met.
+- Sign messages as the Safe (EIP-1271): text, EIP-712 typed data or a raw hash, with the owners' signatures combined and checked against the Safe's `isValidSignature`.
+- Calls safe.wei cannot decode on its own are shown decoded when the link carries their function signatures, checked byte for byte against the calldata.
 - Every transaction's hash is checked against the Safe's own `getTransactionHash`; calls are simulated and risky ones flagged.
 
 **Yours, in the browser**

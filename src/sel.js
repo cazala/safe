@@ -36,6 +36,8 @@ export const S = {
   wnsResolve: '4f896d4f',
   reverseResolve: '9af8b7aa',
   name: '691f3431',
+  getMessageHash: '0a1028c4',
+  isValidSignature: '1626ba7e',
 };
 
 export const T = {
@@ -45,4 +47,5 @@ export const T = {
   SafeTx: '0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8',
   Domain: '0x47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218',
   OffchainLookup: '556f1830',
+  SafeMessage: '0x60b3cbf8b4a223d68d641b3b6ddf9a298e7f33710cf3d3a9d1146b5a6150fbca',
 };

@@ -24,8 +24,11 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | tabs + builder | 74,212 | 27,773 | 64,938 | 8,266 | Safe page tabs, ABI encoder + transaction builder |
 | home + labels | 103,493 | 38,152 | 86,289 | 16,149 | saved Safes with folders/drag and drop, Settings, labels |
 | backup & sync | 110,535 | 40,358 | 92,573 | 16,907 | export link/JSON/file, import preview + merge/replace |
+| UI redesigns | 132,069 | — | — | — | wallet gates, Home (search-or-open, tree), Safe page polish, breadcrumb switcher, review next-step cards |
+| call signatures | 134,917 | — | — | — | ABI decoder + byte-exact matcher, signature section in #tx= links |
+| messages | 148,343 | 51,363 | 119,790 | 27,452 | EIP-191 / EIP-712 hashing, SafeMessage signing, #msg= links, message review |
 
-The page is now just over the 100 KB "good" line (under the 200 KB limit). Most recent growth is Home conveniences (folders, labels) and the Settings tab.
+The page is now about 145 KB (under the 200 KB limit, over the 100 KB "good" line). Recent growth: the redesigned screens, the ABI decoder and message signing. Onchain it takes 7 chunks of 24,575 bytes.
 
 ## Major contributors
 

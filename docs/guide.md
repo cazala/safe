@@ -13,6 +13,7 @@ Everything this interface can do, screen by screen. For the links that open a sc
 - [9. Settings](#9-settings)
 - [10. Batches](#10-batches)
 - [11. Review, approve and execute](#11-review-approve-and-execute)
+- [11b. Signing messages](#11b-signing-messages)
 - [12. Sharing with other owners](#12-sharing-with-other-owners)
 - [13. Creating a Safe](#13-creating-a-safe)
 - [14. Names, labels and addresses](#14-names-labels-and-addresses)
@@ -165,7 +166,8 @@ An Etherscan-style "Write contract" for any contract.
 - **Custom ABI**: paste a JSON ABI (an array, or a Hardhat / Foundry artifact with an `abi` field), upload a `.json` file, or write human-readable signatures, one per line (`function transfer(address to, uint256 amount)`).
   - Write methods are listed first, each with a form for its parameters. Payable methods get a value field.
   - ABIs are remembered per contract and chain, so the next time you pick that contract the ABI is already there.
-- **Raw calldata**: a `to`, a value and hex calldata.
+- **Raw calldata**: a `to`, a value and hex calldata (and, under Advanced, the operation and the nonce).
+- **Message (signed by the Safe)**: text, EIP-712 typed data (JSON) or a raw 32-byte hash, for the Safe to sign (see [§11b](#11b-signing-messages)).
 
 Parameter helpers:
 
@@ -232,6 +234,16 @@ safe.wei decodes ERC-20 transfers and approvals and Safe settings on its own. Ot
 - Executing submits the transaction with the collected signatures (`execTransaction`). Any wallet can do it once the threshold is met; an owner who executes counts as an approval.
 - Before approving, signing or executing, names used in the transaction are resolved again; if one changed, the action is refused.
 - After executing you return to Assets with a confirmation.
+
+## 11b. Signing messages
+
+A Safe can sign messages (EIP-1271): apps that ask a Safe to "sign in", or to sign an order or a permit, verify the signature by calling the Safe's `isValidSignature`. The Safe says yes when enough owners have signed the message.
+
+- Start from **Custom → Message**, or open a `#msg=` link an app or another owner sent you.
+- The screen shows the message: text as text, typed data by its type (e.g. `Permit`), app, contract and fields, or a raw hash. Permissions to move assets (EIP-2612 permits, Permit2, Seaport orders) get a red warning; a raw hash gets a warning that its meaning cannot be shown; a typed-data chain that differs from the Safe's is flagged.
+- The next step works like transactions: an owner **Signs** (free, in the wallet; the wallet shows a `SafeMessage` whose message is the hash printed below the button); an owner who signed, or a non-owner, sends the link to the other owners.
+- Once enough owners have signed, **Signature ready** shows the Safe's signature with **Copy signature**, and confirms that the Safe accepts it.
+- Before anyone signs, safe.wei checks its hash against the Safe's own `getMessageHash`. A Safe without a compatible fallback handler cannot validate messages, and says so.
 
 ## 12. Sharing with other owners
 

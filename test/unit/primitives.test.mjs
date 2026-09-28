@@ -50,6 +50,8 @@ const SIGS = {
   wnsResolve: 'resolve(uint256)',
   reverseResolve: 'reverseResolve(address)',
   name: 'name(bytes32)',
+  getMessageHash: 'getMessageHash(bytes)',
+  isValidSignature: 'isValidSignature(bytes32,bytes)',
 };
 
 test('every hardcoded selector matches its signature', () => {
@@ -71,6 +73,7 @@ test('event topics and typehashes', () => {
   );
   assert.equal(T.Domain, keccakText('EIP712Domain(uint256 chainId,address verifyingContract)'));
   assert.equal('0x' + T.OffchainLookup, toFunctionSelector('function OffchainLookup(address,string[],bytes,bytes4,bytes)'));
+  assert.equal(T.SafeMessage, keccakText('SafeMessage(bytes message)'));
 });
 
 test('encode matches viem for static, bytes and address[]', () => {

@@ -461,3 +461,5 @@ details.rvdetails > summary { font-weight: 600; }
 p.hintnote { margin: 4px 0 6px; color: var(--mut); font-size: 12px; }
 ol.vlist { margin: 0; padding-left: 20px; }
 ol.vlist > li { margin: 2px 0; }
+/* Messages */
+pre.msgtext { margin: 8px 0; padding: 12px 14px; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font: 13px/1.5 ui-monospace, Menlo, monospace; }

@@ -5,7 +5,7 @@ import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review } from './review.js';
 import * as rpc from './rpc.js';
 import { create, createCall, modules, newTx, predict, readSafe, safeTxHash, SENTINEL } from './safe.js';
-import { compact, fragment, importPayload, toJSON } from './share.js';
+import { compact, fragment, importMessage, importPayload, messageFragment, toJSON } from './share.js';
 import { payloadGas, scan } from './pending.js';
 import { decode } from './decode.js';
 import { balances, listed, meta, save, saved } from './tokens.js';
@@ -21,6 +21,7 @@ import * as backup from './backup.js';
 import * as recent from './recent.js';
 import { discover, get, list, remember, remembered } from './wallets.js';
 import { identify } from './zodiac.js';
+import { checkMessage, combine, isValid, KINDS, signMessage } from './message.js';
 
 const st = { account: null, chainId: null, safe: null, tokens: {}, named: {}, batch: [], batchNames: {} };
 
@@ -1158,7 +1159,7 @@ const noteView = (data) => {
 };
 
 function builder(s) {
-  const mode = h('select', h('option', { value: 'abi' }, 'Custom ABI'), h('option', { value: 'raw' }, 'Raw calldata'));
+  const mode = h('select', h('option', { value: 'abi' }, 'Custom ABI'), h('option', { value: 'raw' }, 'Raw calldata'), h('option', { value: 'msg' }, 'Message (signed by the Safe)'));
   const to = h('input', { spellcheck: 'false' });
   const abiText = h('textarea', { placeholder: '[{"type":"function","name":"stake","inputs":[…]}]  (a Hardhat/Foundry artifact, or one function signature per line, also works)', spellcheck: 'false', rows: 5 });
   const file = h('input', { type: 'file', accept: '.json,application/json' });
@@ -1167,7 +1168,9 @@ function builder(s) {
   let contract = null;
 
   const render = async () => {
-    const raw = mode.value === 'raw';
+    const raw = mode.value === 'raw', msg = mode.value === 'msg';
+    toLabel.hidden = to.hidden = msg;
+    if (msg) return (abiBox.hidden = true), put(methods, messageBuilder(s));
     put(toLabel, raw ? 'To' : 'Contract');
     to.placeholder = (raw ? 'Address' : 'Contract address') + ' 0x… or name.eth / name.wei';
     abiBox.hidden = raw;
@@ -1354,11 +1357,18 @@ function rawBuilder(s, to) {
 }
 
 function importer() {
-  const ta = h('textarea', { placeholder: 'Paste a safe.wei link, a tx= fragment, or transaction JSON from another owner', spellcheck: 'false' });
+  const ta = h('textarea', { placeholder: 'Paste a safe.wei link (transaction or message), a tx= fragment, or transaction JSON from another owner', spellcheck: 'false' });
   const out = h('div');
   const btn = button(
     'Import',
     async () => {
+      const pm = importMessage(ta.value);
+      if (pm) {
+        // Same message as the one on screen: merge its signatures; otherwise open it.
+        const cur = st.message;
+        if (cur && cur.m.safe === pm.msg.safe && cur.m.kind === pm.msg.kind && cur.m.content === pm.msg.content) return showMessage(cur.m, [...st.msgSigs, ...pm.sigs], 'replace');
+        return (location.hash = messageFragment(pm.msg, pm.sigs));
+      }
       const p = importPayload(ta.value);
       st.named = {};
       addHints(p.abi);
@@ -1445,7 +1455,7 @@ function nextStep(r) {
     };
     const count = got + ' of ' + thr + ' approval' + (thr === 1 ? '' : 's');
     let step;
-    if (!me) step = h('div.step', h('h3', 'Connect a wallet to approve or execute'), h('p', count + ' so far. Owners approve with their wallet; you can also send this link to them.'), shareBlock(r, false));
+    if (!me) step = h('div.step', h('h3', 'Connect a wallet to approve or execute'), h('p', count + ' so far. Owners approve with their wallet; you can also send this link to them.'), txShare(r, false));
     else if (ready && current)
       step = h(
         'div.step.go',
@@ -1458,7 +1468,7 @@ function nextStep(r) {
         ),
         out,
       );
-    else if (ready) step = h('div.step', h('h3', 'Approved · waiting for nonce ' + s.nonce), h('p', 'This transaction is queued: it can execute once nonce ' + s.nonce + ' has.'), shareBlock(r, false));
+    else if (ready) step = h('div.step', h('h3', 'Approved · waiting for nonce ' + s.nonce), h('p', 'This transaction is queued: it can execute once nonce ' + s.nonce + ' has.'), txShare(r, false));
     else if (owner && !mine) {
       const payload = compact(t, [], hintsFor(t)), publish = h('input', { type: 'checkbox', checked: true });
       step = h(
@@ -1485,13 +1495,13 @@ function nextStep(r) {
         h('p.fhint', 'Your wallet will show the SafeTx hash ', h('code', r.local), '. It must match.'),
       );
     } else if (owner)
-      step = h('div.step', h('h3', h('span.ok', '✓ '), 'You approved · ' + (thr - got) + ' more needed'), h('p', 'Send this link to the other owners. Each one opens it, checks it and approves with their wallet.'), shareBlock(r, true));
+      step = h('div.step', h('h3', h('span.ok', '✓ '), 'You approved · ' + (thr - got) + ' more needed'), h('p', 'Send this link to the other owners. Each one opens it, checks it and approves with their wallet.'), txShare(r, true));
     else
       step = h(
         'div.step',
         h('h3', 'Send this to the owners'),
         h('p', 'This wallet isn’t an owner, so it can’t approve. Copy the link and send it to the owners: they open it, check it and approve with their wallet, no setup needed. Once ' + thr + ' ' + (thr === 1 ? 'has' : 'have') + ', any wallet, this one included, can execute it.'),
-        shareBlock(r, true),
+        txShare(r, true),
       );
     put(
       box,
@@ -1509,19 +1519,26 @@ function nextStep(r) {
 }
 
 /** The share link (with the signatures collected so far), a copy button, and the less common extras. */
-function shareBlock(r, primary) {
-  const url = location.href.split('#')[0] + '#' + fragment(r.tx, st.sigs, hintsFor(r.tx));
+/** A share link (carrying the signatures so far) with Copy link as its action, plus the rarer extras. */
+function shareBlock(url, primary, { what = 'transaction', json, merge } = {}) {
   const b = h('button' + (primary ? '.primary' : ''), 'Copy link');
   b.onclick = () => toClipboard(url).then(() => (put(b, '✓ Copied'), setTimeout(() => put(b, 'Copy link'), 1500)), () => {});
-  const more = h('div.sharemore', { hidden: true }, h('p.mut', 'Got a link back with more signatures? Paste it to merge them here.'), importer());
+  const more = merge && h('div.sharemore', { hidden: true }, h('p.mut', 'Got a link back with more signatures? Paste it to merge them here.'), merge);
   return h(
     'div.share',
     h('div.row', h('input.mono', { readonly: true, value: url, onclick: (e) => e.target.select(), 'aria-label': 'Share link' }), b),
-    h('p.fhint', 'The link carries the transaction and the signatures so far. Anyone with it can read it; only owners can approve.'),
-    h('p.sharelinks', h('button.link', { onclick: () => toClipboard(toJSON(r.tx, st.sigs, hintsFor(r.tx))) }, 'Copy as JSON'), h('span.mut', ' · '), h('button.link', { onclick: () => (more.hidden = !more.hidden) }, 'Merge signatures from another link')),
+    h('p.fhint', 'The link carries the ' + what + ' and the signatures so far. Anyone with it can read it; only owners can sign.'),
+    h(
+      'p.sharelinks',
+      json && h('button.link', { onclick: () => toClipboard(json()) }, 'Copy as JSON'),
+      json && merge && h('span.mut', ' · '),
+      merge && h('button.link', { onclick: () => (more.hidden = !more.hidden) }, 'Merge signatures from another link'),
+    ),
     more,
   );
 }
+const here = () => location.href.split('#')[0];
+const txShare = (r, primary) => shareBlock(here() + '#' + fragment(r.tx, st.sigs, hintsFor(r.tx)), primary, { json: () => toJSON(r.tx, st.sigs, hintsFor(r.tx)), merge: importer() });
 
 function actionView(d, t) {
   const tok = d.label.startsWith('ERC-20') && tokenOf(t.to);
@@ -1575,6 +1592,172 @@ function detailsView(r) {
   );
 }
 
+// ---- messages (EIP-1271): the Safe signs a message when enough owners sign it ----
+
+/** Custom → Message: what to sign, as text, EIP-712 typed data or a raw hash. */
+function messageBuilder(s) {
+  const kind = h('select', h('option', { value: 1 }, 'Text'), h('option', { value: 2 }, 'Typed data (EIP-712 JSON)'), h('option', { value: 3 }, 'Hash (32 bytes)'));
+  const text = h('textarea', { rows: 6, spellcheck: 'false' });
+  const place = () => (text.placeholder = ['', 'The message, as the app shows it', '{"types":{…},"primaryType":"…","domain":{…},"message":{…}}', '0x… (the 32-byte hash an app will pass to isValidSignature)'][kind.value]);
+  kind.onchange = place;
+  place();
+  const out = h('div');
+  const go = button(
+    'Review message',
+    async () => {
+      const k = Number(kind.value), v = text.value;
+      let content;
+      if (k === 1) {
+        if (!v) throw Error('Enter the message.');
+        content = hex(utf8(v));
+      } else if (k === 2) {
+        let td;
+        try {
+          td = JSON.parse(v);
+        } catch {
+          throw Error('Typed data must be valid JSON.');
+        }
+        content = JSON.stringify(td);
+      } else {
+        content = v.trim().toLowerCase();
+        if (!/^0x[0-9a-f]{64}$/.test(content)) throw Error('A hash is 0x followed by 64 hex digits.');
+      }
+      await showMessage({ chainId: s.chainId, safe: s.address, kind: k, content }, [], 'push');
+    },
+    out,
+    '.primary',
+  );
+  return h(
+    'div',
+    h('p.mut', 'Sign a message as the Safe (EIP-1271): once enough owners sign it, apps accept it as the Safe’s signature through its isValidSignature.'),
+    h('label', 'Kind'),
+    kind,
+    h('label', 'Message'),
+    text,
+    h('div.actions', go),
+    out,
+  );
+}
+
+/** Review a message on its own screen (like transactions). */
+async function showMessage(m, sigs = [], nav = 'push') {
+  if (nav === 'push') st.backTo = location.hash && !/^#(tx|msg)=/.test(location.hash) ? location.hash : null;
+  else if (nav === 'none') st.backTo = null;
+  put(main, safeHeader(st.safe, [st.backTo || link('custom'), 'Back']), rv);
+  setCrumb(st.safe);
+  put(rv, h('p.mut', 'Checking the message…'));
+  let c;
+  try {
+    c = await checkMessage(m, sigs);
+  } catch (e) {
+    return put(rv, bad('This message cannot be read: ' + e.message));
+  }
+  st.message = { m, c };
+  st.msgSigs = c.valid.map((x) => x.sig);
+  const h2 = '#' + messageFragment(m, st.msgSigs);
+  if (nav === 'push') history.pushState(null, '', h2);
+  else if (nav === 'replace') history.replaceState(null, '', h2);
+  const ok = c.onchain === c.local;
+  put(rv, messageHead(m, c), ok ? messageStep(m, c) : h('div.step.blocked', h('h3', 'This message cannot be signed here'), h('p', 'Resolve the problem above first.')), messageDetails(m, c));
+  scrollTo(0, 0);
+}
+
+// Typed data that grants a spending permission: signing it can move the Safe's assets.
+const PERMITS = /^(Permit|PermitSingle|PermitBatch|PermitTransferFrom|PermitBatchTransferFrom|PermitWitnessTransferFrom|PermitWitnessBatchTransferFrom|OrderComponents)$/;
+
+function messageHead(m, c) {
+  const td = c.typed, dc = td && td.domain && td.domain.chainId !== undefined && Number(td.domain.chainId);
+  return h(
+    'section.rvhead',
+    h('div.rvkicker', KINDS[m.kind], ' · to be signed by the Safe'),
+    m.kind === 1 ? (c.text !== null ? h('pre.msgtext', c.text) : [h('p.mut', 'Raw bytes (not text):'), h('code.mono', m.content)]) : m.kind === 2 ? typedView(td) : h('code.mono', m.content),
+    td && PERMITS.test(td.primaryType) && h('p.bad.danger', 'PERMISSION TO MOVE ASSETS (' + td.primaryType + '). Once enough owners sign, whoever holds the signature can use it to move this Safe’s tokens, without another Safe transaction.'),
+    dc && dc !== m.chainId && warn('This message names chain ' + dc + ', but the Safe is on chain ' + m.chainId + '.'),
+    m.kind === 3 && warn('A raw hash: safe.wei cannot show what it stands for. Sign it only if you know which message it is.'),
+    c.onchain === c.local
+      ? h('p.rvhash', h('b.ok', '✓'), ' Hash matches the Safe’s own ', h('code', short(c.local)), ' · see details below')
+      : bad(c.onchain ? 'The Safe computes a different hash for this message. Do not sign it.' : 'This Safe cannot validate message signatures: it has no compatible fallback handler (EIP-1271).'),
+  );
+}
+
+/** EIP-712 typed data in words: what it is, which app and contract, then its fields. */
+function typedView(td) {
+  const types = td.types || {}, d = td.domain || {};
+  const val = (type, v) => {
+    const base = type.replace(/\[\d*\]$/, '');
+    if (type !== base) return Array.isArray(v) && v.length ? h('ol.vlist', v.map((x) => h('li', val(base, x)))) : h('span.mut', 'empty');
+    if (types[type]) return kv(types[type].map((f) => [f.name, val(f.type, v && v[f.name])]));
+    if (type === 'address' && typeof v === 'string' && isAddr(v)) return named(v.toLowerCase());
+    return typeof v === 'string' ? v : JSON.stringify(v);
+  };
+  return h(
+    'div',
+    h('h2.rvtitle', td.primaryType),
+    kv([d.name && ['App', d.name + (d.version ? ' · version ' + d.version : '')], d.verifyingContract && ['Contract', isAddr(d.verifyingContract) ? named(d.verifyingContract.toLowerCase()) : String(d.verifyingContract)], d.chainId !== undefined && ['Chain', String(d.chainId)]].filter(Boolean)),
+    td.primaryType !== 'EIP712Domain' && val(td.primaryType, td.message),
+  );
+}
+
+function messageStep(m, c) {
+  const s = c.s, me = st.account && st.account.toLowerCase(), owner = me && s.owners.includes(me);
+  const signed = c.valid.map((x) => x.signer), mine = signed.includes(me);
+  const thr = Number(s.threshold), got = signed.length, ready = got >= thr;
+  const count = got + ' of ' + thr + ' signature' + (thr === 1 ? '' : 's');
+  const out = h('div');
+  const share = (primary) => shareBlock(here() + '#' + messageFragment(m, st.msgSigs), primary, { what: 'message', merge: importer() });
+  let step;
+  if (ready) {
+    const sig = combine(c.valid, s.threshold), status = h('p.rvhash', 'Checking with the Safe…');
+    isValid(m.safe, c.hash, sig).then((ok) => put(status, ok ? [h('b.ok', '✓'), ' The Safe accepts this signature (isValidSignature).'] : h('b.bad', '✗ The Safe rejects this signature.')));
+    const b = h('button.primary', 'Copy signature');
+    b.onclick = () => toClipboard(sig).then(() => (put(b, '✓ Copied'), setTimeout(() => put(b, 'Copy signature'), 1500)), () => {});
+    step = h('div.step.go', h('h3', 'Signature ready'), h('p', count + ' collected. Give this signature to the app that asked for it.'), h('div.row', h('input.mono', { readonly: true, value: sig, onclick: (e) => e.target.select(), 'aria-label': 'Signature' }), b), status);
+  } else if (!me) step = h('div.step', h('h3', 'Connect a wallet to sign'), h('p', count + ' so far. Owners sign with their wallet; you can also send this link to them.'), share(false));
+  else if (owner && !mine)
+    step = h(
+      'div.step',
+      h('h3', 'Your signature is needed'),
+      h('p', count + ' so far. Signing is free and moves nothing by itself, but apps treat the Safe’s signature as its consent to what the message says.'),
+      h('div.actions', button('Sign', async () => showMessage(m, [...st.msgSigs, await signMessage(m, me)], 'replace'), out, '.primary')),
+      out,
+      h('p.fhint', 'Your wallet will show a SafeMessage for this Safe whose message is ', h('code', c.hash), '. It must match.'),
+    );
+  else if (owner) step = h('div.step', h('h3', h('span.ok', '✓ '), 'You signed · ' + (thr - got) + ' more needed'), h('p', 'Send this link to the other owners. Each one opens it, checks it and signs with their wallet.'), share(true));
+  else
+    step = h(
+      'div.step',
+      h('h3', 'Send this to the owners'),
+      h('p', 'This wallet isn’t an owner, so it can’t sign. Copy the link and send it to the owners: they open it, check it and sign with their wallet. Once ' + thr + ' ' + (thr === 1 ? 'has' : 'have') + ', the Safe’s signature is ready here for the app that asked.'),
+      share(true),
+    );
+  return [
+    step,
+    ready && share(false),
+    h(
+      'section.rvapprovals',
+      h('div.rvsec', h('h3', 'Signatures · ' + count), h('span.grow'), button('Refresh', () => showMessage(m, st.msgSigs, 'replace'), out, '.link')),
+      h('ul.owners.shortaddr', s.owners.map((o) => h('li', addr(o), signed.includes(o) ? h('b.ok', '✓ signed') : h('span.mut', 'waiting'), o === me && h('span.mut', '(you)')))),
+      c.rejected.map((x) => warn('Ignored signature: ' + x.reason + '.')),
+    ),
+  ];
+}
+
+function messageDetails(m, c) {
+  return h(
+    'details.rvdetails',
+    h('summary', 'Message details'),
+    kv([
+      ['Safe', addr(m.safe)],
+      ['Chain', label(m.chainId).name + ' · chainId ' + m.chainId],
+      ['Kind', KINDS[m.kind] + (m.kind === 1 ? ' (EIP-191, personal_sign)' : '')],
+      ['Content', m.kind === 2 ? h('code.mono', m.content) : [h('code.mono', m.content), copy(m.content, 'Copy')]],
+      ['Message hash', [h('code', c.hash), copy(c.hash, 'Copy'), h('div.mut', 'What the app asks the Safe about: isValidSignature(hash, signature).')]],
+      ['SafeMessage hash', [h('b', addr(c.local)), h('div.mut', 'What the owners sign: SafeMessage(bytes message) with message = the hash above, for this Safe.')]],
+      ['Safe’s own hash', c.onchain ? [addr(c.onchain), ' ', c.onchain === c.local ? h('b.ok', '✓ verified') : h('b.bad', '✗ MISMATCH')] : h('b.bad', 'unavailable')],
+    ]),
+  );
+}
+
 // ---- routing ----
 // #/                         home          #/new                create a Safe
 // #/<safe>[/<tab>][?params]  Safe page     #tx=<payload>        review a shared transaction
@@ -1584,7 +1767,7 @@ async function route() {
   const n = ++seq;
   setCrumb(null);
   const path = location.hash.slice(1);
-  let m = /^\/([^/?]+)(?:\/([a-z]+))?(?:\?(.*))?$/.exec(path), p;
+  let m = /^\/([^/?]+)(?:\/([a-z]+))?(?:\?(.*))?$/.exec(path), p, pm;
   if (m && m[1] === 'new') m = null;
   try {
     if (path.startsWith('import=')) return put(main, home()), backupDialog(path);
@@ -1594,9 +1777,10 @@ async function route() {
       return put(main, chain().canCreate ? createView() : bad('Safe’s contracts are not deployed on ' + chain().name + '.'));
     }
     if (path.startsWith('tx=')) (p = importPayload(path)), addHints(p.abi), (m = [0, p.tx.safe, 'review']);
+    if (path.startsWith('msg=')) (pm = importMessage(path)), (m = [0, pm.msg.safe, 'review']);
     if (!m) return put(main, home()), renderBatch();
     const ref = decodeURIComponent(m[1]), tab = m[2] || 'assets', q = new URLSearchParams(m[3] || '');
-    const address = await openTarget(ref, p && p.tx.chainId);
+    const address = await openTarget(ref, p ? p.tx.chainId : pm && pm.msg.chainId);
     st.intent = false;
     if (!st.safe || st.safe.address !== address || st.stale) {
       if (!st.safe || st.safe.address !== address) put(main, h('p.mut', 'Loading ' + ref + '…'));
@@ -1610,10 +1794,11 @@ async function route() {
       if (st.batchSafe !== s.address) (st.batch = []), (st.batchNames = {}), (st.batchSafe = s.address);
     }
     // How this Safe is addressed in links: the name it was opened by, else its address.
-    if (!p) st.ref = isAddr(ref) ? st.safe.address : ref;
+    if (!p && !pm) st.ref = isAddr(ref) ? st.safe.address : ref;
     else if (st.ref !== st.safe.address && st.ref !== st.safeName) st.ref = st.safe.address;
     const s = st.safe;
     if (p) return showReview(p.tx, p.sigs, 'none');
+    if (pm) return showMessage(pm.msg, pm.sigs, 'none');
     const tabs = { assets: assetsTab, send: sendTab, batch: sendTab, transactions: transactionsTab, custom: builder, settings: settingsTab, setup: settingsTab };
     if (!tabs[tab]) return (location.hash = link('assets'));
     page(s, tab === 'batch' ? 'send' : tab, tab === 'send' || tab === 'batch' ? sendTab(s, tab === 'batch', q) : tabs[tab](s));

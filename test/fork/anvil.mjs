@@ -90,9 +90,9 @@ export async function tx(rpc, from, to, data = '0x', value = 0n) {
 }
 
 /** Deploy a Safe of the given version with owners/threshold. Returns its address. */
-export async function deploySafe(rpc, version, owners, threshold, salt = BigInt(Date.now()) * 1000n + BigInt(Math.floor(Math.random() * 1000))) {
+export async function deploySafe(rpc, version, owners, threshold, salt = BigInt(Date.now()) * 1000n + BigInt(Math.floor(Math.random() * 1000)), fallback) {
   const v = V[version];
-  const init = cd(S.setup, owners, threshold, ZERO, B('0x'), v.fallback, ZERO, 0, ZERO);
+  const init = cd(S.setup, owners, threshold, ZERO, B('0x'), fallback ?? v.fallback, ZERO, 0, ZERO);
   const data = cd(S.createProxyWithNonce, v.singleton, B(init), salt);
   const predicted = addrAt(await rpc('eth_call', [{ from: ACCOUNTS[0], to: v.factory, data }, 'latest']));
   await tx(rpc, ACCOUNTS[0], v.factory, data);

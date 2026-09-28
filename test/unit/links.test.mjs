@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ZERO } from '../../src/abi.js';
 import { safeTxHash } from '../../src/safe.js';
-import { compact, fragment, fromFragment, importPayload, uncompact } from '../../src/share.js';
+import { compact, fragment, fromFragment, fromMessageFragment, importMessage, importPayload, messageFragment, uncompact } from '../../src/share.js';
 import { parse } from '../../src/backup.js';
 
 const plain = {
@@ -69,6 +69,23 @@ test('#tx= links with call signatures (flag bit 3) are frozen', () => {
   // the signatures never change the transaction or its hash
   assert.equal(safeTxHash(fromFragment(F.slice(3)).tx), safeTxHash(t));
   assert.equal(fragment(t, []), fragment(t, [], []));
+});
+
+test('#msg= links are frozen (text with a signature, typed data, hash)', () => {
+  const SAFE = '0x3134dc9d36eac30aa69fe40b22b1311cabc12ec3';
+  const cases = [
+    [{ chainId: 1, safe: SAFE, kind: 1, content: '0x5369676e20696e20746f206170702e6578616d706c65' }, ['0x' + '11'.repeat(64) + '1b'],
+      'msg=AQExNNydNurDCqaf5AsisTEcq8Euw1NNAQEBAAAWU2lnbiBpbiB0byBhcHAuZXhhbXBsZQERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERGw'],
+    [{ chainId: 137, safe: '0x96e2f6099860731cfdc0af700de862cf6eba4407', kind: 2, content: '{"types":{"Hi":[{"name":"x","type":"uint256"}]},"primaryType":"Hi","domain":{"name":"A","chainId":137},"message":{"x":"1"}}' }, [],
+      'msg=AYmW4vYJmGBzHP3Ar3AN6GLPbrpEB1NNAQACAAB7eyJ0eXBlcyI6eyJIaSI6W3sibmFtZSI6IngiLCJ0eXBlIjoidWludDI1NiJ9XX0sInByaW1hcnlUeXBlIjoiSGkiLCJkb21haW4iOnsibmFtZSI6IkEiLCJjaGFpbklkIjoxMzd9LCJtZXNzYWdlIjp7IngiOiIxIn19'],
+    [{ chainId: 1, safe: SAFE, kind: 3, content: '0x' + 'ab'.repeat(32) }, [], 'msg=AQExNNydNurDCqaf5AsisTEcq8Euw1NNAQADAAAgq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6s'],
+  ];
+  for (const [msg, sigs, F] of cases) {
+    assert.equal(messageFragment(msg, sigs), F);
+    assert.deepEqual(fromMessageFragment(F.slice(4)), { msg, sigs });
+    assert.deepEqual(importMessage('https://safe.wei.limo/#' + F), { msg, sigs });
+  }
+  assert.equal(importMessage('https://safe.wei.limo/#' + FULL), null);
 });
 
 test('readers reject what they do not understand (so extensions need new flag bits)', () => {
