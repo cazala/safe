@@ -556,14 +556,14 @@ function safeHeader(s, back = ['#', 'Home']) {
     'div.safehead',
     h('a.back', { href: back[0] }, icon('m15 6-6 6 6 6'), back[1]),
     row,
-    h('div.sub', addr(s.address, null, null, true)),
+    // One quiet line: the chain is the wallet's, the balance is in Assets, the version is in Settings
+    // (and warned about below when it matters). Not being an owner is said where it changes what you can do.
     h(
-      'div.chips',
-      chip(c.name),
-      chip(s.threshold + ' of ' + s.owners.length + ' owners'),
-      chip('v' + (s.version || '?'), s.supported ? (s.tested ? '' : '.warn') : '.bad'),
-      h('span.chip', { title: fmt(s.balance) + ' ' + c.sym }, fmtShort(s.balance) + ' ' + c.sym),
-      me ? chip('You are an owner', '.ok') : st.account && chip('Not an owner'),
+      'div.sub.hmeta',
+      addr(s.address, null, short(s.address), true),
+      h('span.dot', '·'),
+      h('span', s.threshold + ' of ' + s.owners.length + ' owners'),
+      me && [h('span.dot', '·'), h('span.ok', 'You’re an owner')],
     ),
     !s.supported && bad('Unsupported Safe version "' + s.version + '". Versions before 1.3.0 use a different signing format; signing is disabled.'),
     s.supported && !s.tested && warn('Safe ' + s.version + ' is newer than this version of safe.wei was tested with. It should work: every transaction is checked against the Safe’s own hash before you sign, so an incompatible change would be refused.'),
@@ -634,35 +634,10 @@ const prefilled = () => warn('Prefilled from a link. Check every recipient, amou
 
 function assetsTab(s) {
   const c = chain(), rows = h('div', h('p.mut', 'Loading balances…')), pend = h('div');
-  const draw = () =>
-    put(
-      rows,
-      h(
-        'table.assets',
-        h('tr', h('th', 'Asset'), h('th.num', 'Balance'), h('th', '')),
-        h('tr', h('td', h('b', c.sym), h('div.mut', 'Native')), h('td.num', { title: fmt(s.balance) + ' ' + c.sym }, fmtShort(s.balance)), h('td.act', h('a.btn', { href: link('send') }, 'Send'))),
-        held().map((t) =>
-          h(
-            'tr',
-            h(
-              'td',
-              h('div.tsym', h('b', t.symbol), !t.listed && h('button.link', { onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), delete st.tokens[t.address], draw()), title: 'Remove from your token list' }, 'remove')),
-              h('div.mut', addr(t.address)),
-            ),
-            h(
-              'td.num',
-              { title: st.bal[t.address] == null ? null : fmt(st.bal[t.address], t.decimals) + ' ' + t.symbol },
-              st.bal[t.address] == null ? h('span.mut', 'unreadable') : fmtShort(st.bal[t.address], t.decimals),
-            ),
-            h('td.act', h('a.btn', { href: link('send', { token: tokenSpec(t) }) }, 'Send')),
-          ),
-        ),
-      ),
-      h('p.mut', c.mainnet ? Object.values(st.tokens).filter((t) => t.listed).length + ' tokens from the zOrg TokenList checked; zero balances are hidden.' : 'The zOrg TokenList lives on Ethereum mainnet; add tokens on this chain by address.'),
-    );
-  loadBalances(s).then(draw, (e) => put(rows, warn('Could not read token balances: ' + e.message)));
-  loadPending(s).then((r) => r.found.length && put(pend, h('a.callout', { href: link('transactions') }, h('b', r.found.length + ' pending transaction' + (r.found.length > 1 ? 's' : '')), ' published onchain · Review ›')), () => {});
-
+  // Actions show on row hover (always on touch). Nothing to send: no Send.
+  const acts = (bal, href, extra) => h('td.act', h('span.racts', extra, bal > 0n ? h('a.btn', { href }, 'Send') : h('span.btn.off', { title: 'Nothing to send' }, 'Send')));
+  const removeBtn = (t) =>
+    !t.listed && h('button.ib', { title: 'Remove from your token list', 'aria-label': 'Remove ' + t.symbol, onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), delete st.tokens[t.address], draw()) }, icon(...ICONS.close));
   const addIn = h('input', { placeholder: 'Token address 0x…', spellcheck: 'false' }), addOut = h('div');
   const add = button(
     'Add token',
@@ -679,7 +654,45 @@ function assetsTab(s) {
     },
     addOut,
   );
-  return [pend, rows, h('details', h('summary', 'Add a token by address'), h('p.mut', 'Added tokens are saved in this browser for every Safe on ' + c.name + '.'), h('div.row', addIn, add), addOut)];
+  const addBox = h('div.addtoken', { hidden: true }, h('p.mut', 'Added tokens are saved in this browser for every Safe on ' + c.name + '.'), h('div.row', addIn, add), addOut);
+  const draw = () =>
+    put(
+      rows,
+      h(
+        'table.assets',
+        h('tr', h('th', 'Asset'), h('th.num', 'Balance'), h('th', '')),
+        h('tr', h('td', h('b', c.sym), h('div.mut', c.sym === 'ETH' ? 'Ether' : 'Native token')), h('td.num', { title: fmt(s.balance) + ' ' + c.sym }, amt2(s.balance, 18)), acts(s.balance, link('send'))),
+        held().map((t) =>
+          h(
+            'tr',
+            h('td', h('b', t.symbol), h('div.mut', addr(t.address))),
+            h(
+              'td.num',
+              { title: st.bal[t.address] == null ? null : fmt(st.bal[t.address], t.decimals) + ' ' + t.symbol },
+              st.bal[t.address] == null ? h('span.mut', 'unreadable') : amt2(st.bal[t.address], t.decimals),
+            ),
+            acts(st.bal[t.address] || 0n, link('send', { token: tokenSpec(t) }), removeBtn(t)),
+          ),
+        ),
+      ),
+      h(
+        'div.afoot',
+        h('span.mut', c.mainnet ? Object.values(st.tokens).filter((t) => t.listed).length + ' TokenList tokens checked · zero balances hidden' : 'The zOrg TokenList is on Ethereum; add tokens on ' + c.name + ' by address.'),
+        h('span.grow'),
+        h('button.link.addlink', { onclick: () => ((addBox.hidden = !addBox.hidden), addBox.hidden || addIn.focus()) }, icon(...ICONS.plus), 'Add token'),
+      ),
+    );
+  loadBalances(s).then(draw, (e) => put(rows, warn('Could not read token balances: ' + e.message)));
+  loadPending(s).then((r) => r.found.length && put(pend, h('a.callout', { href: link('transactions') }, h('b', r.found.length + ' pending transaction' + (r.found.length > 1 ? 's' : '')), ' published onchain · Review ›')), () => {});
+  return [pend, rows, addBox];
+}
+
+/** Balance with two decimals when it has any fraction, so a column compares at a glance (exact on hover). */
+function amt2(v, dec) {
+  const t = fmtShort(v, dec);
+  if (!dec || t.startsWith('<') || t === '0') return t;
+  const [i, f = ''] = t.split('.');
+  return i + '.' + f.padEnd(2, '0');
 }
 
 function sendTab(s, bulkMode, q) {
@@ -694,8 +707,12 @@ function sendTab(s, bulkMode, q) {
     () => put(body, bulkMode ? bulkForm(s, q) : sendForm(s, q)),
     (e) => put(body, warn('Could not read token balances: ' + e.message), bulkMode ? bulkForm(s, q) : sendForm(s, q)),
   );
-  return [seg, body];
+  return [ownerNote(s), seg, body];
 }
+
+/** Said where it matters (Send, Custom): a wallet that isn't an owner can prepare, share and execute, not approve. */
+const ownerNote = (s) =>
+  st.account && !s.owners.includes(st.account.toLowerCase()) && h('p.onote', 'This wallet isn’t an owner of this Safe. You can prepare and share transactions for the owners to approve, and execute them once they have, but not approve them yourself.');
 
 function sendForm(s, q) {
   const c = chain(), fromLink = q.has('to') || q.has('amount');
@@ -1146,6 +1163,7 @@ function builder(s) {
   render();
   return h(
     'div.form.wide',
+    ownerNote(s),
     h('p.mut', 'Call any contract from its ABI, or send raw calldata. Review each call, or add several to a batch. Nothing is fetched: the ABI is only used here to encode the call.'),
     h('label', 'Type'),
     mode,
