@@ -225,8 +225,8 @@ Every transaction, however it was built or opened, ends on the review screen.
 | An owner who has not approved | **Sign** (free) or **Approve onchain** (costs gas). The hash your wallet will show is printed below, to compare. |
 | An owner who approved | "You approved · N more needed", with the link to send to the other owners. |
 | Not an owner | "Send this to the owners", with the link as the main action. Useful when one person prepares a transaction and the signers only approve it. |
-| An owner whose approval completes it | **Approve and execute**, or **Sign only** to let someone else pay the gas. |
-| Anyone, once enough owners approved | **Execute**. |
+| An owner whose approval completes it | **Approve and execute**, or **Sign only** to let someone else pay the gas. **Copy link** shares it with the signatures so far. |
+| Anyone, once enough owners approved | **Execute**, and **Copy link**: anyone with the link can open it and execute. |
 | Queued behind an earlier nonce | Waits; it can execute once the earlier nonce has. |
 
 3. **Approvals**: each owner with ✓ signed, ✓ approved onchain, or waiting, and **Refresh**.

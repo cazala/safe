@@ -51,6 +51,7 @@ const SIGS = {
   reverseResolve: 'reverseResolve(address)',
   name: 'name(bytes32)',
   getMessageHash: 'getMessageHash(bytes)',
+  simulateAndRevert: 'simulateAndRevert(address,bytes)',
   isValidSignature: 'isValidSignature(bytes32,bytes)',
   signMessage: 'signMessage(bytes)',
   signedMessages: 'signedMessages(bytes32)',

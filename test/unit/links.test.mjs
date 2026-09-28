@@ -93,3 +93,9 @@ test('readers reject what they do not understand (so extensions need new flag bi
   assert.throws(() => uncompact('0x53570110' + c.slice(10), 1, plain.safe), /unknown flags/);
   assert.throws(() => uncompact(c + '00', 1, plain.safe), /trailing/);
 });
+
+test('extra &key=value parameters after a #tx= / #msg= payload are ignored (the channel for optional additions)', () => {
+  assert.deepEqual(importPayload('https://safe.caza.la/#' + FULL + '&app=roles.wei&x=1'), importPayload('https://safe.caza.la/#' + FULL));
+  const F = messageFragment({ chainId: 1, safe: plain.safe, kind: 3, content: '0x' + 'ab'.repeat(32) }, []);
+  assert.deepEqual(importMessage('https://safe.caza.la/#' + F + '&app=roles.wei'), importMessage('https://safe.caza.la/#' + F));
+});

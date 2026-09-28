@@ -912,7 +912,7 @@ function whatIs(contract, s) {
     (z) =>
       put(
         el,
-        z.name ? [h('span.chip.ok', 'Zodiac ' + z.name), z.faulty && [' ', h('span.chip.bad', 'faulty version')]] : h('span.chip', z.proxy ? 'Unknown contract (proxy to ' + short(z.impl) + ')' : 'Unknown contract'),
+        z.name ? [h('span.chip.ok', 'Zodiac ' + z.name), z.faulty && [' ', h('span.chip.bad', 'faulty version')]] : h('span.chip', z.empty ? 'No contract here yet' : z.proxy ? 'Unknown contract (proxy to ' + short(z.impl) + ')' : 'Unknown contract'),
         z.owner && h('span', h('span.mut', 'Owner '), z.owner === s.address ? 'this Safe' : s.owners.includes(z.owner) ? [addr(z.owner, null, short(z.owner)), ' (an owner)'] : [h('b.bad', addr(z.owner, null, short(z.owner))), ' (not this Safe or an owner: it can reconfigure this module)']),
         z.faulty && warn('Zodiac lists ' + z.name + ' as a faulty version. Consider replacing it.'),
       ),
@@ -1141,8 +1141,18 @@ function valueView(p, v) {
   }
   if (p.type === 'address') return named(v);
   if (p.type === 'string') return JSON.stringify(v);
-  if (p.type === 'bytes' || /^bytes\d+$/.test(p.type)) return v === '0x' ? h('span.mut', 'empty') : [h('code', v), strip(v).length > 64 && copy(v, 'Copy')];
+  if (p.type === 'bytes' || /^bytes\d+$/.test(p.type)) {
+    const txt = p.type === 'bytes32' && asText(v);
+    return v === '0x' ? h('span.mut', 'empty') : [txt && [h('b', JSON.stringify(txt)), ' '], h('code', v), strip(v).length > 64 && copy(v, 'Copy')];
+  }
   return String(v);
+}
+/** A bytes32 that is short printable text padded with zeros (e.g. a role key), as that text; else null. */
+function asText(v) {
+  const m = /^0x((?:[2-7][0-9a-f])+?)(?:00)*$/i.exec(v);
+  if (!m || m[1] === '00') return null;
+  const s = m[1].match(/../g).map((b) => String.fromCharCode(parseInt(b, 16))).join('');
+  return /^[\x20-\x7e]+$/.test(s) ? s : null;
 }
 const noteView = (data) => {
   const m = hintOf(data);
@@ -1579,7 +1589,8 @@ function actionView(d, t) {
     h('b', d.label),
     kv([
       d.label.startsWith('ERC-20') && ['token', tok ? tokenLabel(tok) : [addr(t.to), ' ', h('span.mut', '(unknown token · amount in raw units)')]],
-      ...d.args.map((x) => [x.name, x.type === 'address' ? named(x.value) : x.name === 'amount' ? amount(x.value, tok) + (tok && x.value !== MAXU ? ' (' + x.value + ' raw)' : '') : String(x.value)]),
+      // A module or guard being set: say what it is (e.g. Zodiac Roles, and who owns it), as Settings does.
+      ...d.args.map((x) => [x.name, x.type === 'address' ? [named(x.value), /^(Enable module|Set guard)$/.test(d.label) && whatIs(x.value, st.safe)] : x.name === 'amount' ? amount(x.value, tok) + (tok && x.value !== MAXU ? ' (' + x.value + ' raw)' : '') : String(x.value)]),
     ]),
   ];
 }
@@ -1837,7 +1848,9 @@ async function route() {
     if (path.startsWith('msg=')) (pm = importMessage(path)), (m = [0, pm.msg.safe, 'review']);
     if (!m) return put(main, home()), renderBatch();
     const ref = decodeURIComponent(m[1]), tab = m[2] || 'assets', q = new URLSearchParams(m[3] || '');
-    const address = await openTarget(ref, p ? p.tx.chainId : pm && pm.msg.chainId);
+    // Links say the chain: #tx= / #msg= in their payload, any Safe route with an optional ?chain=<id>.
+    const qc = /^[1-9]\d{0,15}$/.test(q.get('chain') || '') ? Number(q.get('chain')) : null;
+    const address = await openTarget(ref, p ? p.tx.chainId : pm ? pm.msg.chainId : qc);
     st.intent = false;
     if (!st.safe || st.safe.address !== address || st.stale) {
       if (!st.safe || st.safe.address !== address) put(main, h('p.mut', 'Loading ' + ref + '…'));
