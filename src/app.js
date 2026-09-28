@@ -277,7 +277,7 @@ function labelsView() {
               })),
             ),
           )
-        : h('p.empty', 'Name the addresses you deal with, like owners, recipients or contracts. Use the tag icon next to any address, or add one here.'),
+        : h('p.empty', 'Name any address with its tag icon, or add one here.'),
     );
   };
   addEventListener('labels', () => el.isConnected && draw());
@@ -311,6 +311,7 @@ function createView() {
       put(
         plan,
         h('h2', 'Deployment summary'),
+        h('div.panel.summary',
         kv([
           ['Predicted address', h('b', addr(at))],
           ['Chain', c.name + ' · chainId ' + st.chainId],
@@ -323,20 +324,35 @@ function createView() {
         ]),
         !k.owners.includes(st.account.toLowerCase()) && warn('The connected wallet is not one of the owners.'),
         h('div.actions', deploy),
+        ),
       );
+      plan.scrollIntoView({ block: 'start' });
     },
     out,
   );
+  // "N of M owners", kept in sync with the owners list.
+  const ofN = h('span.mut');
+  const count = () => {
+    const n = owners.value.split(/[\s,]+/).filter(Boolean).length;
+    ofN.textContent = 'of ' + n + (n === 1 ? ' owner' : ' owners') + ' must approve each transaction';
+  };
+  owners.addEventListener('input', count);
+  count();
   return h(
-    'section',
-    h('h2', 'Create Safe'),
-    h('label', 'Owners'),
-    owners,
-    h('label', 'Threshold'),
-    threshold,
-    h('details', h('summary', 'Advanced'), h('label', 'Salt nonce (the address depends on it)'), salt),
-    h('div.actions', btn),
-    out,
+    'div.home.newsafe',
+    h('a.homeback', { href: '#/' }, icon('m15 6-6 6 6 6'), 'Home'),
+    h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'Create a Safe'), h('p', 'A shared account on ' + c.name + ' that moves funds only with enough owner approvals.')),
+    h(
+      'div.panel',
+      h('label', 'Owners'),
+      h('p.fhint', 'One per line: a 0x address or a name.eth / name.wei. Your wallet is filled in.'),
+      owners,
+      h('label', 'Threshold'),
+      h('div.thresh', threshold, ofN),
+      h('details', h('summary', 'Advanced'), h('label', 'Salt nonce (the address depends on it)'), salt),
+      h('div.actions', btn),
+      out,
+    ),
     plan,
   );
 }
