@@ -581,7 +581,7 @@ Tabs (each has its own URL, so Back and links work):
 - **Send**: one recipient (asset picker, recipient, amount, Max) or Many (CSV)
 - **Transactions**: the review in progress, pending transactions found onchain (count badge on the tab), import a shared link
 - **Custom**: transaction builder in the style of Etherscan's Write Contract. Pick a contract and an ABI (built-in ERC-20 / ERC-721 / ERC-1155 / WETH / this Safe, pasted JSON or human-readable signatures, or an uploaded `.json` artifact; remembered per contract in the browser), then fill a write method's typed inputs and Review or Add to batch. Helpers by type: unit multiplier for integers (×10^6/8/9/18/custom, defaulting to the token's decimals), max for uints, keccak256(text) and text→hex for bytes, JSON for arrays and tuples, and prevOwner/prevModule from the owner list for this Safe. Raw calldata stays available. Calls encoded from a user ABI are labeled as such in the review; ABIs are never fetched.
-- **Setup**: owners, threshold, nonce, singleton, fallback handler, guard
+- **Settings**: owners (add / replace / remove), threshold (change), modules (listed and recognized: Zodiac mastercopies by EIP-1167 implementation, faulty versions flagged, module owner shown; disable; enable behind a danger section), guard (recognized, remove), contract details
 
 Review is its own screen (`#tx=…`) with a single back link to wherever it was opened from. Executing returns to Assets with a confirmation.
 

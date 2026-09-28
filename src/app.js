@@ -16,6 +16,7 @@ import { parseCSV, toCSV } from './csv.js';
 import { canonical, encodeCall, parseAbi, parseValue } from './abicoder.js';
 import { $, act, addr, bad, h, kv, put, short, warn } from './ui.js';
 import { discover, get, list, remember, remembered } from './wallets.js';
+import { identify } from './zodiac.js';
 
 const st = { account: null, chainId: null, safe: null, tokens: {}, named: {}, batch: [], batchNames: {} };
 
@@ -545,6 +546,22 @@ function transactionsTab(s) {
   ];
 }
 
+/** "Zodiac Roles 2.1.1 · owner this Safe", filled in once the contract is recognized. */
+function whatIs(addr, s) {
+  const el = h('div.mut.small');
+  identify(addr).then(
+    (z) =>
+      put(
+        el,
+        z.name ? [h('span.chip.ok', 'Zodiac ' + z.name), z.faulty && [' ', h('span.chip.bad', 'faulty version')]] : h('span.chip', z.proxy ? 'Unknown contract (proxy to ' + short(z.impl) + ')' : 'Unknown contract'),
+        z.owner && [' Owner: ', z.owner === s.address ? 'this Safe' : s.owners.includes(z.owner) ? [h('code', short(z.owner)), ' (an owner)'] : [h('b.bad', short(z.owner)), ' (not this Safe or an owner: it can reconfigure this module)']],
+        z.faulty && warn('Zodiac lists ' + z.name + ' as a faulty version. Consider replacing it.'),
+      ),
+    () => {},
+  );
+  return el;
+}
+
 function settingsTab(s) {
   const me = st.account && st.account.toLowerCase(), n = s.owners.length;
   const self = (data) => ({ to: s.address, value: 0n, data });
@@ -608,7 +625,7 @@ function settingsTab(s) {
               warn('Enabled modules can execute any transaction from this Safe without owner approval. Keep only modules you trust.'),
               h('ul.owners', ms.map((m, i) => {
                 const out = h('div');
-                return h('li', h('div.owner', h('code', m), h('span.links', button('disable', async () => showReview(newTx(s, self(cd(S.disableModule, i ? ms[i - 1] : SENTINEL, m)))), out, '.link'))), out);
+                return h('li', h('div.owner', h('code', m), h('span.links', button('disable', async () => showReview(newTx(s, self(cd(S.disableModule, i ? ms[i - 1] : SENTINEL, m)))), out, '.link'))), whatIs(m, s), out);
               })),
             ]
           : h('p.mut', 'No modules enabled. Only owner-approved transactions can move funds.'),
@@ -631,7 +648,7 @@ function settingsTab(s) {
     enable,
     h('h2', 'Guard'),
     s.guard
-      ? [warn('A guard checks every transaction and can block any of them, including removing it. Current guard: ', h('code', s.guard)), h('div.actions', button('Remove guard', async () => showReview(newTx(s, self(cd(S.setGuard, ZERO)))), gOut)), gOut]
+      ? [warn('A guard checks every transaction and can block any of them, including removing it. Current guard: ', h('code', s.guard)), whatIs(s.guard, s), h('div.actions', button('Remove guard', async () => showReview(newTx(s, self(cd(S.setGuard, ZERO)))), gOut)), gOut]
       : h('p.mut', 'No guard. A guard is an optional contract that checks every transaction before and after execution.'),
     h('h2', 'Contract'),
     kv([
@@ -722,17 +739,26 @@ const callLabel = (x) => {
 
 
 // ---- transaction builder (Custom tab), in the spirit of Etherscan's "Write Contract" ----
-const abiKey = (addr) => 'safe.wei:abi:' + st.chainId + ':' + addr;
-const loadAbi = (addr) => {
+// Every ABI pasted or uploaded is kept in one browser-local map, "<chainId>:<address>" → ABI text.
+const ABIS = 'safe.wei:abis';
+const abiMap = () => {
   try {
-    return localStorage.getItem(abiKey(addr));
+    return JSON.parse(localStorage.getItem(ABIS) || '{}');
   } catch {
-    return null;
+    return {};
   }
+};
+const loadAbi = (addr) => {
+  const k = st.chainId + ':' + addr;
+  let v = abiMap()[k];
+  try {
+    v = v || localStorage.getItem('safe.wei:abi:' + k); // earlier per-contract key
+  } catch {}
+  return v || null;
 };
 const storeAbi = (addr, text) => {
   try {
-    localStorage.setItem(abiKey(addr), text);
+    localStorage.setItem(ABIS, JSON.stringify({ ...abiMap(), [st.chainId + ':' + addr]: text }));
   } catch {}
 };
 /** What the builder encoded, so the review can show it (clearly marked as coming from the user's ABI). */
