@@ -18,20 +18,13 @@ The project ID lives in `config/walletconnect.json` (outside `src/`, so it does 
 2. Run the deployer as usual. Chunks 1… already exist onchain and are skipped: only the new head chunk (~60k gas) and the new app contract (~590k gas) are deployed.
 3. Point `safe.wei` at the new app contract (`setAddr`, ~50k gas).
 
-Roughly 0.7M gas instead of a full deploy (~35M). Meanwhile, users can paste their own project ID in the app.
+Roughly 0.7M gas instead of a full deploy (~42M). Meanwhile, users can paste their own project ID in the app.
 
 ## Cost
 
-Measured on a mainnet fork (`test/fork/deploy.test.mjs`) for the Phase 7 build (31,419 B, 2 chunks):
+Measured on a mainnet fork (`test/fork/deploy.test.mjs`, which prints it) for the current build (186,376 B: the config chunk plus 8 chunks of up to 24,575 B, and SafeWeiApp with a 2,004 B runtime): **41,766,553 gas** in 10 transactions.
 
-| Step | Gas |
-| --- | --- |
-| chunk 0 (24,575 B) | 5,379,458 |
-| chunk 1 (6,844 B) | 1,536,366 |
-| SafeWeiApp (2,004 B runtime) | 588,429 |
-| **Total** | **7,504,253** |
-
-Roughly 220 gas per page byte (200 code deposit + calldata). At 0.3 gwei that is ~0.0023 ETH. Every transaction stays far below EIP-7825's 16,777,216 per-transaction gas cap; the script pins 15,000,000 so wallet estimation padding cannot push a chunk over it.
+Roughly 220 gas per page byte (200 code deposit + calldata). At 0.3 gwei that is ~0.0125 ETH; a full chunk is ~5.4M gas. Every transaction stays far below EIP-7825's 16,777,216 per-transaction gas cap; the script pins 15,000,000 so wallet estimation padding cannot push a chunk over it.
 
 ## Steps (spec §14)
 
@@ -65,7 +58,7 @@ Do not skip ahead: pointing `safe.wei` is the only step that changes what users 
 5. **Verify source** on Etherscan:
    ```bash
    forge verify-contract <app> contract/SafeWeiApp.sol:SafeWeiApp --chain mainnet \
-     --constructor-args $(cast abi-encode "f(address[])" "[<chunk0>,<chunk1>]") --etherscan-api-key <key>
+     --constructor-args $(cast abi-encode "f(address[])" "[<config chunk>,<chunk1>,…,<chunk8>]") --etherscan-api-key <key>
    ```
 6. **Test `html()` directly** (no gateway):
    ```bash
