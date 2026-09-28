@@ -1277,7 +1277,7 @@ Links prefill forms; they never approve, sign or submit anything, and a prefille
 - `#/<safe>/send?to=<address|name>&amount=<decimal>&token=<symbol|address>` opens the send form (`token` omitted = native)
 - `#/<safe>/batch?csv=<url-encoded CSV>` opens the bulk-send panel with the rows and previews them
 - `<safe>` may be a 0x address or a `.eth` / `.wei` name
-- the send form and the bulk panel have "Copy link" to produce these
+- they are for integrations (a bot or script that prepares a send for an owner), so the UI has no button to copy them; the full list of links is in [links.md](links.md)
 
 ---
 

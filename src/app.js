@@ -12,7 +12,7 @@ import { balances, listed, meta, save, saved } from './tokens.js';
 import { S } from './sel.js';
 import { nameOf, resolveName } from './names.js';
 import { batch } from './multisend.js';
-import { parseCSV, toCSV } from './csv.js';
+import { parseCSV } from './csv.js';
 import { canonical, encodeCall, parseAbi, parseValue } from './abicoder.js';
 import { $, act, addr, bad, copy, h, icon, iconButton, ICONS, kv, labelDialog, put, setName, setResolver, sheet, short, warn } from './ui.js';
 import { mountSafes } from './homeview.js';
@@ -477,7 +477,6 @@ async function findToken(spec) {
 }
 const tokenSpec = (t) => (t ? (t.listed ? t.symbol : t.address) : '');
 const transfer = (t, to, v) => (t ? { to: t.address, value: 0n, data: cd(S.transfer, to, v) } : { to, value: v, data: '0x' });
-const abs = (hash) => location.href.split('#')[0] + hash;
 const prefilled = () => warn('Prefilled from a link. Check every recipient, amount and token before reviewing.');
 
 function assetsTab(s) {
@@ -583,7 +582,6 @@ function sendForm(s, q) {
       'div.actions',
       button('Review', async () => showReview(newTx(s, await read())), out, '.primary'),
       chain().canBatch && button('Add to batch', async () => (queue(await read()), (to.value = amt.value = '')), out),
-      button('Copy link', () => navigator.clipboard.writeText(abs(link('send', { to: to.value.trim(), amount: amt.value.trim(), token: tokenSpec(asset()) }))), out),
     ),
     out,
   );
@@ -668,7 +666,6 @@ function bulkForm(s, q) {
         st.named = p.names;
         p.calls.forEach(queue);
       }, out),
-      button('Copy link', () => navigator.clipboard.writeText(abs(link('batch', { csv: toCSV(parseCSV(csv.value).rows) }))), out),
     ),
     preview,
     out,
