@@ -150,7 +150,9 @@ ol.owners > li, ul.owners > li { margin: 6px 0; }
 .batchpop .head { margin: 0 -12px 6px; padding: 6px 12px; }
 ol.calls { margin: 6px 0; padding-left: 22px; max-height: 45vh; overflow: auto; }
 ol.calls li { margin: 6px 0; }
-ol.calls li > span { margin-right: 8px; }
+ol.calls .crow { display: flex; align-items: baseline; gap: 12px; }
+ol.calls .call { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+ol.calls .crow > button.link { flex: none; }
 p.added { margin: 4px 0 0; padding: 0; background: none; font-size: 13px; }
 /* Desktop: header badge + popover. The bottom bar only exists on narrow screens. */
 .batchbar { display: none; }
@@ -321,3 +323,8 @@ a.homeback:hover { color: var(--fg); }
 .newsafe > h2 { margin-top: 24px; }
 .newsafe .summary .actions { margin-top: 12px; }
 .newsafe > div > h2 { margin: 24px 0 0; font-size: 16px; }
+span.addr > code, span.addr > b.lbl { cursor: pointer; }
+/* A name or address stays on one line with its copy and tag buttons. */
+span.addr { white-space: nowrap; }
+span.addr > code { white-space: normal; overflow-wrap: anywhere; }
+th { white-space: nowrap; }
