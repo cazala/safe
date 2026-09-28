@@ -1363,7 +1363,7 @@ Owners sign `SafeMessage(bytes message)` under the Safe's EIP-712 domain, where 
 - Typed data is hashed by a local EIP-712 implementation (tested against viem); its input is validated strictly (types, ranges, lengths).
 - Warnings: permissions to move assets (Permit, Permit2, Seaport orders), raw hashes, a typed-data chain that differs from the Safe's.
 - Links: `#msg=` (format in [links.md](links.md)).
-- Not supported: onchain message signing (SignMessageLib through a DELEGATECALL), which would need a Safe transaction.
+- Onchain signing: a Safe transaction DELEGATECALLs Safe's canonical SignMessageLib (per release line, from safe-global/safe-deployments; probed on the chain) with `signMessage(hash)`, setting `signedMessages[safeMessageHash]`; the handler then accepts an empty signature. The review recognizes only that exact call (canonical library, operation 1, value 0, calldata that re-encodes exactly) and shows it as "Sign a message onchain" instead of the DELEGATECALL danger; any other DELEGATECALL keeps it. Tested on v1.3.0, v1.4.1 and v1.5.0.
 
 ## 28. Future work
 

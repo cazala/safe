@@ -246,8 +246,11 @@ A Safe can sign messages (EIP-1271): apps that ask a Safe to "sign in", or to si
 
 - Start from **Custom → Message**, or open a `#msg=` link an app or another owner sent you.
 - The screen shows the message: text as text, typed data by its type (e.g. `Permit`), app, contract and fields, or a raw hash. Permissions to move assets (EIP-2612 permits, Permit2, Seaport orders) get a red warning; a raw hash gets a warning that its meaning cannot be shown; a typed-data chain that differs from the Safe's is flagged.
-- The next step works like transactions: an owner **Signs** (free, in the wallet; the wallet shows a `SafeMessage` whose message is the hash printed below the button); an owner who signed, or a non-owner, sends the link to the other owners.
-- Once enough owners have signed, **Signature ready** shows the Safe's signature with **Copy signature**, and confirms that the Safe accepts it.
+- The next step works like transactions. An owner chooses how to sign:
+  - **Sign** (free): the wallet signs a `SafeMessage` whose message is the hash printed below; the signature travels in the link, and once enough owners sign, the combined signature is ready.
+  - **Sign onchain** (costs gas): creates a Safe transaction that DELEGATECALLs Safe's canonical SignMessageLib. Owners approve and execute it like any transaction; afterwards the Safe accepts the message with an empty signature (`0x`), so nothing has to be passed to the app. The review names it "Sign a message onchain" rather than flagging a generic DELEGATECALL, and links back to the message.
+  - An owner who signed, or a non-owner, sends the link to the other owners (a non-owner can also create the onchain transaction for the owners).
+- Once enough owners have signed, **Signature ready** shows the Safe's signature with **Copy signature**, and confirms that the Safe accepts it. After an onchain signature, the screen shows **Signed onchain** instead.
 - Before anyone signs, safe.wei checks its hash against the Safe's own `getMessageHash`. A Safe without a compatible fallback handler cannot validate messages, and says so.
 
 ## 12. Sharing with other owners

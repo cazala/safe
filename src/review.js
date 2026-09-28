@@ -1,6 +1,8 @@
 // Transaction review: everything that must hold before any approve / sign / execute.
 // `ok === false` means every action is disabled (spec §6, §15).
 import { strip, u, ZERO } from './abi.js';
+import { matchCall } from './abicoder.js';
+import { SIGN_MESSAGE_LIBS } from './chains.js';
 import { decode } from './decode.js';
 import { unpack } from './multisend.js';
 import { rpc } from './rpc.js';
@@ -8,6 +10,13 @@ import { chainTxHash, safeTxHash } from './safe.js';
 import { S } from './sel.js';
 
 const ERC20_BOOL = [S.transfer, S.approve, S.transferFrom];
+
+/** A DELEGATECALL into Safe's canonical SignMessageLib, exactly `signMessage(bytes)`: returns the message, else null. */
+export function signMessageOf(t) {
+  if (t.operation !== 1 || !SIGN_MESSAGE_LIBS.includes(t.to) || t.value) return null;
+  const m = matchCall(['signMessage(bytes message)'], t.data);
+  return m ? m.values[0] : null;
+}
 
 /** eth_call the inner call from the Safe. Returns a warning string or null. */
 export async function simulate(t) {
@@ -17,6 +26,7 @@ export async function simulate(t) {
     const w = await Promise.all(calls.map((c) => simulate({ ...t, ...c, operation: 0 })));
     return w.map((x, i) => x && 'Call ' + (i + 1) + ' (simulated independently): ' + x).filter(Boolean).join(' ') || null;
   }
+  if (signMessageOf(t)) return null; // one effect: marks a message as signed (checked by its hash afterwards)
   if (t.operation) return 'DELEGATECALL is not simulated.';
   const [code, ret] = await Promise.all([
     rpc('eth_getCode', [t.to, 'latest']),
@@ -31,7 +41,7 @@ export async function simulate(t) {
 
 export async function review(tx, s, walletChain) {
   const batch = unpack(tx);
-  const r = { tx, local: safeTxHash(tx), chain: null, errors: [], warnings: [], danger: [], decoded: batch ? null : decode(tx), batch };
+  const r = { tx, local: safeTxHash(tx), chain: null, errors: [], warnings: [], danger: [], decoded: batch ? null : decode(tx), batch, signMessage: signMessageOf(tx) };
   const err = (m) => r.errors.push(m), warn = (m) => r.warnings.push(m);
   try {
     r.chain = await chainTxHash(tx);
@@ -48,7 +58,7 @@ export async function review(tx, s, walletChain) {
   // A DELEGATECALL into an address without code does nothing, yet succeeds and burns the nonce.
   if (tx.operation === 1 && (await rpc('eth_getCode', [tx.to, 'latest']).catch(() => '0x')) === '0x')
     err('DELEGATECALL target ' + tx.to + ' has no code on this chain: the Safe would do nothing and still consume the nonce.' + (batch ? ' MultiSendCallOnly is not deployed here.' : ''));
-  if (tx.operation === 1 && !batch) r.danger.push('DANGEROUS: DELEGATECALL. The target code runs with full control of the Safe (owners, modules, funds).');
+  if (tx.operation === 1 && !batch && !r.signMessage) r.danger.push('DANGEROUS: DELEGATECALL. The target code runs with full control of the Safe (owners, modules, funds).');
   if (r.decoded) r.danger.push(...r.decoded.danger), r.warnings.push(...r.decoded.warnings);
   if (batch)
     r.inner = batch.map((c, i) => {

@@ -9,7 +9,7 @@
 //   kind 2: EIP-712 typed data, content = its JSON text
 //   kind 3: a raw 32-byte hash, as an app would pass to isValidSignature(bytes32, bytes)
 // The Safe signs SafeMessage(bytes message) with message = that 32-byte hash (as Safe Wallet does).
-import { B, cd, encode, hex, isAddr, isHex, keccakHex, keccakText, strip, utf8, word } from './abi.js';
+import { B, cd, encode, hex, isAddr, isHex, keccakHex, keccakText, strip, u, utf8, word } from './abi.js';
 import { checkSigs, normSig, recover } from './flow.js';
 import { call, rpc } from './rpc.js';
 import { readSafe } from './safe.js';
@@ -153,6 +153,12 @@ export const chainMessageHash = (safe, hash) =>
 /** Does the Safe accept `sig` for `hash` (EIP-1271)? */
 export const isValid = (safe, hash, sig) => call(safe, cd(S.isValidSignature, hash, B(sig))).then((r) => strip(r).slice(0, 8) === S.isValidSignature, () => false);
 
+/** Has the Safe signed this SafeMessage hash onchain (SignMessageLib)? Then an empty signature is valid. */
+export const signedOnchain = (safe, local) => call(safe, cd(S.signedMessages, local)).then((r) => u(r) !== 0n, () => false);
+
+/** The Safe transaction that signs a message onchain: DELEGATECALL into Safe's SignMessageLib. */
+export const onchainSignCall = (lib, hash) => ({ to: lib, value: 0n, data: cd(S.signMessage, B(hash)), operation: 1 });
+
 /** Owners' signatures sorted by signer, `threshold` of them, concatenated: what the app receives. */
 export const combine = (valid, threshold) =>
   '0x' + [...valid].sort((x, y) => (BigInt(x.signer) < BigInt(y.signer) ? -1 : 1)).slice(0, Number(threshold)).map((x) => strip(x.sig)).join('');
@@ -160,9 +166,9 @@ export const combine = (valid, threshold) =>
 /** Check a message against the Safe: its hashes, and which of `sigs` are valid owner signatures. */
 export async function checkMessage(m, sigs = []) {
   const s = await readSafe(m.safe), d = describe(m), local = safeMessageHash(m.chainId, m.safe, d.hash);
-  const onchain = await chainMessageHash(m.safe, d.hash);
+  const [onchain, signed] = await Promise.all([chainMessageHash(m.safe, d.hash), signedOnchain(m.safe, local)]);
   const { valid, rejected } = await checkSigs(s, local, sigs);
-  return { s, ...d, local, onchain, valid, rejected };
+  return { s, ...d, local, onchain, signed, valid, rejected };
 }
 
 /** An owner signs the Safe's message; refuses unless the Safe computes the same hash. */

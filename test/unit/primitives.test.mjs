@@ -52,6 +52,8 @@ const SIGS = {
   name: 'name(bytes32)',
   getMessageHash: 'getMessageHash(bytes)',
   isValidSignature: 'isValidSignature(bytes32,bytes)',
+  signMessage: 'signMessage(bytes)',
+  signedMessages: 'signedMessages(bytes32)',
 };
 
 test('every hardcoded selector matches its signature', () => {

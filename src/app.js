@@ -2,7 +2,7 @@
 import { cd, fmt, fmtShort, hex, isAddr, isHex, keccakText, parse, strip, utf8, ZERO } from './abi.js';
 import { chainInfo, HANDLERS, label } from './chains.js';
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
-import { review } from './review.js';
+import { review, signMessageOf } from './review.js';
 import * as rpc from './rpc.js';
 import { create, createCall, modules, newTx, predict, readSafe, safeTxHash, SENTINEL } from './safe.js';
 import { compact, fragment, importMessage, importPayload, messageFragment, toJSON } from './share.js';
@@ -21,7 +21,7 @@ import * as backup from './backup.js';
 import * as recent from './recent.js';
 import { discover, get, list, remember, remembered } from './wallets.js';
 import { identify } from './zodiac.js';
-import { checkMessage, combine, isValid, KINDS, signMessage } from './message.js';
+import { checkMessage, combine, isValid, KINDS, onchainSignCall, signMessage } from './message.js';
 
 const st = { account: null, chainId: null, safe: null, tokens: {}, named: {}, batch: [], batchNames: {} };
 let framed = false;
@@ -1110,6 +1110,8 @@ function renderBatch(keep) {
 // Compact amount for one-line summaries (up to 6 decimals); the exact amount is on hover.
 const brief = (v, dec, sym) => (v === MAXU ? 'unlimited ' + sym : h('span', { title: fmt(v, dec) + ' ' + sym }, fmtShort(v, dec, 6) + ' ' + sym));
 const callLabel = (x, names = st.batchNames) => {
+  const sm = signMessageOf(x);
+  if (sm) return ['Sign a message onchain · ', h('code', short(sm))];
   const d = decode({ ...x, safe: st.safe.address }), tok = d && d.label.startsWith('ERC-20') && tokenOf(x.to);
   // Safe settings: "Change threshold · threshold 3", "Add owner · owner vitalik.eth → 0x…, threshold 2"
   if (d && x.to === st.safe.address)
@@ -1462,8 +1464,12 @@ function reviewHead(r) {
   return h(
     'section.rvhead',
     h('div.rvkicker', r.batch ? 'Batch of ' + r.inner.length + ' calls' : 'Transaction', nonce),
-    r.batch ? h('ol.rvcalls', r.inner.map((c) => h('li', callLabel(c, st.named)))) : h('h2.rvtitle', isCancel(t) ? 'Replacement for nonce ' + t.nonce + ' (an empty transaction)' : callLabel(t, st.named)),
+    r.batch ? h('ol.rvcalls', r.inner.map((c) => h('li', callLabel(c, st.named)))) : h('h2.rvtitle', isCancel(t) ? 'Replacement for nonce ' + t.nonce + ' (an empty transaction)' : r.signMessage ? 'Sign a message onchain' : callLabel(t, st.named)),
     isCancel(t) && h('p.mut', 'Executing this uses up nonce ' + t.nonce + ', so any other transaction with that nonce can no longer execute. The Safe sends nothing to itself.'),
+    r.signMessage && [
+      h('p.mut', 'Once this executes, the Safe accepts message ', h('code', short(r.signMessage)), ' with an empty signature (apps call isValidSignature with 0x). It runs Safe’s canonical SignMessageLib, whose only effect is recording that the Safe signed this message.'),
+      st.message && st.message.c.hash === r.signMessage && h('p.rvhash', h('a', { href: '#' + messageFragment(st.message.m, st.msgSigs) }, 'Open the message ›')),
+    ],
     r.danger.map((d) => h('p.bad.danger', d)),
     r.errors.map((e) => bad(e)),
     r.warnings.map((w) => warn(w)),
@@ -1629,7 +1635,7 @@ function detailsView(r) {
       ['To', st.named[t.to] ? named(t.to) : [addr(t.to), rev(t.to)]],
       ['Value', fmt(t.value) + ' ' + (c.sym || '') + ' (' + t.value + ' wei)'],
       ['Operation', t.operation ? (r.batch ? 'DELEGATECALL into MultiSendCallOnly (batch)' : h('b.bad', 'DELEGATECALL')) : 'CALL'],
-      ['Action', r.batch ? batchView(r) : r.decoded ? actionView(r.decoded, t) : len ? noteView(t.data) || 'Unknown calldata (not decoded; check the raw data)' : t.value ? 'Native transfer' : 'Empty call'],
+      ['Action', r.signMessage ? [h('b', 'signMessage'), h('span.mut', ' · Safe’s SignMessageLib'), kv([['message', [h('code', r.signMessage), copy(r.signMessage, 'Copy')]]])] : r.batch ? batchView(r) : r.decoded ? actionView(r.decoded, t) : len ? noteView(t.data) || 'Unknown calldata (not decoded; check the raw data)' : t.value ? 'Native transfer' : 'Empty call'],
       ['Data', len ? [h('div', 'selector ', h('code', t.data.slice(0, 10)), ' · ' + len + ' bytes ', copy(t.data, 'Copy calldata')), h('code.mono', t.data)] : 'none'],
       ['Gas fields', 'safeTxGas ' + t.safeTxGas + ' · baseGas ' + t.baseGas + ' · gasPrice ' + t.gasPrice + ' · gasToken ' + t.gasToken + ' · refundReceiver ' + t.refundReceiver],
       ['SafeTx hash', h('b', addr(r.local))],
@@ -1754,8 +1760,14 @@ function messageStep(m, c) {
   const count = got + ' of ' + thr + ' signature' + (thr === 1 ? '' : 's');
   const out = h('div');
   const share = (primary) => shareBlock(here() + '#' + messageFragment(m, st.msgSigs), primary, { what: 'message', merge: importer() });
+  const lib = chain().libFor(s.version, 'signMessage');
+  const onchain = () => ((st.named = {}), showReview(newTx(s, onchainSignCall(lib, c.hash)), [], 'push'));
   let step;
-  if (ready) {
+  if (c.signed) {
+    const status = h('p.rvhash', 'Checking with the Safe…');
+    isValid(m.safe, c.hash, '0x').then((ok) => put(status, ok ? [h('b.ok', '✓'), ' The Safe accepts it with an empty signature (isValidSignature).'] : h('b.bad', '✗ The Safe does not accept it.')));
+    step = h('div.step.go', h('h3', h('span.ok', '✓ '), 'Signed onchain'), h('p', 'This Safe signed the message onchain. Apps accept it with an empty signature (0x): no owner signatures need to be passed along.'), status);
+  } else if (ready) {
     const sig = combine(c.valid, s.threshold), status = h('p.rvhash', 'Checking with the Safe…');
     isValid(m.safe, c.hash, sig).then((ok) => put(status, ok ? [h('b.ok', '✓'), ' The Safe accepts this signature (isValidSignature).'] : h('b.bad', '✗ The Safe rejects this signature.')));
     const b = h('button.primary', 'Copy signature');
@@ -1766,10 +1778,25 @@ function messageStep(m, c) {
     step = h(
       'div.step',
       h('h3', 'Your signature is needed'),
-      h('p', count + ' so far. Signing is free and moves nothing by itself, but apps treat the Safe’s signature as its consent to what the message says.'),
-      h('div.actions', button('Sign', async () => showMessage(m, [...st.msgSigs, await signMessage(m, me)], 'replace'), out, '.primary')),
+      h('p', count + ' so far. A signature moves nothing by itself, but apps treat the Safe’s signature as its consent to what the message says. Choose how to sign:'),
+      h(
+        'div.opts2',
+        h(
+          'div.opt',
+          h('div', h('b', 'Sign'), h('span.tag', 'free')),
+          h('p', 'Your wallet signs the message. The signature is added to the link you share; once enough owners sign, the combined signature is ready here.'),
+          button('Sign', async () => showMessage(m, [...st.msgSigs, await signMessage(m, me)], 'replace'), out, '.primary'),
+        ),
+        lib &&
+          h(
+            'div.opt',
+            h('div', h('b', 'Sign onchain'), h('span.tag', 'costs gas')),
+            h('p', 'A Safe transaction records that the Safe signed the message. Owners approve and execute it like any transaction; then apps accept it with an empty signature, with nothing to pass around.'),
+            button('Create the transaction', async () => onchain(), out),
+          ),
+      ),
       out,
-      h('p.fhint', 'Your wallet will show a SafeMessage for this Safe whose message is ', h('code', c.hash), '. It must match.'),
+      h('p.fhint', 'To sign, your wallet shows a SafeMessage for this Safe whose message is ', h('code', c.hash), '. It must match.'),
     );
   else if (owner) step = h('div.step', h('h3', h('span.ok', '✓ '), 'You signed · ' + (thr - got) + ' more needed'), h('p', 'Send this link to the other owners. Each one opens it, checks it and signs with their wallet.'), share(true));
   else
@@ -1778,6 +1805,7 @@ function messageStep(m, c) {
       h('h3', 'Send this to the owners'),
       h('p', 'This wallet isn’t an owner, so it can’t sign. Copy the link and send it to the owners: they open it, check it and sign with their wallet. Once ' + thr + ' ' + (thr === 1 ? 'has' : 'have') + ', the Safe’s signature is ready here for the app that asked.'),
       share(true),
+      lib && h('p.sharelinks', h('span.mut', 'Or have the Safe sign it onchain: '), h('button.link', { onclick: onchain }, 'create the Safe transaction'), h('span.mut', ' for the owners to approve and execute.')),
     );
   return [
     step,
