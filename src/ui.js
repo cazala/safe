@@ -24,8 +24,38 @@ export const short = (a) => a.slice(0, 6) + '…' + a.slice(-4);
 export const kv = (rows) => h('table.kv', rows.filter(Boolean).map(([k, v]) => h('tr', h('th', k), h('td', v))));
 
 /** A full address in monospace with a copy button. */
-export const addr = (a, note) =>
-  h('span.addr', h('code', a), ' ', h('button.link', { onclick: () => navigator.clipboard.writeText(a), title: 'Copy' }, 'copy'), note && [' ', note]);
+// Inline SVG icons, built with DOM calls (no markup strings).
+const NS = 'http://www.w3.org/2000/svg';
+function icon(...paths) {
+  const svg = document.createElementNS(NS, 'svg');
+  for (const [k, v] of Object.entries({ viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' }))
+    svg.setAttribute(k, v);
+  for (const d of paths) {
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', d);
+    svg.append(p);
+  }
+  return svg;
+}
+const COPY = ['M9 9h11v11H9z', 'M5 15H4V4h11v1'], CHECK = ['m5 12.5 4.5 4.5L19 7.5'];
+
+/** Copy button: a copy icon that turns into a check for a moment. Fixed size, so nothing moves. */
+export function copy(text, what = 'Copy') {
+  const b = h('button.copy', { title: what, 'aria-label': what });
+  b.append(icon(...COPY));
+  b.onclick = async (e) => {
+    e.stopPropagation();
+    await navigator.clipboard.writeText(text).catch(() => {});
+    b.replaceChildren(icon(...CHECK));
+    b.classList.add('done');
+    clearTimeout(b.t);
+    b.t = setTimeout(() => (b.replaceChildren(icon(...COPY)), b.classList.remove('done')), 1200);
+  };
+  return b;
+}
+
+/** An address (or hash) in monospace with a copy button; `shown` can be a shortened form. */
+export const addr = (a, note, shown = a) => h('span.addr', h('code', shown), copy(a, 'Copy ' + (a.length > 42 ? 'hash' : 'address')), note && [' ', note]);
 
 export const warn = (...t) => h('p.warn', ...t);
 export const bad = (...t) => h('p.bad', ...t);
