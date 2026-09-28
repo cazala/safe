@@ -1109,7 +1109,7 @@ function renderBatch(keep) {
 }
 // Compact amount for one-line summaries (up to 6 decimals); the exact amount is on hover.
 const brief = (v, dec, sym) => (v === MAXU ? 'unlimited ' + sym : h('span', { title: fmt(v, dec) + ' ' + sym }, fmtShort(v, dec, 6) + ' ' + sym));
-const callLabel = (x, names = names) => {
+const callLabel = (x, names = st.batchNames) => {
   const d = decode({ ...x, safe: st.safe.address }), tok = d && d.label.startsWith('ERC-20') && tokenOf(x.to);
   // Safe settings: "Change threshold · threshold 3", "Add owner · owner vitalik.eth → 0x…, threshold 2"
   if (d && x.to === st.safe.address)
