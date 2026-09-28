@@ -453,9 +453,6 @@ p.sharelinks { margin: 8px 0 0; font-size: 12px; }
 .rvapprovals ul.owners li > .addr { flex: 1; min-width: 0; }
 details.rvdetails { margin-top: 20px; }
 details.rvdetails > summary { font-weight: 600; }
-/* inside a full-address area, some lists (owners) can still be short */
-.fulladdr .shortaddr span.af { display: none; }
-.fulladdr .shortaddr span.as { display: inline; }
 @media (max-width: 600px) { .opts2 { grid-template-columns: 1fr; } }
 /* Calls decoded with a signature that came with the transaction */
 p.hintnote { margin: 4px 0 6px; color: var(--mut); font-size: 12px; }
