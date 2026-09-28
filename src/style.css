@@ -421,3 +421,39 @@ button.crumbbtn:hover { background: var(--card); }
 .crumbmenu .chip { padding: 0 6px; font-size: 11px; }
 .crumbmenu a.all { margin-top: 4px; border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; color: var(--mut); }
 @media (max-width: 600px) { header a.brand { font-size: 0; gap: 0; } header a.brand svg { width: 20px; height: 20px; } }
+/* ---- Review: what it does, the next step, approvals, details ---- */
+.rvhead { margin-top: 18px; }
+.rvkicker { color: var(--mut); font-size: 13px; }
+h2.rvtitle { margin: 4px 0 8px; font-size: 18px; line-height: 1.5; }
+ol.rvcalls { margin: 6px 0 8px; padding-left: 22px; font-size: 15px; font-weight: 600; }
+ol.rvcalls li { margin: 4px 0; }
+p.rvhash { margin: 6px 0 0; color: var(--mut); font-size: 13px; }
+.step { margin: 18px 0; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.step h3 { margin: 0 0 4px; font-size: 16px; }
+.step > p { margin: 0 0 12px; color: var(--mut); font-size: 14px; }
+.step.go { border-color: var(--ok); }
+.step.blocked h3 { color: var(--bad, #e5534b); }
+.opts2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.opt { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.opt > div { display: flex; align-items: center; gap: 8px; }
+.opt p { flex: 1; margin: 0; color: var(--mut); font-size: 13px; }
+.opt button { align-self: flex-start; }
+.opt label.check { margin: 0; font-size: 12px; color: var(--mut); }
+span.tag { padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--mut); font-size: 11px; }
+.step p.fhint { margin: 12px 0 0; font-size: 12px; color: var(--mut); overflow-wrap: anywhere; }
+.share .row input { font-size: 12px; }
+.share p.fhint { margin: 8px 0 0; }
+p.sharelinks { margin: 8px 0 0; font-size: 12px; }
+.sharemore { margin-top: 10px; }
+.rvsec { display: flex; align-items: center; gap: 8px; }
+.rvsec h3 { margin: 0; font-size: 15px; }
+.rvsec .grow { flex: 1; }
+.rvapprovals ul.owners { margin: 8px 0; padding: 0; list-style: none; }
+.rvapprovals ul.owners li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.rvapprovals ul.owners li > .addr { flex: 1; min-width: 0; }
+details.rvdetails { margin-top: 20px; }
+details.rvdetails > summary { font-weight: 600; }
+/* inside a full-address area, some lists (owners) can still be short */
+.fulladdr .shortaddr span.af { display: none; }
+.fulladdr .shortaddr span.as { display: inline; }
+@media (max-width: 600px) { .opts2 { grid-template-columns: 1fr; } }

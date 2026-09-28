@@ -641,7 +641,7 @@ function loadPending(s) {
 
 // ---- tabs ----
 const tokenOf = (addr) => st.tokens[addr];
-const tokenLabel = (t) => [h('b', t.symbol), ' ', addr(t.address), ' ', t.listed ? h('span.mut', '(zOrg TokenList)') : h('b.bad', '(unlisted)')];
+const tokenLabel = (t) => [h('b', t.symbol), ' ', addr(t.address), ' ', h('span.mut', t.listed ? '(zOrg TokenList)' : saved(st.chainId).some((x) => x.address === t.address) ? '(added by you)' : '(not in the TokenList)')];
 
 /** Token by CSV/link spec: '' or the native symbol → null (native); a TokenList symbol; or a token address. */
 async function findToken(spec) {
@@ -1089,16 +1089,16 @@ function renderBatch(keep) {
 }
 // Compact amount for one-line summaries (up to 6 decimals); the exact amount is on hover.
 const brief = (v, dec, sym) => (v === MAXU ? 'unlimited ' + sym : h('span', { title: fmt(v, dec) + ' ' + sym }, fmtShort(v, dec, 6) + ' ' + sym));
-const callLabel = (x) => {
+const callLabel = (x, names = names) => {
   const d = decode({ ...x, safe: st.safe.address }), tok = d && d.label.startsWith('ERC-20') && tokenOf(x.to);
   // Safe settings: "Change threshold · threshold 3", "Add owner · owner vitalik.eth → 0x…, threshold 2"
   if (d && x.to === st.safe.address)
-    return [d.label, ' · ', d.args.map((a, i) => [i ? ', ' : '', a.name + ' ', a.type === 'address' ? named(a.value, st.batchNames) : String(a.value)])];
+    return [d.label, ' · ', d.args.map((a, i) => [i ? ', ' : '', a.name + ' ', a.type === 'address' ? named(a.value, names) : String(a.value)])];
   const note = !d && st.notes[strip(x.data || '0x').toLowerCase()];
-  if (note) return [h('code', note.sig.replace(/\(.+\)$/, '(…)')), ' on ', named(x.to, st.batchNames), x.value ? ' · ' + fmt(x.value) + ' ' + chain().sym : ''];
+  if (note) return [h('code', note.sig.replace(/\(.+\)$/, '(…)')), ' on ', named(x.to, names), x.value ? ' · ' + fmt(x.value) + ' ' + chain().sym : ''];
   return d
-    ? [d.label, tok ? [' ', brief(d.args.at(-1).value, tok.decimals, tok.symbol)] : '', ' → ', named((d.args.find((a) => a.name === 'to' || a.name === 'spender') || d.args[0]).value, st.batchNames), tok ? '' : [' on ', named(x.to, st.batchNames)]]
-    : [brief(x.value || 0n, 18, chain().sym), ' → ', named(x.to, st.batchNames), x.data && x.data !== '0x' ? ' with ' + (x.data.length - 2) / 2 + ' bytes of calldata' : ''];
+    ? [d.label, tok ? [' ', brief(d.args.at(-1).value, tok.decimals, tok.symbol)] : '', ' → ', named((d.args.find((a) => a.name === 'to' || a.name === 'spender') || d.args[0]).value, names), tok ? '' : [' on ', named(x.to, names)]]
+    : [brief(x.value || 0n, 18, chain().sym), ' → ', named(x.to, names), x.data && x.data !== '0x' ? ' with ' + (x.data.length - 2) / 2 + ' bytes of calldata' : ''];
 };
 
 
@@ -1370,7 +1370,7 @@ async function showReview(tx, sigs = [], nav = 'push') {
   const h2 = '#' + fragment(tx, st.sigs);
   if (nav === 'push') history.pushState(null, '', h2);
   else if (nav === 'replace') history.replaceState(null, '', h2);
-  put(rv, txView(r), r.ok ? [actionsView(r), shareView(r)] : bad('All actions are disabled until the errors above are resolved.'));
+  put(rv, reviewHead(r), r.ok ? nextStep(r) : h('div.step.blocked', h('h3', 'Nothing can be approved or executed'), h('p', 'Resolve the problems above first.')), detailsView(r));
   scrollTo(0, 0);
 }
 
@@ -1380,17 +1380,34 @@ const button = (label, fn, out, cls = '') => {
   return b;
 };
 
-function actionsView(r) {
-  const box = h('section', h('p.mut', 'Loading approvals…'));
+/** What the transaction does, in plain words, with anything risky right under it. */
+function reviewHead(r) {
+  const t = r.tx;
+  return h(
+    'section.rvhead',
+    h('div.rvkicker', r.batch ? 'Batch of ' + r.inner.length + ' calls' : 'Transaction', ' · nonce ' + t.nonce),
+    r.batch ? h('ol.rvcalls', r.inner.map((c) => h('li', callLabel(c, st.named)))) : h('h2.rvtitle', callLabel(t, st.named)),
+    r.danger.map((d) => h('p.bad.danger', d)),
+    r.errors.map((e) => bad(e)),
+    r.warnings.map((w) => warn(w)),
+    r.chain === r.local && h('p.rvhash', h('b.ok', '✓'), ' Hash matches the Safe’s own ', h('code', short(r.local)), ' · see details below'),
+  );
+}
+
+/**
+ * The one thing to do next, for whoever is looking: an owner approves (sign for free, or onchain),
+ * then shares; anyone else sends it to the owners; once enough have approved, anyone executes.
+ */
+function nextStep(r) {
+  const box = h('div', h('p.mut', 'Loading approvals…'));
   const s = st.safe, t = r.tx, me = st.account && st.account.toLowerCase();
   (async () => {
     const { approved, sigs } = await collect(s, r.local, me, st.off);
     const signed = st.off.map((x) => x.signer);
     const owner = me && s.owners.includes(me), mine = approved.includes(me) || signed.includes(me);
+    const got = new Set([...approved, ...signed].filter((x) => s.owners.includes(x))).size, thr = Number(s.threshold);
     const ready = BigInt(sigs.length) >= s.threshold, current = t.nonce === s.nonce;
     const out = h('div');
-    const payload = compact(t);
-    const publish = h('input', { type: 'checkbox' });
     const done = (msg) => async (rc) => {
       st.safe = await readSafe(s.address);
       st.pendingFor = null;
@@ -1404,49 +1421,83 @@ function actionsView(r) {
       st.flash = '✓ Executed nonce ' + t.nonce + ' in ' + rc.transactionHash;
       location.hash = link('assets');
     };
+    const count = got + ' of ' + thr + ' approval' + (thr === 1 ? '' : 's');
+    let step;
+    if (!me) step = h('div.step', h('h3', 'Connect a wallet to approve or execute'), h('p', count + ' so far. Owners approve with their wallet; you can also send this link to them.'), shareBlock(r, false));
+    else if (ready && current)
+      step = h(
+        'div.step.go',
+        h('h3', owner && !mine ? 'Your approval completes it' : 'Ready to execute'),
+        h('p', owner && !mine ? count + ' so far; executing adds yours. It submits the transaction onchain and costs gas. You can also just sign and let someone else execute.' : count + ' collected. Executing submits it onchain: it costs gas, and any wallet can do it.'),
+        h(
+          'div.actions',
+          button(owner && !mine ? 'Approve and execute' : 'Execute', () => recheck().then(() => execute(t, me, st.sigs)).then(executed), out, '.primary'),
+          owner && !mine && button('Sign only', async () => (await recheck(), showReview(t, [...st.sigs, await sign(t, me)], 'replace')), out),
+        ),
+        out,
+      );
+    else if (ready) step = h('div.step', h('h3', 'Approved · waiting for nonce ' + s.nonce), h('p', 'This transaction is queued: it can execute once nonce ' + s.nonce + ' has.'), shareBlock(r, false));
+    else if (owner && !mine) {
+      const payload = compact(t), publish = h('input', { type: 'checkbox', checked: true });
+      step = h(
+        'div.step',
+        h('h3', 'Your approval is needed'),
+        h('p', count + ' so far. Choose how to approve:'),
+        h(
+          'div.opts2',
+          h(
+            'div.opt',
+            h('div', h('b', 'Sign'), h('span.tag', 'free')),
+            h('p', 'Your wallet signs the transaction hash. The signature is added to the link you share; nothing goes onchain.'),
+            button('Sign', async () => (await recheck(), showReview(t, [...st.sigs, await sign(t, me)], 'replace')), out, '.primary'),
+          ),
+          h(
+            'div.opt',
+            h('div', h('b', 'Approve onchain'), h('span.tag', 'costs gas')),
+            h('p', 'Recorded in the Safe. With the details published, the other owners find it in Transactions without a link.'),
+            h('label.check', publish, ' Publish the details too (+' + (payload.length - 2) / 2 + ' bytes, ≈' + payloadGas(payload) + ' gas)'),
+            button('Approve onchain', () => recheck().then(() => approve(t, me, publish.checked ? compact(t) : '0x')).then(done('Approved.')), out),
+          ),
+        ),
+        out,
+        h('p.fhint', 'Your wallet will show the SafeTx hash ', h('code', r.local), '. It must match.'),
+      );
+    } else if (owner)
+      step = h('div.step', h('h3', h('span.ok', '✓ '), 'You approved · ' + (thr - got) + ' more needed'), h('p', 'Send this link to the other owners. Each one opens it, checks it and approves with their wallet.'), shareBlock(r, true));
+    else
+      step = h(
+        'div.step',
+        h('h3', 'Send this to the owners'),
+        h('p', 'This wallet isn’t an owner, so it can’t approve. Copy the link and send it to the owners: they open it, check it and approve with their wallet, no setup needed. Once ' + thr + ' ' + (thr === 1 ? 'has' : 'have') + ', any wallet, this one included, can execute it.'),
+        shareBlock(r, true),
+      );
     put(
       box,
-      h('h2', 'Approvals · ' + (approved.length + st.off.filter((x) => !approved.includes(x.signer)).length) + ' of ' + s.threshold + ' required'),
+      step,
       h(
-        'ul.owners',
-        s.owners.map((o) => h('li', addr(o), ' ', approved.includes(o) ? h('b.ok', '✓ approved onchain') : signed.includes(o) ? h('b.ok', '✓ signed offchain') : h('span.mut', '· not approved'), o === me && ' (you)')),
+        'section.rvapprovals',
+        h('div.rvsec', h('h3', 'Approvals · ' + count), h('span.grow'), button('Refresh', () => showReview(t, st.sigs, 'replace'), out, '.link')),
+        h('ul.owners.shortaddr', s.owners.map((o) => h('li', addr(o), approved.includes(o) ? h('b.ok', '✓ approved onchain') : signed.includes(o) ? h('b.ok', '✓ signed') : h('span.mut', 'waiting'), o === me && h('span.mut', '(you)')))),
+        st.rejected.map((x) => warn('Ignored signature: ' + x.reason + '.')),
+        !current && !ready && h('p.mut', 'Queued: it can execute once nonce ' + s.nonce + ' has.'),
       ),
-      st.rejected.map((x) => warn('Ignored signature: ' + x.reason + '.')),
-      !me && h('p.mut', 'Connect a wallet to approve or execute.'),
-      me && !owner && h('p.onote', 'This wallet isn’t an owner of this Safe, so it can’t approve this transaction. Share the link below with an owner to approve it. Once enough owners have, any wallet, including this one, can execute it.'),
-      !current && h('p.mut', 'Execution is possible only once the Safe nonce reaches ' + t.nonce + '.'),
-      owner &&
-        !mine &&
-        h(
-          'label.check',
-          publish,
-          ' Publish this transaction onchain with my approval (+' + (payload.length - 2) / 2 + ' bytes, ≈' + payloadGas(payload) + ' gas) so other owners can find it without a link',
-        ),
-      h(
-        'div.actions',
-        owner && !mine && button('Approve onchain', () => recheck().then(() => approve(t, me, publish.checked ? compact(t) : '0x')).then(done('Approved.')), out),
-        owner && !mine && button('Sign offchain', async () => (await recheck(), showReview(t, [...st.sigs, await sign(t, me)], 'replace')), out),
-        me && ready && current && button(owner && !mine ? 'Approve and execute' : 'Execute', () => recheck().then(() => execute(t, me, st.sigs)).then(executed), out, '.primary'),
-        button('Refresh', () => showReview(t, st.sigs, 'replace'), out),
-      ),
-      out,
     );
   })().catch((e) => box.replaceChildren(bad(e.message)));
   return box;
 }
 
-function shareView(r) {
-  const link = location.href.split('#')[0] + '#' + fragment(r.tx, st.sigs);
-  const copy = (label, text) => button(label, () => toClipboard(text));
+/** The share link (with the signatures collected so far), a copy button, and the less common extras. */
+function shareBlock(r, primary) {
+  const url = location.href.split('#')[0] + '#' + fragment(r.tx, st.sigs);
+  const b = h('button' + (primary ? '.primary' : ''), 'Copy link');
+  b.onclick = () => toClipboard(url).then(() => (put(b, '✓ Copied'), setTimeout(() => put(b, 'Copy link'), 1500)), () => {});
+  const more = h('div.sharemore', { hidden: true }, h('p.mut', 'Got a link back with more signatures? Paste it to merge them here.'), importer());
   return h(
-    'section',
-    h('h2', 'Share'),
-    h(
-      'p.mut',
-      'Other owners open this link, or paste it into Import, to review and approve the same transaction. It carries the transaction and any offchain signatures collected so far: anyone who has it can read it, nobody can sign with it. Signatures from others can be merged by importing their link here.',
-    ),
-    h('input', { readonly: true, value: link, onclick: (e) => e.target.select() }),
-    h('div.actions', copy('Copy link', link), copy('Copy JSON', toJSON(r.tx, st.sigs))),
+    'div.share',
+    h('div.row', h('input.mono', { readonly: true, value: url, onclick: (e) => e.target.select(), 'aria-label': 'Share link' }), b),
+    h('p.fhint', 'The link carries the transaction and the signatures so far. Anyone with it can read it; only owners can approve.'),
+    h('p.sharelinks', h('button.link', { onclick: () => toClipboard(toJSON(r.tx, st.sigs)) }, 'Copy as JSON'), h('span.mut', ' · '), h('button.link', { onclick: () => (more.hidden = !more.hidden) }, 'Merge signatures from another link')),
+    more,
   );
 }
 
@@ -1455,7 +1506,7 @@ function actionView(d, t) {
   return [
     h('b', d.label),
     kv([
-      d.label.startsWith('ERC-20') && ['token', tok ? tokenLabel(tok) : [addr(t.to), ' ', h('b.bad', '(unknown token: amount shown in raw units)')]],
+      d.label.startsWith('ERC-20') && ['token', tok ? tokenLabel(tok) : [addr(t.to), ' ', h('span.mut', '(unknown token · amount in raw units)')]],
       ...d.args.map((x) => [x.name, x.type === 'address' ? named(x.value) : x.name === 'amount' ? amount(x.value, tok) + (tok && x.value !== MAXU ? ' (' + x.value + ' raw)' : '') : String(x.value)]),
     ]),
   ];
@@ -1481,12 +1532,11 @@ function batchView(r) {
   ];
 }
 
-function txView(r) {
+function detailsView(r) {
   const t = r.tx, c = label(t.chainId), len = strip(t.data).length / 2;
   return h(
-    'section',
-    h('h2', 'Transaction summary'),
-    r.danger.map((d) => h('p.bad.danger', d)),
+    'details.rvdetails',
+    h('summary', 'Transaction details'),
     kv([
       ['Safe', addr(t.safe)],
       ['Chain', (c.name || 'unknown') + ' · chainId ' + t.chainId],
@@ -1500,8 +1550,6 @@ function txView(r) {
       ['SafeTx hash', h('b', addr(r.local))],
       ['Onchain hash', r.chain ? [addr(r.chain), ' ', r.chain === r.local ? h('b.ok', '✓ verified') : h('b.bad', '✗ MISMATCH')] : h('b.bad', 'unavailable')],
     ]),
-    r.errors.map((e) => bad(e)),
-    r.warnings.map((w) => warn(w)),
   );
 }
 
