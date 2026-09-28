@@ -1107,6 +1107,7 @@ const callLabel = (x, names = st.batchNames) => {
   // Safe settings: "Change threshold · threshold 3", "Add owner · owner vitalik.eth → 0x…, threshold 2"
   if (d && x.to === st.safe.address)
     return [d.label, ' · ', d.args.map((a, i) => [i ? ', ' : '', a.name + ' ', a.type === 'address' ? named(a.value, names) : String(a.value)])];
+  if (d && d.proxy) return [d.label, ' at ', named(d.proxy, names)]; // "Deploy module: Zodiac Roles 2.1.1 at 0x…"
   const m = !d && hintOf(x.data);
   if (m) return [h('b', m.f.name), ' on ', named(x.to, names), x.value ? ' · ' + fmt(x.value) + ' ' + chain().sym : ''];
   return d
@@ -1590,7 +1591,7 @@ function actionView(d, t) {
     kv([
       d.label.startsWith('ERC-20') && ['token', tok ? tokenLabel(tok) : [addr(t.to), ' ', h('span.mut', '(unknown token · amount in raw units)')]],
       // A module or guard being set: say what it is (e.g. Zodiac Roles, and who owns it), as Settings does.
-      ...d.args.map((x) => [x.name, x.type === 'address' ? [named(x.value), /^(Enable module|Set guard)$/.test(d.label) && whatIs(x.value, st.safe)] : x.name === 'amount' ? amount(x.value, tok) + (tok && x.value !== MAXU ? ' (' + x.value + ' raw)' : '') : String(x.value)]),
+      ...d.args.map((x) => [x.name, x.type === 'address' ? [named(x.value), /^(Enable module|Set guard)$/.test(d.label) && (d.deployedBy ? h('div.modinfo', h('span.chip.ok', 'Deployed by call ' + d.deployedBy.call + (d.deployedBy.name ? ': Zodiac ' + d.deployedBy.name : ''))) : whatIs(x.value, st.safe))] : x.name === 'amount' ? amount(x.value, tok) + (tok && x.value !== MAXU ? ' (' + x.value + ' raw)' : '') : String(x.value)]),
     ]),
   ];
 }

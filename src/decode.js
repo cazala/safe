@@ -3,6 +3,7 @@
 import { strip } from './abi.js';
 import { handlerName } from './chains.js';
 import { S } from './sel.js';
+import { deployModuleOf } from './zodiac.js';
 
 const MAX = (1n << 256n) - 1n;
 const A = 'address', U = 'uint256';
@@ -24,6 +25,8 @@ const D = {
 
 /** Returns {label, args: [{name, type, value}], warnings, danger} or null for unknown/non-canonical calldata. */
 export function decode(t) {
+  const z = deployModuleOf(t);
+  if (z) return deployModule(z, t);
   const d = strip(t.data).toLowerCase(), spec = D[d.slice(0, 8)];
   if (!spec) return null;
   const [label, self, ...params] = spec;
@@ -48,4 +51,22 @@ export function decode(t) {
   }
   if (label === 'ERC-20 approve' && v.amount === MAX) danger.push('UNLIMITED APPROVAL: ' + v.spender + ' may spend the entire balance of this token, now and in the future.');
   return { label, args, warnings, danger };
+}
+
+/** Zodiac's deployModule: what is deployed, where, and who will control it. */
+function deployModule(z, t) {
+  const warnings = [], danger = [], o = z.setup;
+  const args = [
+    { name: 'module', type: A, value: z.masterCopy },
+    { name: 'new module', type: A, value: z.proxy },
+    ...(o ? ['owner', 'avatar', 'target'].map((k) => ({ name: k, type: A, value: o[k] })) : [{ name: 'initializer', type: 'bytes', value: z.initializer }]),
+    { name: 'saltNonce', type: U, value: z.saltNonce },
+  ];
+  if (!z.name) warnings.push('Deploys a copy of ' + z.masterCopy + ', which is not a Zodiac module safe.wei knows.');
+  if (z.faulty) warnings.push('Zodiac lists ' + z.name + ' as a faulty version.');
+  if (z.name && !o) warnings.push('The new module’s settings (initializer) are not decoded: check them where this transaction was built.');
+  if (o && o.owner !== t.safe) danger.push('DANGEROUS: THE NEW MODULE’S OWNER IS ' + o.owner + ', NOT THIS SAFE. Its owner can change what the module allows, without the owners.');
+  if (o && o.avatar !== t.safe) warnings.push('The new module’s avatar is ' + o.avatar + ', not this Safe: it acts for that account.');
+  if (o && o.target !== t.safe) warnings.push('The new module’s target is ' + o.target + ', not this Safe: it executes through that account.');
+  return { label: 'Deploy module' + (z.name ? ': Zodiac ' + z.name : ''), args, warnings, danger, proxy: z.proxy, module: z.name };
 }

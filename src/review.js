@@ -89,6 +89,16 @@ export async function review(tx, s, walletChain) {
       if (d) r.danger.push(...d.danger.map((m) => 'Call ' + (i + 1) + ': ' + m)), r.warnings.push(...d.warnings.map((m) => 'Call ' + (i + 1) + ': ' + m));
       return { ...c, decoded: d };
     });
+  // A module deployed in this batch and enabled in it: the enabled address must be the deployed one.
+  const made = new Map((r.inner || []).flatMap((c, i) => (c.decoded && c.decoded.proxy ? [[c.decoded.proxy, i]] : [])));
+  if (made.size)
+    r.inner.forEach((c, i) => {
+      const d = c.decoded;
+      if (!d || d.label !== 'Enable module') return;
+      const j = made.get(d.args[0].value);
+      if (j === undefined) warn('Call ' + (i + 1) + ' enables ' + d.args[0].value + ', which is not the module this batch deploys (' + [...made.keys()].join(', ') + ').');
+      else d.deployedBy = { call: j + 1, name: r.inner[j].decoded.module };
+    });
   if (tx.safeTxGas || tx.baseGas || tx.gasPrice || tx.gasToken !== ZERO || tx.refundReceiver !== ZERO) warn('Gas refund fields are non-zero: the executor may be paid from the Safe.');
   if (r.ok = !r.errors.length) {
     const w = await simulate(tx).catch((e) => 'Simulation failed: ' + e.message);

@@ -29,8 +29,9 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | messages | 148,343 | 51,363 | 119,790 | 27,452 | EIP-191 / EIP-712 hashing, SafeMessage signing, #msg= links, message review |
 | WalletConnect, both sides | 188,410 | 66,072 | 157,937 | 29,244 | wallet side (Dapps tab), dapp side (owner wallets by QR), ChaCha20-Poly1305, QR encoder |
 | tidy + roles.wei readiness | 186,376 | 65,825 | 156,609 | 28,538 | shared storage helper, dead code removed; simulation inside the Safe, module identification, bytes32 text, ?chain= |
+| deployModule decoding | 188,990 | — | — | — | Zodiac ModuleProxyFactory decode, CREATE2 prediction, setUp owner/avatar/target, batch enable check |
 
-The page is now about 182 KB: under the 200 KB limit, but close to it. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 8 chunks of up to 24,575 bytes plus the config chunk (~42M gas, docs/deploy.md → Cost).
+The page is now about 185 KB: under the 200 KB limit, but close to it. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 8 chunks of up to 24,575 bytes plus the config chunk (~42M gas, docs/deploy.md → Cost).
 
 ## Major contributors
 
