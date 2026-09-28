@@ -656,7 +656,7 @@ function loadPending(s) {
 
 // ---- tabs ----
 const tokenOf = (addr) => st.tokens[addr];
-const tokenLabel = (t) => [h('b', t.symbol), ' ', addr(t.address), ' ', h('span.mut', t.listed ? '(zOrg TokenList)' : saved(st.chainId).some((x) => x.address === t.address) ? '(added by you)' : '(not in the TokenList)')];
+const tokenLabel = (t) => [h('b', t.symbol), ' ', addr(t.address), ' ', h('span.mut', t.listed ? '(listed)' : saved(st.chainId).some((x) => x.address === t.address) ? '(added by you)' : '(unlisted)')];
 
 /** Token by CSV/link spec: '' or the native symbol → null (native); a TokenList symbol; or a token address. */
 async function findToken(spec) {
@@ -720,7 +720,7 @@ function assetsTab(s) {
       ),
       h(
         'div.afoot',
-        h('span.mut', c.mainnet ? Object.values(st.tokens).filter((t) => t.listed).length + ' TokenList tokens checked · zero balances hidden' : 'The zOrg TokenList is on Ethereum; add tokens on ' + c.name + ' by address.'),
+        c.mainnet && h('span.mut', 'Zero balances hidden'),
         h('span.grow'),
         h('button.link.addlink', { onclick: () => ((addBox.hidden = !addBox.hidden), addBox.hidden || addIn.focus()) }, icon(...ICONS.plus), 'Add token'),
       ),
