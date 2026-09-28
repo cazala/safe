@@ -208,7 +208,7 @@ Where MultiSendCallOnly is deployed, any send, contract call or settings change 
 
 - On desktop, **Batch N** in the header opens the batch: each call in one line ("ERC-20 transfer 1 MANA → pepe"), with **remove**, **Review batch** and **Clear**.
 - On phones, the batch is a bar fixed to the bottom of the screen.
-- The whole batch executes atomically in one Safe transaction (a DELEGATECALL into the canonical MultiSendCallOnly, the only batch target safe.wei accepts). If one call fails, none happen.
+- The whole batch executes atomically in one Safe transaction (a DELEGATECALL into the canonical MultiSendCallOnly, the only batch target safe.wei accepts; the 1.3.0 one is recognized in existing transactions). If one call fails, none happen.
 - A batch belongs to one Safe; switching Safes starts a new one.
 
 ## 11. Review, approve and execute
@@ -230,6 +230,10 @@ Every transaction, however it was built or opened, ends on the review screen.
 | Queued behind an earlier nonce | Waits; it can execute once the earlier nonce has. |
 
 3. **Approvals**: each owner with ✓ signed, ✓ approved onchain, or waiting, and **Refresh**.
+- **Simulation**: a transaction is simulated before any action. A call runs as an `eth_call` from the Safe. A batch, or any DELEGATECALL, runs inside the Safe with its `simulateAndRevert` (Safe 1.3.0 and later), so the calls of a batch see each other's effects, as when executed. A batch that reverts is flagged, with each call also simulated on its own to point at the failing one. A token that returns `false` is flagged too. Simulation warns; it never blocks.
+- **Modules and guards**: enabling a module or setting a guard shows what the contract is (e.g. "Zodiac Roles 2.1.1"), whether Zodiac lists that version as faulty, and who owns it: this Safe, an owner, or someone else, which is flagged. An address with no code yet shows "No contract here yet" (a batch can deploy it in an earlier call).
+- **Values**: a `bytes32` that is short text padded with zeros (a role key, for example) also shows as that text.
+
 4. **Transaction details** (collapsed): Safe, chain, nonce, to, value, operation, decoded action (per call for batches), calldata, gas fields, SafeTx hash and the Safe's own hash.
 
 ### Calls safe.wei cannot decode by itself
