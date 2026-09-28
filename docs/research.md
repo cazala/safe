@@ -23,6 +23,10 @@ Other registries (mainnet):
 | WNS NameNFT | `0x0000000000696760E15f265e828DB644A0c242EB` | z0r0z/wei-names README |
 | zOrg TokenList | `0x0000006013dF75A31678B786061C2B54bf531524` | z-fi/zFi `deploy/TokenList.md` |
 
+## Safe v1.5.0
+
+Released (safe-deployments `src/assets/v1.5.0`). Mainnet: Safe `0xFf51A5898e281Db6DfC7855790607438dF2ca44b`, SafeL2 `0xEdd160fEBBD92E350D4D398fb636302fccd67C7e`, proxy factory `0x14F2982D601c9458F93bd70B218933A6f8165e7b`, CompatibilityFallbackHandler `0x3EfCBb83A4A7AfcB4F68D501E2c2203a38be77f4`, MultiSendCallOnly `0xA83c336B20401Af773B6219BA5027174338D1836` (also on Polygon). SafeTx typehash, EIP-712 domain, `approveHash`, `getTransactionHash` and `execTransaction` are unchanged; every fork suite passes against it.
+
 ## Other chains
 
 The v1.4.1 addresses above are CREATE2 deployments and are identical on every chain that supports Safe's deterministic deployment. `networkAddresses["137"]` (Polygon) lists exactly the same addresses, and `test/fork/polygon.test.mjs` creates a SafeL2, executes a transfer and a batch, and reads balances on a Polygon fork. Chains where deterministic deployment does not hold (for example zkSync Era) simply fail the `eth_getCode` probe, so creating and batching are disabled there while existing Safes still open.

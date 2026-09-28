@@ -8,14 +8,30 @@
 // (safe-global/safe-deployments) and on Ethereum and Polygon in test/fork.
 import { rpc } from './rpc.js';
 
-export const SAFE = {
-  singleton: '0x41675c099f32341bf84bfc5382af534df5c7461a', // Safe v1.4.1 (Ethereum mainnet)
-  singletonL2: '0x29fcb43b46531bca003ddc8fcb67ffe91900c762', // SafeL2 v1.4.1 (every other chain, as Safe Wallet does)
-  factory: '0x4e1dcf7ad4e460cfd30791ccc4f9c8a4f820ec67',
-  fallback: '0xfd0732dc9e303f09fcef3a7388ad10a83459ec99',
-  multiSendCallOnly: '0x9641d764fc13c8b624c04430c7356c1c7c8102e2',
-  multicall3: '0xca11bde05977b3631167028862be2a173976ca11',
-};
+// New Safes use the latest release present on the chain: v1.5.0, else v1.4.1.
+// `singleton` is used on Ethereum mainnet, `singletonL2` everywhere else (as Safe Wallet does).
+const RELEASES = [
+  {
+    version: '1.5.0',
+    singleton: '0xff51a5898e281db6dfc7855790607438df2ca44b',
+    singletonL2: '0xedd160febbd92e350d4d398fb636302fccd67c7e',
+    factory: '0x14f2982d601c9458f93bd70b218933a6f8165e7b',
+    fallback: '0x3efcbb83a4a7afcb4f68d501e2c2203a38be77f4',
+    multiSendCallOnly: '0xa83c336b20401af773b6219ba5027174338d1836',
+  },
+  {
+    version: '1.4.1',
+    singleton: '0x41675c099f32341bf84bfc5382af534df5c7461a',
+    singletonL2: '0x29fcb43b46531bca003ddc8fcb67ffe91900c762',
+    factory: '0x4e1dcf7ad4e460cfd30791ccc4f9c8a4f820ec67',
+    fallback: '0xfd0732dc9e303f09fcef3a7388ad10a83459ec99',
+    multiSendCallOnly: '0x9641d764fc13c8b624c04430c7356c1c7c8102e2',
+  },
+];
+export const SAFE = { ...RELEASES[0], multicall3: '0xca11bde05977b3631167028862be2a173976ca11' };
+export const SAFE141 = RELEASES[1];
+/** Canonical MultiSendCallOnly contracts recognized as batches (only these; spec §26). */
+export const MULTISEND = RELEASES.map((r) => r.multiSendCallOnly);
 
 // Registries that exist on Ethereum mainnet only (names, token list).
 export const MAINNET = {
@@ -43,14 +59,42 @@ export const label = (id) => {
   return { name, sym };
 };
 
-// Safe versions this app can operate. SafeTx typehash, domain, approveHash and
-// execTransaction are identical across these.
-export const VERSIONS = ['1.3.0', '1.4.1'];
+// Safe versions tested end to end (test/fork). SafeTx typehash, EIP-712 domain, approveHash
+// and execTransaction are identical across them.
+export const TESTED = ['1.3.0', '1.4.1', '1.5.0'];
+
+/**
+ * Versions this app will operate. The app is immutable, so it cannot learn about future Safe
+ * releases: any version from 1.3.0 up is allowed, and untested ones get a warning. That is
+ * safe because nothing is signed unless the locally computed SafeTx hash equals the Safe's own
+ * getTransactionHash (spec §6): a future version that changed the format would be refused.
+ * Before 1.3.0 the EIP-712 domain had no chainId, so those versions are refused outright.
+ */
+export const operable = (v) => {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v || '');
+  return !!m && (+m[1] > 1 || (+m[1] === 1 && +m[2] >= 3));
+};
 
 /** Chain info for `id`, probing the connected wallet for the contracts each feature needs. */
 export async function chainInfo(id) {
-  const singleton = id === 1 ? SAFE.singleton : SAFE.singletonL2;
   const has = async (a) => (await rpc('eth_getCode', [a, 'latest']).catch(() => '0x')) !== '0x';
-  const [s, f, fb, ms, mc] = await Promise.all([singleton, SAFE.factory, SAFE.fallback, SAFE.multiSendCallOnly, SAFE.multicall3].map(has));
-  return { id, ...label(id), ...SAFE, singleton, canCreate: s && f && fb, canBatch: ms, canMulticall: mc, mainnet: id === 1 };
+  const probe = await Promise.all(
+    RELEASES.map(async (r) => {
+      const [s, f, fb, ms] = await Promise.all([id === 1 ? r.singleton : r.singletonL2, r.factory, r.fallback, r.multiSendCallOnly].map(has));
+      return { r, create: s && f && fb, batch: ms };
+    }),
+  );
+  const rel = (probe.find((p) => p.create) || probe[0]).r, batch = probe.find((p) => p.batch);
+  return {
+    id,
+    ...label(id),
+    ...rel,
+    singleton: id === 1 ? rel.singleton : rel.singletonL2,
+    multiSendCallOnly: batch ? batch.r.multiSendCallOnly : SAFE.multiSendCallOnly,
+    multicall3: SAFE.multicall3,
+    canCreate: probe.some((p) => p.create),
+    canBatch: !!batch,
+    canMulticall: await has(SAFE.multicall3),
+    mainnet: id === 1,
+  };
 }

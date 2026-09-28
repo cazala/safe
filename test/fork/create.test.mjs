@@ -22,7 +22,7 @@ test('predicted address matches the deployed Safe; owners, threshold, version, f
   assert.equal(s.address, at);
   assert.deepEqual(s.owners, [A, B, C]);
   assert.equal(s.threshold, 2n);
-  assert.equal(s.version, '1.4.1');
+  assert.equal(s.version, '1.5.0');
   assert.equal(s.singleton, c.singleton);
   assert.equal(s.fallback, c.fallback);
   assert.equal(s.nonce, 0n);

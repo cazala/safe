@@ -23,7 +23,7 @@ async function funded(version) {
   return readSafe(safe);
 }
 
-for (const v of ['1.3.0', '1.4.1']) {
+for (const v of ['1.3.0', '1.4.1', '1.5.0']) {
   test(v + ': approveHash with an appended payload is recorded, discovered, and executable', async () => {
     const s = await funded(v);
     const t = newTx(s, { to: C, value: 3n, data: '0xa9059cbb' + '00'.repeat(64) });

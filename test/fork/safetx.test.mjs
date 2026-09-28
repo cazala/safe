@@ -11,13 +11,13 @@ const safes = {};
 before(async () => {
   f = await startFork();
   use(f.provider);
-  for (const v of ['1.3.0', '1.4.1']) safes[v] = await readSafe(await deploySafe(f.rpc, v, ACCOUNTS.slice(0, 3), 2));
+  for (const v of ['1.3.0', '1.4.1', '1.5.0']) safes[v] = await readSafe(await deploySafe(f.rpc, v, ACCOUNTS.slice(0, 3), 2));
 });
 after(() => f.stop());
 
 const rnd = (n) => '0x' + randomBytes(n).toString('hex');
 
-for (const v of ['1.3.0', '1.4.1']) {
+for (const v of ['1.3.0', '1.4.1', '1.5.0']) {
   test(v + ': local SafeTx hash equals getTransactionHash', async () => {
     for (let i = 0; i < 25; i++) {
       const t = { ...newTx(safes[v], { to: rnd(20), value: BigInt(rnd(8)), data: rnd(i * 13), operation: i % 2, nonce: BigInt(i) }) };

@@ -197,9 +197,7 @@ Output:
 - deployment transaction
 - confirmed Safe address
 
-Target Safe version for creation:
-
-- Safe v1.4.1
+Target Safe version for creation: the latest canonical release deployed on the chain, currently v1.5.0 (falling back to v1.4.1 where 1.5.0 is not deployed).
 
 Use canonical Safe singleton/proxy factory deployments for supported chains.
 
@@ -842,21 +840,15 @@ ERC-8244 gateways such as `w4eth.io` still depend on DNS, and most injected wall
 
 ## 16. Safe version support
 
-MVP:
+- create: the newest canonical release present on the chain (v1.5.0, else v1.4.1)
+- open / approve / sign / execute: any version from 1.3.0 up, including `SafeL2` variants
+- tested end to end on a mainnet fork: v1.3.0, v1.4.1, v1.5.0 (every fork suite runs against all three)
 
-- create: Safe v1.4.1 only
-- open / approve / sign / execute: Safe v1.3.0 and v1.4.1, including their `SafeL2` variants
+The app is immutable and cannot learn about future releases, so it does not keep an allow-list. A version newer than the tested ones is usable with a visible warning. This is safe because nothing is signed, approved or executed unless the locally computed SafeTx hash equals the Safe's own `getTransactionHash` (§6): a future version that changed the transaction format would be refused automatically.
 
-Most existing mainnet Safes are v1.3.0. Between v1.3.0 and v1.4.1 the SafeTx typehash, the EIP-712 domain (including chainId), `approveHash`, `approvedHashes`, `getTransactionHash` and `execTransaction` are identical, so supporting both costs almost nothing. Tests must cover both versions.
+Versions before 1.3.0 are refused: their EIP-712 domain has no chainId.
 
-When opening a Safe:
-
-- read `VERSION()`
-- if the version is neither 1.3.0 nor 1.4.1, show a clear warning and disable signing
-
-Do not attempt compatibility with versions older than v1.3.0.
-
-The architecture should isolate ABI/version-specific behavior so support can be added later.
+Batches are recognized for the canonical MultiSendCallOnly of v1.4.1 and v1.5.0; new batches use the newest one deployed on the chain.
 
 ---
 
