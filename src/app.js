@@ -14,7 +14,8 @@ import { nameOf, resolveName } from './names.js';
 import { batch } from './multisend.js';
 import { parseCSV, toCSV } from './csv.js';
 import { canonical, encodeCall, parseAbi, parseValue } from './abicoder.js';
-import { $, act, addr, bad, copy, h, icon, ICONS, kv, put, short, warn } from './ui.js';
+import { $, act, addr, bad, copy, h, icon, iconButton, ICONS, kv, put, short, warn } from './ui.js';
+import { mountSafes } from './homeview.js';
 import * as recent from './recent.js';
 import { discover, get, list, remember, remembered } from './wallets.js';
 import { identify } from './zodiac.js';
@@ -142,9 +143,8 @@ function home() {
   input.onkeydown = (e) => {
     if (e.key === 'Enter') open.click(); // never return false here: that would cancel every keystroke
   };
-  const list = h('div');
-  const draw = () => put(list, savedSafes(draw));
-  draw();
+  const list = h('div.saved');
+  if (recent.safes().length) mountSafes(list, () => st.chainId);
   const c = chain();
   // Two ways in (open, create) live together at the top; your Safes are content below.
   const create = !c
@@ -161,46 +161,6 @@ function home() {
   );
 }
 
-/** The "Your Safes" list: pinned first, then most recent. */
-function savedSafes(redraw) {
-  const l = recent.sorted();
-  if (!l.length) return null;
-  const iconBtn = iconButton;
-  const row = (e) => {
-    const title = e.label || e.ref || 'Safe ' + short(e.address), here = st.chainId === e.chainId;
-    const name = h('b.name', title);
-    const rename = () => {
-      const inp = h('input.rename', { value: e.label || '', placeholder: e.ref || 'Name this Safe', maxlength: 40 });
-      const save = (keep) => (keep && recent.update(e.chainId, e.address, { label: inp.value.trim().slice(0, 40) }), redraw());
-      inp.onkeydown = (k) => (k.key === 'Enter' ? save(true) : k.key === 'Escape' ? save(false) : null);
-      inp.onblur = () => save(true);
-      inp.onclick = (k) => (k.preventDefault(), k.stopPropagation());
-      name.replaceWith(inp);
-      inp.focus();
-      inp.select();
-    };
-    const remove = () => {
-      const gone = recent.remove(e.chainId, e.address);
-      const undo = h('div.saferow.removed', h('span.mut', 'Removed ' + title + '.'), h('button.link', { onclick: () => (recent.restore(gone), redraw()) }, 'Undo'));
-      el.replaceWith(undo);
-      setTimeout(() => undo.isConnected && undo.remove(), 6000);
-    };
-    const el = h(
-      'a.saferow' + (here ? '' : '.other'),
-      { href: '#/' + (e.ref || e.address), title: here ? null : 'Switch your wallet to ' + label(e.chainId).name + ' to open this Safe' },
-      h('div.info', h('div', name, e.pinned && h('span.pinned', icon(...ICONS.pin))), h('div.meta', h('code', short(e.address)), h('span.chip', label(e.chainId).name), h('span', recent.ago(e.at)))),
-      h(
-        'div.acts',
-        iconBtn('pin', e.pinned ? 'Unpin' : 'Pin', () => (recent.update(e.chainId, e.address, { pinned: !e.pinned }), redraw()), e.pinned),
-        iconBtn('edit', 'Rename', rename),
-        iconBtn('close', 'Remove from this list', remove),
-      ),
-      h('span.go', icon(...ICONS.next)),
-    );
-    return el;
-  };
-  return h('div.saved', h('h2', 'Your Safes'), l.map(row));
-}
 
 function createView() {
   const c = chain();
@@ -268,14 +228,6 @@ const TABS = [
 ];
 const link = (tab, q) => '#/' + st.ref + (tab && tab !== 'assets' ? '/' + tab : '') + (q ? '?' + new URLSearchParams(q) : '');
 const chip = (text, cls = '') => h('span.chip' + cls, text);
-
-/** Small icon-only button. */
-function iconButton(name, title, fn, on) {
-  const b = h('button.ib' + (on ? '.on' : ''), { title, 'aria-label': title });
-  b.append(icon(...ICONS[name]));
-  b.onclick = (e) => (e.preventDefault(), e.stopPropagation(), fn());
-  return b;
-}
 
 /** `back`: [href, text] for the single back link; defaults to Home. */
 function safeHeader(s, back = ['#', '‹ Home']) {

@@ -48,3 +48,39 @@ export function ago(ms) {
   const d = Math.floor((Date.now() - ms) / 864e5);
   return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 7 ? d + ' days ago' : new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+
+// ---- layout: order and folders (iOS-style), kept in sync with the saved Safes ----
+// Node: { t: 's', k: '<chainId>:<address>' } | { t: 'f', id, name, items: [node] }. Folders nest.
+const TREE = 'safe.wei:tree';
+export const keyOf = (e) => e.chainId + ':' + e.address;
+const readTree = () => {
+  try {
+    const t = JSON.parse(localStorage.getItem(TREE) || '[]');
+    return Array.isArray(t) ? t : [];
+  } catch {
+    return [];
+  }
+};
+export const saveTree = (t) => {
+  try {
+    localStorage.setItem(TREE, JSON.stringify(t));
+  } catch {}
+};
+
+/** The layout, reconciled: saved Safes missing from it go on top (newest first); removed ones and empty folders disappear. */
+export function tree() {
+  const byKey = new Map(safes().map((e) => [keyOf(e), e])), seen = new Set();
+  const clean = (items) =>
+    items
+      .map((n) => (n && n.t === 'f' ? { ...n, items: clean(n.items || []) } : n))
+      .filter((n) => n && (n.t === 'f' ? n.items.length : byKey.has(n.k) && !seen.has(n.k) && seen.add(n.k)));
+  const t = clean(readTree());
+  const fresh = [...byKey.values()].filter((e) => !seen.has(keyOf(e))).sort((a, b) => b.at - a.at);
+  const out = [...fresh.map((e) => ({ t: 's', k: keyOf(e) })), ...t];
+  saveTree(out);
+  return out;
+}
+
+/** Safes inside a folder, at any depth. */
+export const count = (n) => (n.t === 's' ? 1 : n.items.reduce((c, x) => c + count(x), 0));
+export const folderName = (f) => f.name || count(f) + (count(f) === 1 ? ' safe' : ' safes');
