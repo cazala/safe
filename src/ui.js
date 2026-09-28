@@ -83,3 +83,11 @@ export function act(btn, fn, out) {
     }
   };
 }
+
+/** Small icon-only button (click does not reach links or rows underneath). */
+export function iconButton(name, title, fn, on) {
+  const b = h('button.ib' + (on ? '.on' : ''), { title, 'aria-label': title });
+  b.append(icon(...ICONS[name]));
+  b.onclick = (e) => (e.preventDefault(), e.stopPropagation(), fn());
+  return b;
+}

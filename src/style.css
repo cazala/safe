@@ -224,3 +224,30 @@ input.rename.big { box-sizing: border-box; max-width: calc(100% - 22px); height:
 .panel a.alt svg { width: 14px; height: 14px; margin-left: auto; color: var(--mut); }
 .panel p.alt { margin-bottom: -16px; }
 .saved { margin-top: 36px; }
+/* ---- Your Safes: folders and drag and drop ---- */
+.saved { position: relative; overflow-x: clip; }
+.saved .level { transition: transform .18s ease, opacity .18s ease; }
+.saved.sliding .level.leaving { position: absolute; inset: 0 0 auto 0; }
+.saved .level.from-right, .saved .level.to-left { transform: translateX(-40%); opacity: 0; }
+.saved .level.from-right { transform: translateX(40%); }
+.saved .level.from-left, .saved .level.to-right { transform: translateX(40%); opacity: 0; }
+.saved .level.from-left { transform: translateX(-40%); }
+.node { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.node.dragging { position: relative; z-index: 30; opacity: .92; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); pointer-events: none; cursor: grabbing; }
+.node.before { box-shadow: 0 -3px 0 var(--fg); }
+.node.after { box-shadow: 0 3px 0 var(--fg); }
+.node.merge { border-color: var(--fg); background: var(--bg); }
+.saferow.folder { cursor: pointer; }
+.saferow .ficon { display: inline-flex; color: var(--mut); }
+.saferow .ficon svg { width: 20px; height: 20px; }
+.fhead { margin: 26px 0 8px; }
+button.homeback { display: inline-flex; align-items: center; gap: 2px; padding: 4px 8px 4px 2px; border: 1px dashed transparent; border-radius: 8px; background: none; color: var(--mut); font-size: 13px; }
+button.homeback svg { width: 16px; height: 16px; }
+button.homeback:hover { color: var(--fg); }
+.dropup.over { border-color: var(--fg); color: var(--fg); }
+.ftitle { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.ftitle .fname { font-size: 17px; }
+.ftitle .grow { flex: 1; }
+.ftitle input.rename { font-size: 17px; }
+p.hint { margin: 10px 0 0; text-align: center; color: var(--mut); font-size: 12px; }
+@media (hover: none) { p.hint::after { content: ' (Long-press to pick one up.)'; } }
