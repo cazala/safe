@@ -51,7 +51,7 @@ In JavaScript: `'#/' + safe + '/batch?csv=' + encodeURIComponent(rows.map((r) =>
 
     #tx=<base64url payload>
 
-A transaction with the signatures collected so far, copied from the Share section of the review screen. It opens the review screen for that Safe, where the next owner can check the SafeTx hash and add their signature. The payload format is in [spec.md §7](spec.md#7-signature--approval-modes).
+A transaction with the signatures collected so far, copied from the review screen (Copy link). It opens the review screen for that Safe, where the next owner can check the SafeTx hash and add their signature. The payload format is in [spec.md §7](spec.md#7-signature--approval-modes).
 
 ## Backup & sync
 

@@ -1,23 +1,57 @@
 # safe.wei
 
-A tiny rescue console for [Safe](https://safe.global) smart accounts that lives on Ethereum.
+A minimal interface for [Safe](https://safe.global) multisig accounts that lives on Ethereum.
 
-- One self-contained HTML file, no backend, no remote code, no API keys.
-- Reads all state from the Safe contract through your wallet's RPC; signs through your wallet.
-- Served onchain from an ERC-8244 `html()` contract at `safe.wei`.
+- **One self-contained HTML file**: no backend, no remote code, no API keys, no analytics.
+- **Reads from the chain**: every Safe fact comes from the Safe contract itself, through your wallet's RPC. No Safe Transaction Service, no indexer.
+- **Signs through your wallet**: safe.wei never holds a key.
+- **Served onchain** from an ERC-8244 `html()` contract at `safe.wei`, or from any copy of the file.
 
-See [docs/spec.md](docs/spec.md) for the full specification.
+## Features
 
-## What it does
+**Safes**
+- Open any Safe from v1.3.0 up by address or `.eth` / `.wei` name, on any EVM chain your wallet is on.
+- Create new v1.5.0 Safes (v1.4.1 where 1.5.0 is not deployed), with a predicted address before deploying.
+- Your Safes on Home: search, pin, rename, nested folders with drag and drop, and a switcher in the header.
 
-- Works on any EVM chain the wallet is on: open any Safe from v1.3.0 up (tested with 1.3.0, 1.4.1 and 1.5.0; newer versions work with a warning); create v1.5.0 Safes and batch where the canonical contracts are deployed (checked on chain)
-- Build transactions: ETH/ERC-20 sends, bulk sends, contract calls from an ABI (Etherscan-style builder with type helpers), raw calldata, MultiSend batches; every one shows its SafeTx hash verified against the Safe's own `getTransactionHash`
-- Approve onchain (`approveHash`) or sign offchain (EIP-712); share by link; optionally publish the transaction onchain with the approval so other owners find it without a link
-- ENS and `.wei` names wherever an address is accepted (onchain resolution only)
-- Token balances from the zOrg TokenList; send ETH/tokens, or bulk-send many transfers from pasted CSV (`recipient,amount[,token]`)
-- Links that prefill a send or a bulk send, for bots and integrations: `#/<safe>/send?to=…&amount=…&token=…`, `#/<safe>/batch?csv=…` (`<safe>` can be a name). All links: [docs/links.md](docs/links.md)
+**Transactions**
+- Send the native coin or any ERC-20, to one recipient or to many from pasted CSV (up to 200 rows in one transaction).
+- Call any contract from its ABI (Etherscan-style builder with unit, hex and hashing helpers), or send raw calldata.
+- Manage owners, threshold, modules (Zodiac modules recognized) and guard.
+- Batch any of the above into one atomic transaction (MultiSendCallOnly).
 
-On mobile, use the in-app browser of a mobile wallet (safe.wei talks to the injected wallet; WalletConnect would need a relay server).
+**Approvals**
+- A review screen that says what the transaction does and what to do next, for owners and non-owners alike.
+- Sign offchain for free (EIP-712), or approve onchain, optionally publishing the details so other owners find it without a link.
+- Share by link (the transaction and its signatures travel in the URL fragment), merge signatures from several links, execute once the threshold is met.
+- Every transaction's hash is checked against the Safe's own `getTransactionHash`; calls are simulated and risky ones flagged.
+
+**Yours, in the browser**
+- Address labels, remembered ABIs and added tokens, stored locally, and moved between devices with Backup and sync.
+- Links that open a screen or prefill a send, for bots and integrations.
+
+## Documentation
+
+| Document | For |
+| --- | --- |
+| [User guide](docs/guide.md) | Every screen and feature, what is checked, what is stored, troubleshooting |
+| [Links](docs/links.md) | URLs that open a screen or prefill a form (integrations) |
+| [Specification](docs/spec.md) | Design, protocol details and security model |
+| [Deploy](docs/deploy.md) | Deploying the ERC-8244 contract and pointing `safe.wei` |
+| [Research](docs/research.md) | Verified contract addresses and protocol references |
+| [Size](docs/size.md) | Page size budget per feature |
+| [Safe Apps](docs/safe-apps.md) | Why Safe Apps support was dropped |
+
+## Use it
+
+- Open `safe.wei` through an ERC-8244 gateway, or
+- read the page straight from the contract and serve it locally:
+
+```bash
+cast call <app> "html()(string)" --rpc-url <rpc> > safe.wei.html
+```
+
+Then open it on `localhost` (wallets need a secure origin). On a phone, open it in your wallet app's browser.
 
 ## Develop
 
@@ -28,26 +62,22 @@ npm test             # unit tests
 npm run test:fork    # integration tests on an Anvil mainnet fork (needs Foundry)
 ```
 
-Local playground with a test wallet (no browser extension needed):
+A local playground with a test wallet (no browser extension needed):
 
 ```bash
-node scripts/fork.mjs                                   # fork on :8545 with demo Safes
+node scripts/fork.mjs                                   # Anvil fork on :8545 with demo Safes
 node scripts/dev.mjs --anvil http://127.0.0.1:8545      # http://localhost:5173
 ```
 
-The dev server adds an "Anvil test wallet (dev)" to the wallet picker (EIP-6963). If a wallet extension is installed, choose the test wallet under Connect: the extension talks to real mainnet, where the demo Safes do not exist. `?acct=N` picks the Anvil account. The dev server listens on the LAN too (it prints the addresses) and proxies the test wallet's RPC, so a phone on the same network can use the playground.
-
-`FORK_URL` and `FORK_BLOCK` override the fork source (default: publicnode mainnet, pinned block; `FORK_BLOCK=0` forks the latest block). Public RPCs keep little history on fast chains, so a long-lived fork of Polygon or an L2 needs an archive RPC in `FORK_URL`.
+- The fork creates three demo Safes owned by the first three Anvil accounts (1-of-1 v1.4.1, 2-of-3 v1.4.1, 2-of-3 v1.3.0) and prints their addresses.
+- The dev server adds an "Anvil test wallet (dev)" to the wallet picker (EIP-6963). If an extension is installed, pick the test wallet: the extension talks to real mainnet, where the demo Safes do not exist. `?acct=N` picks the Anvil account.
+- It listens on the LAN too (it prints the addresses) and proxies the test wallet's RPC, so a phone on the same network can use the playground.
+- `node scripts/dev.mjs --port N` serves without a test wallet, to try the no-wallet state.
+- `FORK_URL` and `FORK_BLOCK` change the fork source (default: publicnode mainnet at a pinned block; `FORK_BLOCK=0` forks the latest). Public RPCs keep little history on fast chains, so a long-lived fork of Polygon or an L2 needs an archive RPC.
 
 ## Deploy
 
-See [docs/deploy.md](docs/deploy.md): deterministic CREATE2 deployment of the ERC-8244 contract, verification, gateway tests and pointing `safe.wei`.
-
-## Use it without a gateway
-
-```bash
-cast call <app> "html()(string)" --rpc-url <rpc> > safe.wei.html   # then serve it from localhost
-```
+See [docs/deploy.md](docs/deploy.md): deterministic CREATE2 deployment of the page and the ERC-8244 contract, verification, gateway tests and pointing `safe.wei`.
 
 ## Deployments
 
