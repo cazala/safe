@@ -646,8 +646,7 @@ function assetsTab(s) {
             'tr',
             h(
               'td',
-              h('b', t.symbol),
-              !t.listed && [' ', h('button.link', { onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), delete st.tokens[t.address], draw()), title: 'Remove from your token list' }, 'remove')],
+              h('div.tsym', h('b', t.symbol), !t.listed && h('button.link', { onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), delete st.tokens[t.address], draw()), title: 'Remove from your token list' }, 'remove')),
               h('div.mut', addr(t.address)),
             ),
             h(
