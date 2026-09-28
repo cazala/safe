@@ -1161,7 +1161,11 @@ const hintsFor = (t) => [...new Set((unpack(t) || [t]).map((c) => hintOf(c.data)
 function valueView(p, v) {
   const m = /^(.*)\[(\d*)\]$/.exec(p.type);
   if (m) return v.length ? h('ol.vlist', v.map((x) => h('li', valueView({ ...p, type: m[1] }, x)))) : h('span.mut', 'empty');
-  if (p.type === 'tuple') return kv(p.components.map((c, i) => [c.name || String(i), valueView(c, v[i])]));
+  if (p.type === 'tuple') {
+    const t = kv(p.components.map((c, i) => [c.name || String(i), valueView(c, v[i])]));
+    t.classList.add('tuple'); // stays a compact two-column table on phones
+    return t;
+  }
   if (p.type === 'address') return named(v);
   if (p.type === 'string') return JSON.stringify(v);
   if (p.type === 'bytes' || /^bytes\d+$/.test(p.type)) return v === '0x' ? h('span.mut', 'empty') : [h('code', v), strip(v).length > 64 && copy(v, 'Copy')];

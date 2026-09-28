@@ -24,7 +24,7 @@ export async function simulate(t) {
   if (calls) {
     // Each inner call is simulated on its own from the Safe; effects of earlier calls are not applied.
     const w = await Promise.all(calls.map((c) => simulate({ ...t, ...c, operation: 0 })));
-    return w.map((x, i) => x && 'Call ' + (i + 1) + ' (simulated independently): ' + x).filter(Boolean).join(' ') || null;
+    return w.map((x, i) => x && 'Call ' + (i + 1) + ' (simulated independently): ' + x).filter(Boolean).join('\n') || null; // one line per call
   }
   if (signMessageOf(t)) return null; // one effect: marks a message as signed (checked by its hash afterwards)
   if (t.operation) return 'DELEGATECALL is not simulated.';

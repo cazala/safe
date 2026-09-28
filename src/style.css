@@ -41,14 +41,14 @@ button.link { border: 0; background: none; padding: 0; color: var(--mut); text-d
 .row > input { flex: 1; }
 .kv { border-collapse: collapse; width: 100%; }
 .kv th { text-align: left; font-weight: 500; color: var(--mut); padding: 3px 12px 3px 0; vertical-align: top; white-space: nowrap; width: 1%; }
-.kv td { padding: 3px 0; word-break: break-all; }
+.kv td { padding: 3px 0; overflow-wrap: anywhere; } /* words wrap whole; long hex (code) breaks anywhere */
 .owners { padding-left: 24px; margin: 0; }
 .mut { color: var(--mut); }
 .ok { color: var(--ok); }
 .bad, b.bad { color: var(--bad); }
 p.bad, p.warn { padding: 8px 10px; border-radius: 4px; }
 p.bad { background: var(--badbg); font-weight: 600; }
-p.warn { background: var(--warnbg); }
+p.warn { background: var(--warnbg); white-space: pre-line; }
 label { display: block; margin: 8px 0 2px; color: var(--mut); font-size: 13px; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
@@ -469,3 +469,24 @@ p.cancel { margin: 12px 0 0; font-size: 12px; }
 /* Footer: build and app */
 footer#foot { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 4px; margin: 56px 0 0; padding-top: 12px; border-top: 1px solid var(--line); color: var(--mut); font-size: 12px; }
 footer#foot code { font-size: 12px; }
+/* Phones: label/value tables stack (label above value), so nested tables cannot push past the screen */
+@media (max-width: 600px) {
+  .kv, .kv > tbody, .kv > tr, .kv > tbody > tr, .kv > tr > th, .kv > tr > td, .kv > tbody > tr > th, .kv > tbody > tr > td { display: block; width: auto; }
+  .kv th { padding: 8px 0 0; white-space: normal; font-size: 13px; }
+  .kv td { padding: 2px 0 4px; }
+  .kv.tuple { display: table; }
+  .kv.tuple > tr, .kv.tuple > tbody > tr { display: table-row; }
+  .kv.tuple > tr > th, .kv.tuple > tr > td, .kv.tuple > tbody > tr > th, .kv.tuple > tbody > tr > td { display: table-cell; }
+  .kv.tuple th { padding: 2px 10px 2px 0; white-space: nowrap; }
+  .kv.tuple td { padding: 2px 0; }
+  .card { padding: 8px 10px; }
+}
+/* Header: the account button never wraps; the breadcrumb gives way (truncates) instead */
+header .left { flex: 1 1 auto; min-width: 0; }
+header .right { flex: none; display: flex; align-items: center; gap: 8px; }
+#crumb, .crumbwrap { min-width: 0; }
+button.crumbbtn { max-width: 100%; }
+button#connect { white-space: nowrap; }
+@media (max-width: 600px) {
+  header:has(#crumb:not(:empty)) .net { display: none; } /* on inner pages the chain is in the account menu */
+}
