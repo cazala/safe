@@ -305,3 +305,19 @@ p.lead { margin: 4px 0 8px; }
 }
 p.importhint { margin: 20px 0 0; text-align: center; font-size: 13px; }
 p.importhint button.link { font-size: 13px; color: var(--fg); }
+/* Create a Safe: same shell as Home */
+a.homeback { display: inline-flex; align-items: center; gap: 2px; padding: 4px 8px 4px 2px; color: var(--mut); font-size: 13px; text-decoration: none; }
+a.homeback svg { width: 16px; height: 16px; }
+a.homeback:hover { color: var(--fg); }
+.newsafe .hero { margin-top: 8px; }
+.newsafe .panel > label { margin-top: 16px; }
+.newsafe .panel > label:first-child { margin-top: 0; }
+.newsafe p.fhint { margin: -4px 0 8px; color: var(--mut); font-size: 13px; }
+.newsafe textarea { width: 100%; min-height: 88px; padding: 10px 12px; border-radius: 8px; font-size: 13px; }
+.newsafe .thresh { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.newsafe .thresh input { width: 64px; flex: none; text-align: center; }
+.newsafe details { margin-top: 16px; }
+.newsafe .actions button.primary { width: 100%; padding: 11px 18px; border-radius: 8px; }
+.newsafe > h2 { margin-top: 24px; }
+.newsafe .summary .actions { margin-top: 12px; }
+.newsafe > div > h2 { margin: 24px 0 0; font-size: 16px; }
