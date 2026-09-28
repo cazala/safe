@@ -92,3 +92,21 @@ npx serve .                            # or: python3 -m http.server
 ```
 
 Open it from `http://localhost:…`. Most wallets do not inject into `file://` pages, so serve the file locally rather than double-clicking it.
+
+## Web hosting: Cloudflare Pages (safe.caza.la)
+
+Besides the onchain deploy, the same `dist/index.html` is served at **https://safe.caza.la** by Cloudflare Pages, from CI (`.github/workflows/ci.yml`, job `deploy`, after the tests pass):
+
+- every push to `main` deploys to production;
+- every PR from this repository deploys a preview at `https://<branch>.safe-wei.pages.dev` and comments the URL on the PR (one comment, updated on each push).
+
+The site is the page plus a `_headers` file that refuses framing (`X-Frame-Options: DENY`, `frame-ancestors 'none'`); the app also refuses to run in a frame.
+
+One-time setup (owner):
+
+1. **API token**: Cloudflare dashboard → My Profile → API Tokens → Create Token → Custom token. Permissions: *Account · Cloudflare Pages · Edit*. Account resources: *Include · your account*. Create it and copy it.
+2. **Account ID**: Cloudflare dashboard → Workers & Pages → the Account ID in the right column (or the id in the dashboard URL).
+3. **GitHub secrets**: repository → Settings → Secrets and variables → Actions → New repository secret: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+4. The first CI run creates the Pages project `safe-wei` (production branch `main`).
+5. **Domain**: Workers & Pages → safe-wei → Custom domains → Set up a custom domain → `safe.caza.la`. Since `caza.la` is on Cloudflare, it adds the DNS record and the certificate.
+6. If the WalletConnect project restricts domains (dashboard → project → allowed domains), add `safe.caza.la` and `*.safe-wei.pages.dev`.
