@@ -118,3 +118,8 @@ export async function create(k, from) {
   if (s.owners.join() !== k.owners.join() || s.threshold !== k.threshold) throw Error('Deployed Safe at ' + at + ' does not match the requested owners/threshold.');
   return s;
 }
+
+// ---- modules ----
+export const SENTINEL = '0x0000000000000000000000000000000000000001';
+/** Enabled modules (first page of up to 50; Safes rarely have more than a few). */
+export const modules = (addr) => call(addr, cd(S.getModulesPaginated, SENTINEL, 50)).then((r) => arr(r, 0));

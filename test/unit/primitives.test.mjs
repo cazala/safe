@@ -37,6 +37,7 @@ const SIGS = {
   disableModule: 'disableModule(address,address)',
   setGuard: 'setGuard(address)',
   setFallbackHandler: 'setFallbackHandler(address)',
+  getModulesPaginated: 'getModulesPaginated(address,uint256)',
   multiSend: 'multiSend(bytes)',
   balanceOf: 'balanceOf(address)',
   decimals: 'decimals()',
