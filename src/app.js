@@ -2093,7 +2093,7 @@ function dappsTab(s) {
     box,
     h('h3', 'Connected dapps'),
     list,
-    h('details', h('summary', 'WalletConnect project'), h('p.mut', wcOwn() ? 'Using your own project ID.' : 'Using safe.wei’s project ID. If connecting stops working, create a free project at dashboard.reown.com and paste its ID here (leave empty to go back).'), h('div.row', own, saveOwn), pOut),
+    h('details', h('summary', 'WalletConnect project'), h('p.mut', wcOwn() ? 'Using your own project ID.' : 'Using safe.wei’s project ID. If connecting stops working, create a free WalletConnect project ID and paste it here (leave empty to go back).'), h('div.row', own, saveOwn), pOut),
   );
 }
 

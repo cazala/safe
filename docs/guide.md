@@ -276,7 +276,7 @@ The **Dapps** tab connects the Safe to any dapp that supports WalletConnect.
   - A signature request opens the message screen; once the Safe's signature is ready (or signed onchain), **Send to <dapp>** returns it.
   - Chain and account questions, and read-only calls, are answered automatically (reads through your wallet's RPC).
 - Connections survive reloads; **Disconnect** ends one. Multi-owner approvals take time: a dapp may stop waiting after a few minutes, but the transaction still executes.
-- **WalletConnect project**: safe.wei uses its own project ID. If connecting ever stops working, paste your own (free at dashboard.reown.com) in the Dapps tab.
+- **WalletConnect project**: safe.wei uses its own project ID. If connecting ever stops working, paste your own (a free WalletConnect project ID) in the Dapps tab.
 - The connection is end-to-end encrypted between safe.wei and the dapp; WalletConnect's relay only carries ciphertext. Nothing is signed or sent without the normal review.
 
 ## 13. Creating a Safe
