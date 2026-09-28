@@ -10,6 +10,16 @@ The build embeds a short ID, `git rev-parse --short=7 HEAD:src`: the tree hash o
 
 The footer shows the build ID and, at runtime, the app contract serving the page: from the gateway's hostname when it starts with the address (`0x<address>.<gateway>`), or by resolving the `.wei` / `.eth` name it starts with (`safe.wei.<gateway>` → `safe.wei`) onchain when the wallet is on Ethereum. No gateway hostname is hardcoded: any gateway that follows either pattern works. The page cannot embed its own address, since that address is derived from the page's bytes.
 
+## Replacing the WalletConnect project ID
+
+The project ID lives in `config/walletconnect.json` (outside `src/`, so it does not change the build ID) and is built into a tiny first chunk, cut at the `<!--config-->` marker. If the ID is ever banned:
+
+1. Put the new ID in `config/walletconnect.json` and commit it.
+2. Run the deployer as usual. Chunks 1… already exist onchain and are skipped: only the new head chunk (~60k gas) and the new app contract (~590k gas) are deployed.
+3. Point `safe.wei` at the new app contract (`setAddr`, ~50k gas).
+
+Roughly 0.7M gas instead of a full deploy (~35M). Meanwhile, users can paste their own project ID in the app.
+
 ## Cost
 
 Measured on a mainnet fork (`test/fork/deploy.test.mjs`) for the Phase 7 build (31,419 B, 2 chunks):
