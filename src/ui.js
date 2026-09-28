@@ -61,13 +61,24 @@ export const ICONS = {
   gear: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z'],
 };
 
+/** Copy text. navigator.clipboard needs a secure context (https or localhost); over plain http, e.g. a LAN address, fall back to execCommand. */
+export function toClipboard(text) {
+  if (navigator.clipboard && isSecureContext) return navigator.clipboard.writeText(text);
+  const t = h('textarea', { style: 'position:fixed;opacity:0' }, text);
+  document.body.append(t);
+  t.select();
+  const ok = document.execCommand('copy');
+  t.remove();
+  return ok ? Promise.resolve() : Promise.reject(Error('Copy failed'));
+}
+
 /** Copy button: a copy icon that turns into a check for a moment. Fixed size, so nothing moves. */
 export function copy(text, what = 'Copy') {
   const b = h('button.copy', { title: what, 'aria-label': what });
   b.append(icon(...COPY));
   b.onclick = (e) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(text).catch(() => {});
+    toClipboard(text).catch(() => {});
     b.replaceChildren(icon(...CHECK));
     b.classList.add('done');
     clearTimeout(b.t);

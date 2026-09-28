@@ -35,7 +35,7 @@ node scripts/fork.mjs                                   # fork on :8545 with dem
 node scripts/dev.mjs --anvil http://127.0.0.1:8545      # http://localhost:5173
 ```
 
-The dev server adds an "Anvil test wallet (dev)" to the wallet picker (EIP-6963). If a wallet extension is installed, choose the test wallet under Connect: the extension talks to real mainnet, where the demo Safes do not exist. `?acct=N` picks the Anvil account.
+The dev server adds an "Anvil test wallet (dev)" to the wallet picker (EIP-6963). If a wallet extension is installed, choose the test wallet under Connect: the extension talks to real mainnet, where the demo Safes do not exist. `?acct=N` picks the Anvil account. The dev server listens on the LAN too (it prints the addresses) and proxies the test wallet's RPC, so a phone on the same network can use the playground.
 
 `FORK_URL` and `FORK_BLOCK` override the fork source (default: publicnode mainnet, pinned block; `FORK_BLOCK=0` forks the latest block). Public RPCs keep little history on fast chains, so a long-lived fork of Polygon or an L2 needs an archive RPC in `FORK_URL`.
 

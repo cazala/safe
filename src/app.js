@@ -14,7 +14,7 @@ import { nameOf, resolveName } from './names.js';
 import { batch } from './multisend.js';
 import { parseCSV } from './csv.js';
 import { canonical, encodeCall, parseAbi, parseValue } from './abicoder.js';
-import { $, act, addr, bad, copy, h, icon, iconButton, ICONS, kv, labelDialog, put, setName, setResolver, sheet, short, warn } from './ui.js';
+import { $, act, addr, bad, copy, h, icon, iconButton, ICONS, kv, labelDialog, put, setName, setResolver, toClipboard, sheet, short, warn } from './ui.js';
 import { mountSafes } from './homeview.js';
 import * as labels from './labels.js';
 import * as backup from './backup.js';
@@ -207,8 +207,8 @@ function backupDialog(incoming) {
       h('div.bsec', h('b', 'Export'), h('div.mut.small', words(backup.counts(data)))),
       h(
         'div.actions',
-        btn('Copy link', async (b) => (await navigator.clipboard.writeText(await backup.link(data)), done(b, '✓ Link copied')), '.primary'),
-        btn('Copy JSON', async (b) => (await navigator.clipboard.writeText(JSON.stringify(data, null, 2)), done(b, '✓ Copied'))),
+        btn('Copy link', async (b) => (await toClipboard(await backup.link(data)), done(b, '✓ Link copied')), '.primary'),
+        btn('Copy JSON', async (b) => (await toClipboard(JSON.stringify(data, null, 2)), done(b, '✓ Copied'))),
       ),
       h('p.mut.small', 'Open the link on your other device, or import the JSON there.'),
       out,
@@ -1243,7 +1243,7 @@ function actionsView(r) {
 
 function shareView(r) {
   const link = location.href.split('#')[0] + '#' + fragment(r.tx, st.sigs);
-  const copy = (label, text) => button(label, () => navigator.clipboard.writeText(text));
+  const copy = (label, text) => button(label, () => toClipboard(text));
   return h(
     'section',
     h('h2', 'Share'),
