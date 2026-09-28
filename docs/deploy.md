@@ -8,7 +8,7 @@ All contracts go through the canonical CREATE2 deployer `0x4e59b44847b3795785889
 
 The build embeds a short ID, `git rev-parse --short=7 HEAD:src`: the tree hash of `src/`, with a `+` when `src/` has uncommitted changes (never deploy those). It changes only when the code does, so the same ID always builds to the same bytes and therefore the same chunk and app addresses: anyone can check out a commit with that `src/` tree, run `npm run build`, and get the deployed app's address.
 
-The footer shows the build ID and, at runtime, the app contract serving the page: from the gateway's hostname when it contains the address (`0x….w3link.io`), or by resolving the name the page was opened by (`safe.wei.limo` → `safe.wei`) onchain when the wallet is on Ethereum. The page cannot embed its own address, since that address is derived from the page's bytes.
+The footer shows the build ID and, at runtime, the app contract serving the page: from the gateway's hostname when it starts with the address (`0x<address>.<gateway>`), or by resolving the `.wei` / `.eth` name it starts with (`safe.wei.<gateway>` → `safe.wei`) onchain when the wallet is on Ethereum. No gateway hostname is hardcoded: any gateway that follows either pattern works. The page cannot embed its own address, since that address is derived from the page's bytes.
 
 ## Cost
 

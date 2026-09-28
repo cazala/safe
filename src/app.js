@@ -1897,8 +1897,8 @@ setResolver((v) => resolveName(v.trim().toLowerCase(), st.chainId));
 
 // ---- footer: which build this is, and which app contract serves it ----
 // The page cannot contain its own address (the address is derived from the page's bytes), so it is
-// found at runtime: in the gateway's hostname (0x….w3link.io), or by resolving the name the page was
-// opened by (safe.wei.limo → safe.wei) onchain through the wallet on Ethereum.
+// found at runtime: in the gateway's hostname when it starts with the address (0x<address>.<gateway>),
+// or by resolving the name it starts with (<name>.wei.<gateway> → <name>.wei) onchain on Ethereum.
 const BUILD = typeof __BUILD__ === 'string' ? __BUILD__ : 'dev';
 async function footer() {
   const g = gatewayOf(location.hostname);

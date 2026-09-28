@@ -88,7 +88,7 @@ async function verify() {
       h('h2', 'Next: point safe.wei'),
       h('p', 'From the wallet that owns safe.wei, send this transaction (setAddr(uint256,address) on the WNS NameNFT):'),
       h('pre', 'to   0x0000000000696760E15f265e828DB644A0c242EB\ndata ' + cd(keccakText('setAddr(uint256,address)').slice(2, 10), tokenId, P.app)),
-      h('p', 'Then open safe.wei.limo and check it loads this build. Save this record as deploy/' + chain + '.json in the repo:'),
+      h('p', 'Then open safe.wei through a gateway and check that its footer shows this app contract. Save this record as deploy/' + chain + '.json in the repo:'),
       h('pre', JSON.stringify(record, null, 2)),
     ],
   );
