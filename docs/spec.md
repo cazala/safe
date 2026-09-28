@@ -1340,6 +1340,27 @@ Raw calldata, batches and the share link remain the way to act on any protocol.
 
 ---
 
+## 27a. Post-MVP — Readable reviews (call signatures)
+
+A `#tx=` link (and the onchain publication, and the JSON) may carry the human-readable function signatures its calls were encoded with (flag bit 3; format in [links.md](links.md)). For each call without a built-in decoding, the review decodes the calldata with the signature whose selector matches, then re-encodes the decoded values and requires byte-for-byte equality with the calldata. Only then is the call shown decoded, marked as decoded with a signature that came with the transaction.
+
+- The values shown are exactly what executes; the function and parameter names are the proposer's claim (4-byte selectors can be brute-forced to collide with a friendly name), which the review states.
+- The built-in decoder always wins; the raw calldata stays in the details.
+- Decoding is bounded (lengths and offsets limited by the data, integer ranges checked) and never throws past the matcher: a signature that does not fit is ignored.
+- The Custom tab records the signature of every call it encodes; signatures are trimmed to the calls a transaction uses when it is shared or published.
+
+## 27b. Post-MVP — Safe messages (EIP-1271)
+
+Owners sign `SafeMessage(bytes message)` under the Safe's EIP-712 domain, where `message` is the 32-byte hash an app verifies (EIP-191 hash of a text, EIP-712 hash of typed data, or a raw hash), as Safe Wallet does; the fallback handler (CompatibilityFallbackHandler) validates it through `isValidSignature`. Tested on v1.3.0, v1.4.1 and v1.5.0.
+
+- Before signing: the local SafeMessage hash must equal the Safe's `getMessageHash` (called through the fallback handler); otherwise signing is disabled, including for Safes without a compatible handler.
+- Signatures are recovered with the ecrecover precompile and must come from current owners; the combined signature is the owners' signatures sorted by owner address, threshold of them.
+- The combined signature is checked with `isValidSignature(bytes32, bytes)` before it is shown.
+- Typed data is hashed by a local EIP-712 implementation (tested against viem); its input is validated strictly (types, ranges, lengths).
+- Warnings: permissions to move assets (Permit, Permit2, Seaport orders), raw hashes, a typed-data chain that differs from the Safe's.
+- Links: `#msg=` (format in [links.md](links.md)).
+- Not supported: onchain message signing (SignMessageLib through a DELEGATECALL), which would need a Safe transaction.
+
 ## 28. Future work
 
 Only after MVP:

@@ -101,6 +101,27 @@ The reference implementation is `src/share.js` (`fragment`, `fromFragment`, `com
 
 **Copy as JSON** produces the same transaction as JSON (decimal strings for numbers, `safeTxHash` for cross-checking, `signatures` as hex, `abi` as a list of call signatures). Import accepts it and refuses it if `safeTxHash` does not match the fields.
 
+## Messages
+
+    #msg=<base64url payload>
+
+A message for the Safe to sign (EIP-1271), with the owners' signatures so far. It opens the message review screen: owners sign it, and once enough have, the combined signature is shown for the app that asked. Apps can build these links to ask a Safe for a signature.
+
+### Payload
+
+`base64url` (no padding) of:
+
+    uint(chainId) ‖ safe (20 bytes) ‖ 53 4d 01 ("SM", version 1) ‖ flags ‖ kind ‖ content ‖ [signatures]
+
+| Field | Encoding |
+| --- | --- |
+| flags | 1 byte: bit 0 = signatures present; every other bit must be 0 |
+| kind | 1 byte: 1 = EIP-191 message (personal_sign; content = the message bytes, text as UTF-8), 2 = EIP-712 typed data (content = its JSON as UTF-8), 3 = a raw 32-byte hash (as passed to `isValidSignature(bytes32, bytes)`) |
+| content | 3-byte big-endian length, then the bytes |
+| signatures (bit 0) | 1-byte count, then count × 65-byte ECDSA signatures of the SafeMessage |
+
+What the owners sign: `SafeMessage(bytes message)` under the Safe's EIP-712 domain (`chainId`, `verifyingContract` = the Safe), where `message` is the 32-byte hash the app verifies: the EIP-191 hash of the text, the EIP-712 hash of the typed data, or the raw hash. safe.wei checks that hash against the Safe's own `getMessageHash` before anyone signs, and the combined signature (owners' signatures sorted by owner address, threshold of them) against the Safe's `isValidSignature` before showing it. The reference implementation is `src/share.js` (`messageFragment`, `fromMessageFragment`, `importMessage`) and `src/message.js`.
+
 ## Backup & sync
 
     #import=<z|j><base64url>
@@ -114,7 +135,8 @@ The JSON is `{ app: "safe.wei", v: 1, at, safes, tree, labels, labelsAt, abis, t
 Links are how other apps (bots, roles.wei, scripts) talk to safe.wei, and links already sent to people must keep working. **These formats are frozen:**
 
 - the routes in this document (`#/`, `#/new`, `#/<safe>[/<tab>]`, the `send` and `batch` query parameters);
-- `#tx=` (payload above), including `compact`, which is also stored **onchain forever** in `approveHash` calldata of published transactions;
+- `#tx=` (payload above), including `compact`, which is also stored **onchain forever** in `approveHash` calldata of published transactions, and its call-signature section;
+- `#msg=` (payload above);
 - `#import=` (`z` and `j`, and the JSON shape);
 - the transaction JSON of Copy as JSON.
 

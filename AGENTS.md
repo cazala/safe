@@ -11,7 +11,8 @@ Read this before changing anything. It applies to every agent and every change.
 
 Other apps and already-shared links depend on these. They are specified in [docs/links.md](docs/links.md) → Stability and pinned by golden vectors in `test/unit/links.test.mjs`:
 
-- `#tx=` share links and the `compact` payload (also stored **onchain forever** in published `approveHash` calldata): `src/share.js`
+- `#tx=` share links and the `compact` payload (also stored **onchain forever** in published `approveHash` calldata), including the call-signature section: `src/share.js`
+- `#msg=` message links: `src/share.js`
 - `#import=` backup links and their JSON: `src/backup.js`
 - the routes and prefill parameters (`#/<safe>/send?to&amount&token`, `#/<safe>/batch?csv`): `route()` and the send forms in `src/app.js`
 - the transaction JSON (Copy as JSON)

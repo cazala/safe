@@ -144,3 +144,42 @@ export function importPayload(text) {
   if (!m) throw Error('Paste a safe.wei link, a tx= fragment, or transaction JSON.');
   return fromFragment(m[1]);
 }
+
+// ---- messages (FROZEN FORMAT as well): #msg=<base64url> ----
+//   uint(chainId) ‖ safe ‖ 'SM' 0x01 flags kind content [signatures]
+//   flags: bit0 signatures present (every other bit must be 0)
+//   kind: 1 = EIP-191 message bytes, 2 = EIP-712 typed data as UTF-8 JSON, 3 = 32-byte hash
+//   content = 3-byte length + bytes; signatures = 1-byte count + 65-byte SafeMessage signatures
+const MSG = '534d01';
+
+/** The fragment part of a message link: msg=<base64url>. */
+export function messageFragment(m, sigs = []) {
+  const c = m.kind === 2 ? strip(hex(utf8(m.content))) : strip(m.content);
+  if (c.length / 2 >= 1 << 24) throw Error('message too large to share');
+  let o = uint(BigInt(m.chainId)) + strip(m.safe) + MSG + b1(sigs.length ? 1 : 0) + b1(m.kind) + (c.length / 2).toString(16).padStart(6, '0') + c;
+  if (sigs.length) o += b1(sigs.length) + sigs.map((x) => strip(x)).join('');
+  return 'msg=' + b64(o.toLowerCase());
+}
+
+export function fromMessageFragment(s) {
+  const r = reader(unb64(s));
+  const chainId = Number(r.num()), safe = '0x' + r.take(20);
+  if (r.take(3) !== MSG) throw Error('Not a safe.wei message payload.');
+  const f = parseInt(r.take(1), 16);
+  if (f & ~1) throw Error('Payload uses unknown flags.');
+  const kind = parseInt(r.take(1), 16);
+  if (![1, 2, 3].includes(kind)) throw Error('Unknown message kind.');
+  const raw = r.take(parseInt(r.take(3), 16));
+  if (kind === 3 && raw.length !== 64) throw Error('A message hash must be 32 bytes.');
+  const content = kind === 2 ? new TextDecoder('utf-8', { fatal: true }).decode(bytes('0x' + raw)) : '0x' + raw;
+  const sigs = [];
+  if (f & 1) for (let n = parseInt(r.take(1), 16); n--; ) sigs.push('0x' + r.take(65));
+  if (!r.end()) throw Error('Payload has trailing bytes.');
+  return { msg: { chainId, safe, kind, content }, sigs };
+}
+
+/** A pasted message link or msg= fragment, or null if the text is not one. */
+export function importMessage(text) {
+  const m = /(?:^|[#&?])msg=([A-Za-z0-9_-]+)/.exec(text.trim());
+  return m ? fromMessageFragment(m[1]) : null;
+}
