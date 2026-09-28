@@ -133,6 +133,7 @@ export function mountSafes(root, chainId) {
     return view(items, m).map((n) => {
       if (n.t === 's') {
         const el = safeRow(n, m);
+        el.style.setProperty('--d', path.length); // nesting depth: rows indent their content, not themselves
         el.node = n;
         el.path = path;
         dragify(el);
@@ -146,6 +147,7 @@ export function mountSafes(root, chainId) {
         draw();
       };
       const row = folderRow(n, path, isOpen, toggle);
+      row.style.setProperty('--d', path.length);
       row.node = n;
       row.path = path;
       dragify(row);
