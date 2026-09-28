@@ -218,4 +218,4 @@ input.rename { padding: 4px 8px; font: inherit; font-size: 15px; font-weight: 60
 .chip.warn { color: #c98a00; border-color: #c98a00; }
 .titlerow { display: flex; align-items: center; gap: 6px; }
 .titlerow button.ib { margin-top: 4px; }
-input.rename.big { margin: 4px 0 2px; font-size: 20px; font-weight: 700; max-width: 420px; }
+input.rename.big { box-sizing: border-box; max-width: calc(100% - 22px); height: auto; margin: 3px -7px 1px; padding: 0 6px; border-radius: 6px; font: 700 22px/1.45 system-ui, sans-serif; }

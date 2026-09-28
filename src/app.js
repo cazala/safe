@@ -284,6 +284,7 @@ function safeHeader(s, back = ['#', '‹ Home']) {
     nameOf(s.address, st.chainId).then((n) => n && ((st.safeName = n), put(title, n)), () => {});
   // Rename in place: the nickname is shared with the list on Home.
   const rename = iconButton('edit', 'Rename this Safe', () => {
+    if (!title.isConnected) return; // already editing
     const cur = (recent.find(s.chainId, s.address) || {}).label || '';
     const inp = h('input.rename.big', { value: cur, placeholder: st.refName || 'Name this Safe', maxlength: 40 });
     const done = (save) => {
@@ -293,11 +294,19 @@ function safeHeader(s, back = ['#', '‹ Home']) {
         st.safeName = v || st.refName || null;
       }
       put(title, st.safeName || 'Safe ' + short(s.address));
-      inp.replaceWith(row);
+      inp.replaceWith(title);
     };
     inp.onkeydown = (k) => (k.key === 'Enter' ? done(true) : k.key === 'Escape' ? done(false) : null);
     inp.onblur = () => inp.isConnected && done(true);
-    row.replaceWith(inp);
+    // Only the title becomes an input, styled like the title and sized to its text, so nothing around it moves.
+    const ctx = document.createElement('canvas').getContext('2d'), w0 = title.getBoundingClientRect().width;
+    const fit = () => {
+      ctx.font = getComputedStyle(inp).font;
+      inp.style.width = Math.ceil(Math.max(ctx.measureText(inp.value || inp.placeholder).width + 16, w0 + 14)) + 'px';
+    };
+    inp.oninput = fit;
+    title.replaceWith(inp);
+    fit();
     inp.focus();
     inp.select();
   });
