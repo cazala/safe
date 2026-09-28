@@ -563,6 +563,7 @@ Preferred structure:
 
 - Open a Safe (address or name), with Create as a secondary action in the same panel
 - Your Safes: every opened Safe is saved in the browser. Drag to reorder (touch: long-press), drop one Safe onto another to make a folder (named "N safes" until renamed), onto a folder to move it in, onto the back bar to move it up. Folders nest, open with a short slide, and can be renamed or split back into their parent. Pinned Safes stay on top of their level. Pin, rename and remove (with undo) per Safe.
+- Labels: any address can be labeled (tag icon next to it, or Home → Labels). A labeled address shows its label instead of the address or an ENS/WNS name everywhere; the full address stays on hover and in copy. Stored in this browser.
 
 ### Safe page
 

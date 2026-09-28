@@ -191,8 +191,8 @@ span.addr code { vertical-align: middle; }
 .panel.create p { margin: 4px 0 0; font-size: 14px; }
 .panel.create button { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; white-space: nowrap; }
 .saved h2 { margin: 26px 0 8px; font-size: 13px; font-weight: 600; color: var(--mut); text-transform: uppercase; letter-spacing: .06em; }
-a.saferow, .saferow.removed { display: flex; align-items: center; gap: 10px; margin: 8px 0; padding: 12px 10px 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--fg); text-decoration: none; }
-a.saferow:hover { border-color: var(--mut); }
+.saferow { display: flex; align-items: center; gap: 10px; margin: 8px 0; padding: 12px 10px 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--fg); text-decoration: none; }
+.saferow:not(.removed):hover { border-color: var(--mut); }
 a.saferow.other { opacity: .65; }
 .saferow .info { flex: 1; min-width: 0; }
 .saferow .name { font-size: 15px; overflow-wrap: anywhere; }
@@ -202,7 +202,7 @@ a.saferow.other { opacity: .65; }
 .saferow .meta code { font-size: 12px; }
 .saferow .meta .chip { padding: 0 7px; font-size: 11px; }
 .saferow .acts { display: flex; gap: 2px; opacity: 0; }
-a.saferow:hover .acts, a.saferow:focus-within .acts { opacity: 1; }
+.saferow:hover .acts, .saferow:focus-within .acts { opacity: 1; }
 @media (hover: none) { .saferow .acts { opacity: 1; } }
 button.ib { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--mut); }
 button.ib:hover { background: var(--bg); color: var(--fg); }
@@ -251,3 +251,22 @@ button.homeback:hover { color: var(--fg); }
 .ftitle input.rename { font-size: 17px; }
 p.hint { margin: 10px 0 0; text-align: center; color: var(--mut); font-size: 12px; }
 @media (hover: none) { p.hint::after { content: ' (Long-press to pick one up.)'; } }
+/* ---- home tabs, labels, dialog ---- */
+.hlist { margin-top: 32px; }
+.htabs { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+button.htab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; margin-bottom: -1px; padding: 8px 10px; background: none; color: var(--mut); font-weight: 600; font-size: 14px; }
+button.htab.on { color: var(--fg); border-bottom-color: var(--fg); }
+.hlist .saved h2:first-child { display: none; }
+.hlist .saved .fhead { margin-top: 12px; }
+p.empty { margin: 18px 0; text-align: center; color: var(--mut); font-size: 14px; }
+.lhead { display: flex; justify-content: flex-end; margin: 10px 0 4px; }
+.lhead button { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; }
+.lrow .meta code { font-size: 12px; overflow-wrap: anywhere; }
+.lrow .acts { opacity: 1; }
+b.lbl { font-weight: 600; }
+button.copy.tag svg { width: 13px; height: 13px; }
+dialog.sheet { width: min(440px, calc(100vw - 32px)); padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--fg); box-shadow: 0 20px 60px rgba(0, 0, 0, .4); }
+dialog.sheet::backdrop { background: rgba(0, 0, 0, .45); }
+dialog.sheet h3 { margin: 0 0 10px; font-size: 16px; }
+dialog.sheet code.full { display: block; margin-bottom: 8px; font-size: 12px; color: var(--mut); overflow-wrap: anywhere; }
+button.link.danger { color: var(--bad); margin-left: auto; }

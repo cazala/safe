@@ -14,8 +14,9 @@ import { nameOf, resolveName } from './names.js';
 import { batch } from './multisend.js';
 import { parseCSV, toCSV } from './csv.js';
 import { canonical, encodeCall, parseAbi, parseValue } from './abicoder.js';
-import { $, act, addr, bad, copy, h, icon, iconButton, ICONS, kv, put, short, warn } from './ui.js';
+import { $, act, addr, bad, copy, h, icon, iconButton, ICONS, kv, labelDialog, put, short, warn } from './ui.js';
 import { mountSafes } from './homeview.js';
+import * as labels from './labels.js';
 import * as recent from './recent.js';
 import { discover, get, list, remember, remembered } from './wallets.js';
 import { identify } from './zodiac.js';
@@ -40,11 +41,12 @@ async function recheck() {
 const MAXU = (1n << 256n) - 1n;
 /** Token amount for display; 2^256-1 is shown as "unlimited" rather than 78 digits. */
 const amount = (v, t) => (v === MAXU ? 'unlimited (2^256 - 1)' : t ? fmt(v, t.decimals) + ' ' + t.symbol : String(v));
-const named = (x, m = st.named) => (m[x] ? [h('b', m[x]), ' → ', addr(x)] : addr(x));
+// A label the viewer set wins over any name: the address then shows just the label.
+const named = (x, m = st.named) => (m[x] && !labels.get(x) ? [h('b', m[x]), ' → ', addr(x)] : addr(x));
 /** Fill in a reverse name next to an address, for display only. */
 const rev = (x) => {
   const el = h('span.mut');
-  nameOf(x, st.chainId).then((n) => n && put(el, ' ' + n), () => {});
+  if (!labels.get(x)) nameOf(x, st.chainId).then((n) => n && put(el, ' ' + n), () => {});
   return el;
 };
 const main = $('main');
@@ -143,8 +145,21 @@ function home() {
   input.onkeydown = (e) => {
     if (e.key === 'Enter') open.click(); // never return false here: that would cancel every keystroke
   };
-  const list = h('div.saved');
-  if (recent.safes().length) mountSafes(list, () => st.chainId);
+  // Your Safes | Labels
+  const body = h('div');
+  const tab = (id, text) => h('button.htab', { class: st.homeTab === id ? 'on' : null, onclick: () => ((st.homeTab = id), show()) }, text);
+  const bar = h('div.htabs');
+  const show = () => {
+    put(bar, tab('safes', 'Your Safes'), tab('labels', 'Labels'));
+    if (st.homeTab === 'labels') return put(body, labelsView());
+    const l = h('div.saved');
+    if (recent.safes().length) mountSafes(l, () => st.chainId);
+    else put(l, h('p.empty', 'Safes you open will be listed here.'));
+    put(body, l);
+  };
+  st.homeTab = st.homeTab || 'safes';
+  show();
+  const list = h('div.hlist', bar, body);
   const c = chain();
   // Two ways in (open, create) live together at the top; your Safes are content below.
   const create = !c
@@ -157,10 +172,39 @@ function home() {
     h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'safe.wei'), h('p', 'Your Safe, straight from the chain. No servers, no sign-ups: just your wallet.')),
     h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), out, create),
     list,
-    h('p.foot', 'Everything is read from the chain through your wallet. Your saved Safes stay in this browser.'),
+    h('p.foot', 'Everything is read from the chain through your wallet. Your Safes and labels stay in this browser.'),
   );
 }
 
+
+/** Home → Labels: every label in this browser, with add / edit / remove. */
+function labelsView() {
+  const el = h('div.labels');
+  const draw = () => {
+    const l = Object.entries(labels.all()).sort((a, b) => a[1].localeCompare(b[1]));
+    put(
+      el,
+      h('div.lhead', h('button', { onclick: () => labelDialog() }, icon(...ICONS.plus), ' Add label')),
+      l.length
+        ? l.map(([a, name]) =>
+            h(
+              'div.saferow.lrow',
+              h('div.info', h('b.name', name), h('div.meta', h('code', a), copy(a, 'Copy address'))),
+              h('div.acts', iconButton('edit', 'Edit label', () => labelDialog(a)), iconButton('close', 'Remove label', () => {
+                labels.set(a, '');
+                const undo = h('div.saferow.removed', h('span.mut', 'Removed ' + name + '.'), h('button.link', { onclick: () => labels.set(a, name) }, 'Undo'));
+                setTimeout(() => undo.isConnected && undo.remove(), 6000);
+                el.append(undo);
+              })),
+            ),
+          )
+        : h('p.empty', 'Name the addresses you deal with, like owners, recipients or contracts. Use the tag icon next to any address, or add one here.'),
+    );
+  };
+  addEventListener('labels', () => el.isConnected && draw());
+  draw();
+  return el;
+}
 
 function createView() {
   const c = chain();
@@ -1198,7 +1242,7 @@ async function route() {
       if (!st.safe || st.safe.address !== address) put(main, h('p.mut', 'Loading ' + ref + '…'));
       const s = await readSafe(address);
       if (n !== seq) return;
-      if (!st.safe || st.safe.address !== s.address) (st.refName = isAddr(ref) ? null : ref), (st.safeName = (recent.find(s.chainId, s.address) || {}).label || st.refName);
+      if (!st.safe || st.safe.address !== s.address) (st.refName = isAddr(ref) ? null : ref), (st.safeName = (recent.find(s.chainId, s.address) || {}).label || st.refName || labels.get(s.address));
       recent.touch(s.chainId, s.address, isAddr(ref) ? null : ref);
       st.safe = s;
       st.stale = false;
