@@ -314,8 +314,15 @@ button#connect.nowallet { color: var(--mut); border-style: dashed; }
 label.sfield { flex: 1; min-width: 0; position: relative; display: flex; align-items: center; margin: 0; }
 label.sfield svg { position: absolute; left: 12px; width: 16px; height: 16px; color: var(--mut); pointer-events: none; }
 label.sfield input { padding: 10px 12px 10px 36px; border-radius: 10px; background: var(--card); font-family: inherit; font-size: 14px; }
-a.btn.newbtn { display: inline-flex; align-items: center; gap: 4px; padding: 9px 14px 9px 10px; border-radius: 10px; white-space: nowrap; }
-a.btn.newbtn svg { width: 16px; height: 16px; }
+/* "+ New | ▾" split button */
+.split { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.split > a.splitmain, .split > button.splitcaret { display: inline-flex; align-items: center; border: 0; background: none; color: var(--fg); font-size: 14px; text-decoration: none; white-space: nowrap; }
+.split > a.splitmain { gap: 4px; padding: 9px 12px 9px 10px; border-radius: 9px 0 0 9px; }
+.split > button.splitcaret { padding: 0 9px; border-radius: 0 9px 9px 0; color: var(--mut); }
+.split > a.splitmain + button.splitcaret { border-left: 1px solid var(--line); }
+.split > button.splitcaret:only-of-type { border-radius: 9px; }
+.split > a.splitmain:hover, .split > button.splitcaret:hover { background: var(--bg); color: var(--fg); }
+.split svg { width: 16px; height: 16px; }
 .gearwrap { position: relative; }
 .hmenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; min-width: 180px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
 .hmenu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 6px; background: none; color: var(--fg); font-size: 14px; text-align: left; }
@@ -356,8 +363,8 @@ a.srow.other { opacity: .6; }
 .fwrap.carrying > .kids { display: none; }
 @media (max-width: 600px) {
   .srow code.sa { display: none; }
-  a.btn.newbtn span { display: none; }
-  a.btn.newbtn { padding: 9px 10px; }
+  .split > a.splitmain span { display: none; }
+  .split > a.splitmain { padding: 9px 10px; }
 }
 /* drag and drop */
 .node { user-select: none; -webkit-user-select: none; -webkit-user-drag: none; -webkit-touch-callout: none; }

@@ -282,8 +282,7 @@ function homeReturning(c, openRef, out, fail) {
     h(
       'div.hbar',
       h('label.sfield', icon(...SEARCH), q),
-      (!c || c.canCreate) && h('a.btn.newbtn', { href: '#/new', onclick: () => (st.intent = true), title: 'Create a new Safe' }, icon(...ICONS.plus), h('span', 'New')),
-      gearMenu(),
+      moreMenu(!c || c.canCreate),
     ),
     note && h('p.hnote', note),
     out,
@@ -292,16 +291,19 @@ function homeReturning(c, openRef, out, fail) {
   );
 }
 
-/** The gear on Home: Labels and Backup & sync, the things you manage now and then. */
-function gearMenu() {
+/**
+ * "+ New" split button: the main action on the left, a caret on the right for the things you
+ * manage now and then (Labels, Backup & sync). Without Safe contracts on this chain, just the menu.
+ */
+const CARET = ['m6 9 6 6 6-6'];
+function moreMenu(canCreate) {
   const n = Object.keys(labels.all()).length;
   const m = h('div.hmenu', { hidden: true });
   const item = (ic, text, fn) => h('button', { onclick: () => ((m.hidden = true), fn()) }, icon(...ICONS[ic]), text);
   put(m, item('tag', n ? 'Labels (' + n + ')' : 'Labels', labelsSheet), item('gear', 'Backup & sync', () => backupDialog()));
-  return h('div.gearwrap', iconButton('gear', 'Labels, backup & sync', () => (m.hidden = !m.hidden)), m);
+  const caret = h('button.splitcaret', { title: 'More: labels, backup & sync', 'aria-label': 'More', 'aria-haspopup': 'menu', onclick: () => (m.hidden = !m.hidden) }, icon(...CARET));
+  return h('div.gearwrap.split', canCreate && h('a.splitmain', { href: '#/new', onclick: () => (st.intent = true), title: 'Create a new Safe' }, icon(...ICONS.plus), h('span', 'New')), caret, m);
 }
-document.addEventListener('pointerdown', (e) => !e.target.closest('.gearwrap') && document.querySelectorAll('.hmenu').forEach((m) => (m.hidden = true)));
-
 function labelsSheet() {
   const { body } = sheet('tag', 'Labels', true);
   body.append(labelsView());
