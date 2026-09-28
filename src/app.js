@@ -14,7 +14,7 @@ import { nameOf, resolveName } from './names.js';
 import { batch } from './multisend.js';
 import { parseCSV, toCSV } from './csv.js';
 import { canonical, encodeCall, parseAbi, parseValue } from './abicoder.js';
-import { $, act, addr, bad, copy, h, icon, iconButton, ICONS, kv, labelDialog, put, setResolver, sheet, short, warn } from './ui.js';
+import { $, act, addr, bad, copy, h, icon, iconButton, ICONS, kv, labelDialog, put, setName, setResolver, sheet, short, warn } from './ui.js';
 import { mountSafes } from './homeview.js';
 import * as labels from './labels.js';
 import * as backup from './backup.js';
@@ -42,14 +42,10 @@ async function recheck() {
 const MAXU = (1n << 256n) - 1n;
 /** Token amount for display; 2^256-1 is shown as "unlimited" rather than 78 digits. */
 const amount = (v, t) => (v === MAXU ? 'unlimited (2^256 - 1)' : t ? fmt(v, t.decimals) + ' ' + t.symbol : String(v));
-// A label the viewer set wins over any name: the address then shows just the label.
-const named = (x, m = st.named) => (m[x] && !labels.get(x) ? [h('b', m[x]), ' → ', addr(x)] : addr(x));
-/** Fill in a reverse name next to an address, for display only. */
-const rev = (x) => {
-  const el = h('span.mut');
-  if (!labels.get(x)) nameOf(x, st.chainId).then((n) => n && put(el, ' ' + n), () => {});
-  return el;
-};
+// An address with the name it was typed as (st.named); labels still win (see addr()).
+const named = (x, m = st.named) => (m[x] && setName(x, m[x]), addr(x));
+/** Look up a reverse name for an address; rendered occurrences switch to it when found. */
+const rev = (x) => (nameOf(x, st.chainId).then((n) => n && setName(x, n), () => {}), null);
 const main = $('main');
 const chain = () => st.chain;
 
@@ -864,7 +860,7 @@ function batchBody() {
   const out = h('div'), n = st.batch.length;
   return [
     h('p.mut.small', 'Runs atomically in one Safe transaction: if one call fails, none happen.'),
-    h('ol.calls', st.batch.map((x, i) => h('li', h('span', callLabel(x)), h('button.link', { onclick: () => (st.batch.splice(i, 1), renderBatch(true)) }, 'remove')))),
+    h('ol.calls', st.batch.map((x, i) => h('li', h('div.crow', h('span.call', callLabel(x)), h('button.link', { onclick: () => (st.batch.splice(i, 1), renderBatch(true)) }, 'remove'))))),
     h(
       'div.actions',
       n > 1 ? button('Review batch', async () => (closeBatch(), (st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(chain().multiSendCallOnly, st.batch)))), out, '.primary') : h('span.mut', 'Add at least one more call to batch'),
@@ -901,6 +897,8 @@ function renderBatch(keep) {
   );
   document.body.classList.add('hasbar');
 }
+// Compact amount for one-line summaries (up to 6 decimals); the exact amount is on hover.
+const brief = (v, dec, sym) => (v === MAXU ? 'unlimited ' + sym : h('span', { title: fmt(v, dec) + ' ' + sym }, fmtShort(v, dec, 6) + ' ' + sym));
 const callLabel = (x) => {
   const d = decode({ ...x, safe: st.safe.address }), tok = d && d.label.startsWith('ERC-20') && tokenOf(x.to);
   // Safe settings: "Change threshold · threshold 3", "Add owner · owner vitalik.eth → 0x…, threshold 2"
@@ -909,8 +907,8 @@ const callLabel = (x) => {
   const note = !d && st.notes[strip(x.data || '0x').toLowerCase()];
   if (note) return [h('code', note.sig.replace(/\(.+\)$/, '(…)')), ' on ', named(x.to, st.batchNames), x.value ? ' · ' + fmt(x.value) + ' ' + chain().sym : ''];
   return d
-    ? [d.label, tok ? ' ' + amount(d.args.at(-1).value, tok) : '', ' → ', named((d.args.find((a) => a.name === 'to' || a.name === 'spender') || d.args[0]).value, st.batchNames), tok ? '' : [' on ', named(x.to, st.batchNames)]]
-    : [fmt(x.value || 0n) + ' ' + chain().sym + ' → ', named(x.to, st.batchNames), x.data && x.data !== '0x' ? ' with ' + (x.data.length - 2) / 2 + ' bytes of calldata' : ''];
+    ? [d.label, tok ? [' ', brief(d.args.at(-1).value, tok.decimals, tok.symbol)] : '', ' → ', named((d.args.find((a) => a.name === 'to' || a.name === 'spender') || d.args[0]).value, st.batchNames), tok ? '' : [' on ', named(x.to, st.batchNames)]]
+    : [brief(x.value || 0n, 18, chain().sym), ' → ', named(x.to, st.batchNames), x.data && x.data !== '0x' ? ' with ' + (x.data.length - 2) / 2 + ' bytes of calldata' : ''];
 };
 
 

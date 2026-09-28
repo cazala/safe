@@ -65,9 +65,9 @@ export const ICONS = {
 export function copy(text, what = 'Copy') {
   const b = h('button.copy', { title: what, 'aria-label': what });
   b.append(icon(...COPY));
-  b.onclick = async (e) => {
+  b.onclick = (e) => {
     e.stopPropagation();
-    await navigator.clipboard.writeText(text).catch(() => {});
+    navigator.clipboard.writeText(text).catch(() => {});
     b.replaceChildren(icon(...CHECK));
     b.classList.add('done');
     clearTimeout(b.t);
@@ -76,24 +76,49 @@ export function copy(text, what = 'Copy') {
   return b;
 }
 
-/** What an address shows: its label if the viewer set one, else the address (or `shown`). */
+// ENS / WNS names seen for addresses (typed and resolved, or reverse-resolved), set by the app.
+const names = new Map();
+/** Remember a name for `a` and update every rendered occurrence (labels still win). */
+export function setName(a, n) {
+  a = a.toLowerCase();
+  if (!n || names.get(a) === n) return;
+  names.set(a, n);
+  relabel(a);
+}
+
+/** What an address shows: the viewer's label, else its ENS / WNS name, else the address (or `shown`). */
 const face = (a, shown) => {
-  const l = a.length === 42 && labels.get(a);
-  return l ? h('b.lbl', { title: a }, l) : h('code', shown || a);
+  const k = a.length === 42 && a.toLowerCase(), l = k && labels.get(a), n = k && names.get(k);
+  return l ? h('b.lbl', { title: a }, l) : n ? h('b.lbl.ens', { title: a }, n) : h('code', { title: a }, shown || a);
 };
 
 /**
- * An address in monospace with copy (and, for addresses, a label button); `shown` can be a
- * shortened form. Labeled addresses show their label; the full address stays on hover and in copy.
+ * An address with copy (and, for addresses, a label button); `shown` can be a shortened form.
+ * One name at most: label, else ENS / WNS, else the address. The full address is on hover,
+ * and clicking it copies, like the copy button.
  */
 export function addr(a, note, shown) {
   const isAddr = a.length === 42;
-  const el = h('span.addr', { 'data-addr': isAddr ? a.toLowerCase() : null }, face(a, shown), copy(a, 'Copy ' + (isAddr ? 'address' : 'hash')), isAddr && tagButton(a), note && [' ', note]);
+  const c = copy(a, 'Copy ' + (isAddr ? 'address' : 'hash'));
+  const el = h('span.addr', { 'data-addr': isAddr ? a.toLowerCase() : null }, face(a, shown), c, isAddr && tagButton(a), note && [' ', note]);
   el.shown = shown;
+  el.firstChild.onclick = faceClick;
   return el;
 }
-// Relabel every rendered occurrence in place when a label changes.
-addEventListener('labels', (e) => document.querySelectorAll('span.addr[data-addr="' + e.detail + '"]').forEach((el) => el.firstChild.replaceWith(face(e.detail, el.shown))));
+// Clicking the shown name or address copies it, with the copy button's feedback.
+function faceClick(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  this.nextSibling.click();
+}
+// Refresh every rendered occurrence in place when a label or name changes.
+const relabel = (a) =>
+  document.querySelectorAll('span.addr[data-addr="' + a + '"]').forEach((el) => {
+    const f = face(a, el.shown);
+    f.onclick = faceClick;
+    el.firstChild.replaceWith(f);
+  });
+addEventListener('labels', (e) => relabel(e.detail));
 
 function tagButton(a) {
   const b = h('button.copy.tag', { title: labels.get(a) ? 'Edit label' : 'Add a label', 'aria-label': 'Label this address' });
