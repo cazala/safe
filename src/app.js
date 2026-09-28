@@ -10,7 +10,7 @@ import { payloadGas, scan } from './pending.js';
 import { decode } from './decode.js';
 import { balances, listed, meta, save, saved } from './tokens.js';
 import { S } from './sel.js';
-import { nameOf, resolveName } from './names.js';
+import { checkName, nameOf, resolveName } from './names.js';
 import { batch } from './multisend.js';
 import { parseCSV } from './csv.js';
 import { canonical, encodeCall, parseAbi, parseValue } from './abicoder.js';
@@ -56,8 +56,12 @@ async function refreshWallet() {
   if (!wallet) {
     st.chainId = st.account = st.chain = null;
     put($('connect'), list().length ? 'Connect' : 'No wallet');
+    $('connect').classList.toggle('nowallet', !list().length);
+    $('connect').title = list().length ? '' : 'No wallet found in this browser';
     return;
   }
+  $('connect').classList.remove('nowallet');
+  $('connect').title = '';
   [st.chainId, [st.account = null] = []] = await Promise.all([rpc.chainId(), rpc.accounts()]);
   if (!st.chain || st.chain.id !== st.chainId) st.chain = await chainInfo(st.chainId);
   // The connected chain lives on the account button, subtly, and in its menu.
@@ -129,6 +133,82 @@ $('connect').onclick = () => {
   popover('pick');
 };
 
+// ---- gates: what an action needs (a wallet, a connection, a chain), shown instead of an error ----
+// `st.intent` marks that the user just asked to open something, so a single wallet is connected,
+// or the chain switched, right away; a link opened on its own waits for a click.
+class Gate extends Error {
+  constructor(view) {
+    super('gate');
+    this.view = view;
+  }
+}
+const chainName = (id) => label(id).name;
+
+function gateCard(title, text, ...rest) {
+  return h('div.home.gate', h('div.panel.gatecard', h('span.mark', icon(...ICONS.shield)), h('h2', title), text && h('p.mut', text), ...rest), h('p.gateback', h('a', { href: '#/' }, '‹ Home')));
+}
+
+function noWalletView() {
+  const b = h('button', 'Copy link to this page');
+  b.onclick = () => toClipboard(location.href).then(() => (put(b, '✓ Link copied'), setTimeout(() => put(b, 'Copy link to this page'), 1500)), () => {});
+  return gateCard(
+    'safe.wei needs a wallet',
+    'It reads your Safe and signs through your wallet, with no servers in between. No wallet was found in this browser.',
+    h('ul.gatesteps', h('li', h('b', 'On a computer: '), 'install a browser wallet extension, then reload this page.'), h('li', h('b', 'On a phone: '), 'open this page in your wallet app’s built-in browser.')),
+    h('div.actions', b),
+  );
+}
+
+/** Connect a wallet to continue; with one wallet and a fresh click, it asks right away. */
+function connectView(what) {
+  const ws = list(), out = h('div');
+  const go = (w, b) => act(b, () => connectTo(w), out)();
+  const buttons = ws.map((w, i) => {
+    const b = h('button' + (i ? '' : '.primary'), 'Connect ' + w.name);
+    b.onclick = () => go(w, b);
+    return b;
+  });
+  if (st.intent && ws.length === 1) setTimeout(() => buttons[0].click());
+  st.intent = false;
+  return gateCard('Connect a wallet to ' + what, 'safe.wei reads the Safe through your wallet. Nothing is sent anywhere else.', h('div.actions.gatebtns', buttons), out);
+}
+
+async function switchChain(id) {
+  try {
+    await rpc.rpc('wallet_switchEthereumChain', [{ chainId: '0x' + id.toString(16) }]);
+  } catch (e) {
+    throw Error(e && e.code === 4902 ? 'Your wallet does not know ' + chainName(id) + '. Add it to your wallet first.' : e.code === 4001 ? 'Switch cancelled.' : 'Your wallet could not switch to ' + chainName(id) + '. Switch it from the wallet.');
+  }
+}
+/** The Safe is on another chain: offer (or, right after a click, request) the switch. */
+function switchView(id, title, text, extra) {
+  const out = h('div'), b = h('button.primary', 'Switch to ' + chainName(id));
+  b.onclick = act(b, () => switchChain(id), out);
+  if (st.intent) setTimeout(() => b.click());
+  st.intent = false;
+  return gateCard(title, text, h('div.actions.gatebtns', b), out, extra);
+}
+
+/** Resolve what a Safe URL points at, or throw a Gate saying what is needed first. */
+async function openTarget(ref, wantChain) {
+  const lower = ref.toLowerCase();
+  const saved = recent.safes().filter((e) => e.address === lower || e.ref === ref);
+  // Call it what the user calls it: its saved name, a label, the name it was opened by, else a short address.
+  const what = (saved.find((e) => e.label) || {}).label || (isAddr(ref) ? labels.get(lower) || 'Safe ' + short(ref) : ref);
+  if (!list().length) throw new Gate(noWalletView());
+  if (!chain()) throw new Gate(connectView('open ' + what));
+  // A transaction link says its chain; a saved Safe known only on another chain says it too.
+  const want = wantChain || (saved.length && !saved.some((e) => e.chainId === st.chainId) && st.skipChain !== lower ? saved[0].chainId : null);
+  if (want && want !== st.chainId)
+    throw new Gate(switchView(want, what + ' is on ' + chainName(want), 'Your wallet is on ' + chain().name + '.', !wantChain && isAddr(ref) && h('p.gatealt', h('button.link', { onclick: () => ((st.skipChain = lower), route()) }, 'Open it on ' + chain().name + ' anyway'))));
+  if (isAddr(ref)) return lower;
+  if (st.chainId === 1) return target(ref);
+  // Names resolve on Ethereum only. A Safe saved on this chain under this name opens by its saved address.
+  const here = saved.find((e) => e.chainId === st.chainId && e.ref === ref);
+  if (here) return here.address;
+  throw new Gate(switchView(1, ref + ' is a name on Ethereum', 'ENS and .wei names resolve on Ethereum, and your wallet is on ' + chain().name + '. Switch to Ethereum, or open the Safe by its 0x address.'));
+}
+
 // ---- views ----
 function home() {
   const input = h('input', { placeholder: 'Safe address 0x… or name.eth / name.wei', id: 'safeIn', spellcheck: 'false' });
@@ -136,8 +216,10 @@ function home() {
   // Keep a name in the URL (readable, shareable); it is resolved again on every load.
   const open = button('Open', async () => {
     const v = input.value.trim();
-    await target(v);
-    location.hash = '/' + (isAddr(v) ? v.toLowerCase() : v);
+    if (!isAddr(v)) checkName(v.toLowerCase());
+    if (st.chainId === 1 && !isAddr(v)) await target(v); // catch typos right here
+    st.intent = true;
+    location.hash = '/' + (isAddr(v) ? v.toLowerCase() : v.toLowerCase());
   }, out, '.primary');
   input.onkeydown = (e) => {
     if (e.key === 'Enter') open.click(); // never return false here: that would cancel every keystroke
@@ -152,27 +234,30 @@ function home() {
     const l = h('div.saved');
     if (recent.safes().length) mountSafes(l, () => st.chainId);
     else put(l, h('p.empty', 'Safes you open will be listed here.'));
+    l.addEventListener('click', (e) => e.target.closest('a.saferow') && (st.intent = true));
     put(body, l);
   };
   st.homeTab = st.homeTab || 'safes';
   // Nothing saved yet: no empty tabs, just a way to bring data over from another device.
   const empty = !recent.safes().length && !Object.keys(labels.all()).length;
   if (!empty) show();
-  const list = empty
+  const saved = empty
     ? h('p.importhint', h('span.mut', 'Moving from another device? '), h('button.link', { onclick: () => backupDialog() }, 'Import a backup'))
     : h('div.hlist', bar, body);
   const c = chain();
   // Two ways in (open, create) live together at the top; your Safes are content below.
   const create = !c
-    ? h('p.alt.mut', 'Connect a wallet to create a new Safe.')
+    ? h('a.alt', { href: '#/new', onclick: () => (st.intent = true) }, h('span.mut', 'New to Safe?'), ' ', h('b', 'Create one'), icon(...ICONS.next))
     : c.canCreate
       ? h('a.alt', { href: '#/new' }, h('span.mut', 'New to Safe?'), ' ', h('b', 'Create one'), icon(...ICONS.next))
       : h('p.alt.mut', 'Safe’s contracts are not deployed on ' + c.name + ', so new Safes can’t be created here.');
   return h(
     'div.home',
     h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'safe.wei'), h('p', 'Your Safe, straight from the chain. No servers, everything stays in your browser.')),
-    h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), out, create),
-    list,
+    !list().length
+      ? h('div.panel.nowallet', h('b', 'No wallet found'), h('p.mut', 'safe.wei reads and signs through your wallet, with no servers in between. On a computer, install a browser wallet extension and reload. On a phone, open this page in your wallet app’s browser.'))
+      : h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), !c && h('p.fhint.connecthint', 'You’ll connect your wallet to open it. safe.wei reads the Safe through your wallet.'), out, create),
+    saved,
   );
 }
 
@@ -1343,12 +1428,16 @@ async function route() {
   if (m && m[1] === 'new') m = null;
   try {
     if (path.startsWith('import=')) return put(main, home()), backupDialog(path);
-    if (path === '/new') return put(main, chain() && chain().canCreate ? createView() : bad(chain() ? 'Safe’s contracts are not deployed on ' + chain().name + '.' : 'Connect a wallet first.'));
+    if (path === '/new') {
+      if (!list().length) throw new Gate(noWalletView());
+      if (!chain()) throw new Gate(connectView('create a Safe'));
+      return put(main, chain().canCreate ? createView() : bad('Safe’s contracts are not deployed on ' + chain().name + '.'));
+    }
     if (path.startsWith('tx=')) (p = importPayload(path)), (m = [0, p.tx.safe, 'review']);
     if (!m) return put(main, home()), renderBatch();
-    if (!chain()) throw Error('Connect a wallet to open a Safe.');
     const ref = decodeURIComponent(m[1]), tab = m[2] || 'assets', q = new URLSearchParams(m[3] || '');
-    const address = isAddr(ref) ? ref.toLowerCase() : await target(ref);
+    const address = await openTarget(ref, p && p.tx.chainId);
+    st.intent = false;
     if (!st.safe || st.safe.address !== address || st.stale) {
       if (!st.safe || st.safe.address !== address) put(main, h('p.mut', 'Loading ' + ref + '…'));
       const s = await readSafe(address);
@@ -1369,7 +1458,10 @@ async function route() {
     if (!tabs[tab]) return (location.hash = link('assets'));
     page(s, tab === 'batch' ? 'send' : tab, tab === 'send' || tab === 'batch' ? sendTab(s, tab === 'batch', q) : tabs[tab](s));
   } catch (e) {
-    if (n === seq) put(main, bad(e.message), home());
+    if (n !== seq) return;
+    st.intent = false;
+    if (e instanceof Gate) return put(main, e.view);
+    put(main, bad(e.message), home());
   }
 }
 
@@ -1383,7 +1475,7 @@ discover(() => {
   // A wallet announced late: pick it up if it is the remembered one and nothing is in use.
   const k = remembered();
   if (!wallet && k && get(k)) useWallet(get(k)), reset();
-  else if (!wallet) refreshWallet();
+  else if (!wallet) refreshWallet().then(route); // e.g. the "no wallet" state no longer applies
 });
 {
   const k = remembered(), ws = list();

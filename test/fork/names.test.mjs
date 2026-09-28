@@ -25,7 +25,7 @@ test('.wei forward resolution through WNS', async () => {
 test('unregistered names and other chains are rejected', async () => {
   await assert.rejects(resolveName('this-name-should-not-exist-9f8a7b6c.wei', 1), /does not resolve/);
   await assert.rejects(resolveName('this-name-should-not-exist-9f8a7b6c.eth', 1), /does not resolve/);
-  await assert.rejects(resolveName('vitalik.eth', 10), /mainnet only/);
+  await assert.rejects(resolveName('vitalik.eth', 10), /resolve on Ethereum only/);
   await assert.rejects(resolveName('Vitalik.eth', 1), /only lowercase/);
 });
 
