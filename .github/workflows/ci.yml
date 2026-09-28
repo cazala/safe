@@ -3,6 +3,11 @@ on:
   push:
     branches: [main]
   pull_request:
+# One run per PR: a new commit cancels the PR's run in progress, so only the latest one tests and deploys its
+# preview. On main runs queue instead (a deploy is never cut off); a newer merge replaces a queued one.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
     runs-on: ubuntu-latest
