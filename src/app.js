@@ -179,11 +179,14 @@ async function switchChain(id) {
     throw Error(e && e.code === 4902 ? 'Your wallet does not know ' + chainName(id) + '. Add it to your wallet first.' : e.code === 4001 ? 'Switch cancelled.' : 'Your wallet could not switch to ' + chainName(id) + '. Switch it from the wallet.');
   }
 }
-/** The Safe is on another chain: offer (or, right after a click, request) the switch. */
-function switchView(id, title, text, extra) {
+/**
+ * The Safe is on another chain: offer the switch. Right after a click it is requested at once, but only
+ * when the chain is certain (`auto`); otherwise the choice is the user's.
+ */
+function switchView(id, title, text, extra, auto = true) {
   const out = h('div'), b = h('button.primary', 'Switch to ' + chainName(id));
   b.onclick = act(b, () => switchChain(id), out);
-  if (st.intent) setTimeout(() => b.click());
+  if (st.intent && auto) setTimeout(() => b.click());
   st.intent = false;
   return gateCard(title, text, h('div.actions.gatebtns', b), out, extra);
 }
@@ -195,10 +198,14 @@ async function openTarget(ref, wantChain) {
   // Call it what the user calls it: its saved name, a label, the name it was opened by, else a short address.
   const what = (saved.find((e) => e.label) || {}).label || (isAddr(ref) ? labels.get(lower) || 'Safe ' + short(ref) : ref);
   if (!chain()) throw new Gate(connectView('open ' + what));
-  // A transaction link says its chain; a saved Safe known only on another chain says it too.
-  const want = wantChain || (saved.length && !saved.some((e) => e.chainId === st.chainId) && st.skipChain !== lower ? saved[0].chainId : null);
+  // The chain is certain when a link says it (#tx=, #msg=, ?chain=) or a saved Safe was picked from a list.
+  // A typed address saved only on another chain may exist here too: offer both, and switch only if asked.
+  const picked = st.openAs;
+  st.openAs = null;
+  const sure = wantChain || picked;
+  const want = sure || (saved.length && !saved.some((e) => e.chainId === st.chainId) && st.skipChain !== lower ? saved[0].chainId : null);
   if (want && want !== st.chainId)
-    throw new Gate(switchView(want, what + ' is on ' + chainName(want), 'Your wallet is on ' + chain().name + '.', !wantChain && isAddr(ref) && h('p.gatealt', h('button.link', { onclick: () => ((st.skipChain = lower), route()) }, 'Open it on ' + chain().name + ' anyway'))));
+    throw new Gate(switchView(want, what + ' is on ' + chainName(want), 'Your wallet is on ' + chain().name + '.', !sure && isAddr(ref) && h('p.gatealt', h('button.link', { onclick: () => ((st.skipChain = lower), route()) }, 'Open it on ' + chain().name + ' anyway')), !!sure));
   if (isAddr(ref)) return lower;
   if (st.chainId === 1) return target(ref);
   // Names resolve on Ethereum only. A Safe saved on this chain under this name opens by its saved address.
@@ -217,7 +224,7 @@ function setCrumb(s) {
   const items = recent.sorted().map((e) =>
     h(
       'a' + (recent.keyOf(e) === here ? '.on' : ''),
-      { href: '#/' + (e.ref || e.address), onclick: () => ((m.hidden = true), (st.intent = true)) },
+      { href: '#/' + (e.ref || e.address), onclick: () => ((m.hidden = true), (st.intent = true), (st.openAs = e.chainId)) },
       h('span.cname', nameOfEntry(e)),
       h('span.grow'),
       e.chainId !== st.chainId && h('span.chip', label(e.chainId).name),
@@ -270,7 +277,10 @@ function homeReturning(c, openRef, out, fail) {
   const q = h('input.search', { placeholder: 'Search, or open 0x… / name.eth', id: 'safeIn', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Search or open a Safe' });
   const openRow = h('div'), listRoot = h('div.saved');
   const v = mountSafes(listRoot, () => st.chainId);
-  listRoot.addEventListener('click', (e) => e.target.closest('a.srow') && (st.intent = true));
+  listRoot.addEventListener('click', (e) => {
+    const r = e.target.closest('a.srow');
+    if (r) (st.intent = true), (st.openAs = Number(r.dataset.chain) || null);
+  });
   let hits = null;
   const update = () => {
     put(out);
@@ -289,6 +299,9 @@ function homeReturning(c, openRef, out, fail) {
   q.onkeydown = (e) => {
     if (e.key === 'Escape') (q.value = ''), update();
     if (e.key !== 'Enter') return; // never return false here: that would cancel every keystroke
+    // A typed address or name opens as typed (the chain then decides, or asks); a search opens its single hit.
+    const s = q.value.trim();
+    if (isAddr(s) || isName(s.toLowerCase())) return void openRef(s).catch(fail);
     const first = openRow.querySelector('a.srow') || (hits && hits.length === 1 && listRoot.querySelector('a.srow'));
     if (first) first.click();
   };

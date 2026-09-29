@@ -71,7 +71,7 @@ export function mountSafes(root, chainId) {
     };
     const el = h(
       'a.srow.node' + (here ? '' : '.other'),
-      { href: '#/' + (e.ref || e.address), title: (here ? '' : 'On ' + label(e.chainId).name + ' · ') + 'Opened ' + recent.ago(e.at) },
+      { href: '#/' + (e.ref || e.address), 'data-chain': e.chainId, title: (here ? '' : 'On ' + label(e.chainId).name + ' · ') + 'Opened ' + recent.ago(e.at) },
       h('span.nline', name, e.pinned && h('span.pinned', icon(...ICONS.pin))),
       title !== 'Safe ' + short(e.address) && h('code.sa', short(e.address)),
       showChain(e) && h('span.chip', label(e.chainId).name),
