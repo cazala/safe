@@ -355,7 +355,8 @@ a.srow.other { opacity: .6; }
 @media (hover: none) { .srow .acts { opacity: 1; } }
 .srow .go { display: inline-flex; color: var(--mut); }
 .srow .go svg { width: 16px; height: 16px; }
-.srow.removed { border-style: dashed; color: var(--mut); }
+/* The undo placeholder: a dashed box inset in the list, on every side (beats the rows' separator rule). */
+.slist .srow.removed, .slist .srow + .srow.removed, .slist .fwrap + .srow.removed { margin: 4px; border: 1px dashed var(--line); border-radius: 8px; color: var(--mut); }
 .openlist .srow { gap: 6px; }
 .srow.folder { cursor: pointer; }
 .srow .caret { display: inline-flex; margin-left: -4px; color: var(--mut); transition: transform .15s ease; }

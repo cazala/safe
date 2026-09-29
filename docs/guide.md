@@ -61,7 +61,7 @@ safe.wei says what it needs instead of failing after a click:
 | State | What you see |
 | --- | --- |
 | Wallet available, not connected | Home says you will connect when opening a Safe. Opening a Safe (typed, from your list, or **Create**) connects first and then continues to it. A link opened on its own shows "Connect a wallet to open …" with one button per wallet. |
-| Wallet on another chain | A Safe saved on a different chain shows "… is on Polygon" with **Switch to Polygon** (requested right away after a click). For a typed address you can also **Open it on … anyway**. |
+| Wallet on another chain | A Safe saved on a different chain shows "… is on Polygon" with **Switch to Polygon**. When you picked it from your list, or a link says its chain, the switch is requested right away. A typed or pasted address may be a Safe on this chain too (the same address can exist on several), so nothing switches by itself: choose **Switch to Polygon** or **Open it on … anyway**. |
 
 ### Chains
 
