@@ -36,6 +36,26 @@
         "5177"
       ],
       "port": 5177
+    },
+    {
+      "name": "roles-fork",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "/Users/mostro/Code/roles/scripts/fork.mjs"
+      ],
+      "port": 8545
+    },
+    {
+      "name": "roles-anvil",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "/Users/mostro/Code/roles/scripts/dev.mjs",
+        "--anvil",
+        "http://127.0.0.1:8545",
+        "--port",
+        "5191"
+      ],
+      "port": 5191
     }
   ]
 }

@@ -41,7 +41,7 @@ safe.wei is a single HTML page with no backend. It is served from an onchain con
 
 - Wallets are discovered with EIP-6963, so several extensions can coexist; a browser that only injects `window.ethereum` shows it as "Browser wallet".
 - **Connect** in the header opens the wallet picker: the browser's wallets, then **WalletConnect**. The chosen wallet is remembered.
-- Once connected, the header button shows the chain and your short address. Its menu has **Switch wallet** and **Disconnect** (disconnect also asks the wallet to revoke the site's permission where supported).
+- Once connected, the header button shows the chain and your account: its .wei or ENS name when it has one (reverse-resolved on Ethereum and checked forward), else the short address. Its menu has **Switch wallet** and **Disconnect** (disconnect also asks the wallet to revoke the site's permission where supported).
 
 ### A wallet on your phone (WalletConnect)
 
