@@ -70,9 +70,15 @@ async function refreshWallet() {
   }
   [st.chainId, [st.account = null] = []] = await Promise.all([rpc.chainId(), rpc.accounts()]);
   if (!st.chain || st.chain.id !== st.chainId) st.chain = await chainInfo(st.chainId);
-  // The connected chain lives on the account button, subtly, and in its menu.
-  put($('connect'), st.account ? [h('span.net', { title: st.chain.name + ' · chain ' + st.chainId }, st.chain.name), short(st.account)] : 'Connect');
+  // The connected chain lives on the account button, subtly, and in its menu; the account shows by its
+  // .wei / ENS name when it has one (reverse-resolved on Ethereum, forward-checked), else short.
+  const who = () => [h('span.net', { title: st.chain.name + ' · chain ' + st.chainId }, st.chain.name), h('span.who', { title: st.account }, accountName[st.account] || short(st.account))];
+  put($('connect'), st.account ? who() : 'Connect');
+  const a = st.account;
+  if (a && st.chainId === 1 && !(a in accountName))
+    nameOf(a, 1).then((n) => { accountName[a] = n; if (n && st.account === a) put($('connect'), who()); }, () => {});
 }
+const accountName = {}; // account → its name (or null), looked up once per session
 
 // Any wallet change invalidates everything loaded so far (spec §15).
 const reset = () => ((st.safe = null), refreshWallet().then(route).then(footer, footer));
@@ -119,7 +125,7 @@ function popover(view) {
   if (view === 'menu') {
     // A WalletConnect wallet does not drive the chain here: switch among the chains it approved.
     const other = wallet.key === 'walletconnect' ? ((ownerConn.session() || {}).chains || []).filter((c) => c !== st.chainId) : [];
-    return put(drop, h('div.dropdown', h('div.head', h('div', h('b', wallet.name), h('div', chain().name + ' · chain ' + st.chainId))), other.map((c) => item('Switch to ' + chainName(c), async () => (closeDrop(), await switchChain(c)))), item('Switch wallet', async () => popover('pick')), item('Disconnect', async () => (closeDrop(), disconnect())), err));
+    return put(drop, h('div.dropdown', h('div.head', h('div', h('b', wallet.name), h('div', (accountName[st.account] ? accountName[st.account] + ' · ' + short(st.account) : short(st.account))), h('div', chain().name + ' · chain ' + st.chainId))), other.map((c) => item('Switch to ' + chainName(c), async () => (closeDrop(), await switchChain(c)))), item('Switch wallet', async () => popover('pick')), item('Disconnect', async () => (closeDrop(), disconnect())), err));
   }
   // Wallet list: every wallet except the one already connected.
   const ws = list().filter((w) => !st.account || w.key !== wallet.key);
