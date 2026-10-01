@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import { build } from 'esbuild';
-import { compile, DEPLOYER, plan } from '../deploy-lib.mjs';
+import { compile, DEPLOYER, plan, VANITY } from '../deploy-lib.mjs';
 import { shim } from '../shim.mjs';
 
 const root = new URL('../..', import.meta.url).pathname;
@@ -22,11 +22,11 @@ const port = Number(process.env.PORT || 8080);
 
 execFileSync(process.execPath, [root + 'scripts/build.mjs'], { stdio: 'inherit' });
 const html = readFileSync(root + 'dist/index.html', 'utf8');
-const p = plan(html, compile());
+const p = plan(html, compile(), undefined, { vanity: VANITY });
 // Rough cost: 32k create + 200/byte code deposit + ~16/byte calldata + 21k base, per step.
 const gas = p.steps.reduce((g, s) => g + 53000 + ((s.initcode.length - 2) / 2) * 216, 0);
 const js = (await build({ entryPoints: [root + 'scripts/deployer/client.js'], bundle: true, minify: true, format: 'iife', write: false })).outputFiles[0].text;
-const PLAN = { deployer: DEPLOYER, salt: p.salt, app: p.app, chunks: p.chunks, contentHash: p.contentHash, size: p.size, gas, steps: p.steps };
+const PLAN = { deployer: DEPLOYER, salt: p.salt, appSalt: p.appSalt, app: p.app, chunks: p.chunks, contentHash: p.contentHash, size: p.size, gas, steps: p.steps };
 const css = readFileSync(root + 'src/style.css', 'utf8');
 
 const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -37,7 +37,7 @@ const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta n
 <tr><th>App contract</th><td><code>${p.app}</code></td></tr>
 <tr><th>Page</th><td>${p.size.toLocaleString()} bytes · ${p.chunks.length} data chunk(s)</td></tr>
 <tr><th>contentHash</th><td><code>${p.contentHash}</code></td></tr>
-<tr><th>CREATE2 deployer</th><td><code>${DEPLOYER}</code> · salt <code>${p.salt}</code></td></tr>
+<tr><th>CREATE2 deployer</th><td><code>${DEPLOYER}</code> · salt <code>${p.salt}</code> (chunks), <code>${p.appSalt}</code> (app, mined for ${VANITY} leading zeros)</td></tr>
 <tr><th>Cost</th><td id="cost">≈ ${gas.toLocaleString()} gas</td></tr>
 </table>
 <p class="mut">Addresses depend only on the build and the salt, not on who deploys. Steps that already exist are skipped, so it is safe to run again.</p></section>

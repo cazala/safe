@@ -36,6 +36,10 @@ Steps:
 
 Total: roughly 0.7M gas instead of a full deploy (~42M).
 
+## Vanity address
+
+The app contract's address starts with five zero hex digits (`0x00000…`, `VANITY` in `scripts/deploy-lib.mjs`). The chunks use the plain salt (all zeros by default); the app gets its own salt, mined by counting from 0 until its CREATE2 address has those leading zeros. That takes about a million tries on average, a few seconds. The mining is deterministic (the same build always gives the same salt), so `scripts/deploy.mjs` and the deployer page plan the same address independently, and the chunks keep their addresses (and are reused) whatever the app's salt is. Every change to the app contract (any rebuild, including a config-only one) changes its address, and the new one is mined the same way. `deploy/<chainId>.json` records both salts (`salt`, `appSalt`). `--no-vanity` uses the plain salt for the app too.
+
 ## Cost
 
 Measured on a mainnet fork (`test/fork/deploy.test.mjs`, which prints it) for the current build (186,376 B: the config chunk plus 8 chunks of up to 24,575 B, and SafeWeiApp with a 2,004 B runtime): **41,766,553 gas** in 10 transactions.

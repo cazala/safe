@@ -59,7 +59,7 @@ async function deploy() {
   try {
     for (const s of P.steps) {
       if ((await rpc('eth_getCode', [s.address, 'latest'])) !== '0x') continue;
-      const tx = { from, to: P.deployer, data: P.salt + strip(s.initcode) };
+      const tx = { from, to: P.deployer, data: s.salt + strip(s.initcode) };
       const est = BigInt(await rpc('eth_estimateGas', [tx]));
       const gas = (est * 12n) / 10n < CAP ? (est * 12n) / 10n : CAP;
       log('Sending ' + s.name + ' (' + est + ' gas estimated)… confirm it in your wallet.');
@@ -80,7 +80,7 @@ async function verify() {
   const page = dbytes(await rpc('eth_call', [{ to: P.app, data: keccakText('html()').slice(0, 10) }, 'latest']));
   const ok = keccakHex(page) === P.contentHash && bytes(page).length === P.size;
   const tokenId = '0x5ee9ac06dcbb65a76f1f67124f33a87fb2fcd41386337c01a2e166f5c938c62d'; // namehash("safe.wei")
-  const record = { chainId: chain, app: P.app, chunks: P.chunks, salt: P.salt, size: P.size, contentHash: P.contentHash, codeHash: keccakHex(await rpc('eth_getCode', [P.app, 'latest'])) };
+  const record = { chainId: chain, app: P.app, chunks: P.chunks, salt: P.salt, appSalt: P.appSalt, size: P.size, contentHash: P.contentHash, codeHash: keccakHex(await rpc('eth_getCode', [P.app, 'latest'])) };
   put(
     $('result'),
     ok ? h('p.ok', '✓ html() matches the build: ' + P.size + ' bytes, contentHash ' + P.contentHash) : h('p.bad', '✗ html() does NOT match the planned page. Do not point safe.wei at it.'),
