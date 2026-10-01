@@ -312,7 +312,7 @@ Before a user signs or approves a Safe transaction:
 
 This protects against frontend encoding mistakes and makes signing behavior auditable.
 
-It does NOT protect against a malicious RPC: both the Safe state and the `getTransactionHash` result come through the wallet's RPC. The local hash computation and the displayed transaction summary are the real protection. Hardware wallets that display the EIP-712 hash give an independent check.
+It does NOT protect against a malicious RPC: both the Safe state and the `getTransactionHash` result come through the wallet's RPC (or the RPC endpoint you added in Settings, §27e). The local hash computation and the displayed transaction summary are the real protection. Hardware wallets that display the EIP-712 hash give an independent check.
 
 The UI must display the final SafeTx hash prominently.
 

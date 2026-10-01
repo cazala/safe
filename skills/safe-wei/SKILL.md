@@ -48,3 +48,5 @@ Prefer the prefill links (`send`, `batch`, `custom`, `new`): they need no encodi
 - DELEGATECALL is never prefilled; batches use the canonical MultiSendCallOnly only.
 - Reads go through the user's wallet (or an RPC endpoint they added in Settings); safe.wei contacts no other service.
 - For Zodiac Roles permissions on a Safe (letting an address do specific things without the full threshold), use roles.wei (its `roles-wei` skill).
+
+The sibling skill `roles-wei` (`npx skills add cazala/roles`) covers Zodiac Roles permissions in roles.wei.

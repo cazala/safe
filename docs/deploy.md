@@ -16,7 +16,7 @@ The WalletConnect project ID (`config/walletconnect.json`) and the links to role
 
 When: the relay refuses the ID (WalletConnect bans it, or the project is deleted). Users see "the project ID was not accepted" when connecting. Until a new deployment is live, anyone can paste their own ID in the Dapps tab (WalletConnect project), and it applies to both directions of WalletConnect.
 
-**The catch: build from the deployed code.** Chunks 1…8 are reused only if everything after the marker is byte-for-byte what was deployed, i.e. the same `src/` tree. If `main` has moved on since the deploy, rebuilding from `main` changes every chunk and becomes a full deploy (~42M gas). So start from the commit that was deployed (the `deployed-<n>` tag from the deploy steps below; `deploy/1.json` also records the chunks and `contentHash`).
+**The catch: build from the deployed code.** Chunks 1…8 are reused only if everything after the marker is byte-for-byte what was deployed, i.e. the same `src/` tree. If `main` has moved on since the deploy, rebuilding from `main` changes every chunk and becomes a full deploy (~44M gas). So start from the commit that was deployed (the `deployed-<n>` tag from the deploy steps below; `deploy/1.json` also records the chunks and `contentHash`).
 
 To change those links instead, edit `config/links.json` in step 2 (`roles`: https gateway URLs ending in `/`, the one on the same gateway family as the page is used; `source`: an https URL).
 
@@ -34,7 +34,7 @@ Steps:
 4. Deploy (the deployer's Deploy button, or `PRIVATE_KEY=0x… node scripts/deploy.mjs --rpc <mainnet rpc>`), then point `safe.wei` at the new app contract with `setAddr` (~50k gas; `node scripts/name.mjs --rpc <rpc> --app <new app>`).
 5. Commit the new `config/walletconnect.json` and `deploy/1.json` in the worktree and tag that commit (`deployed-<n+1>`), then bring the new ID to `main` too (safe.caza.la picks it up on the next CI deploy).
 
-Total: roughly 0.7M gas instead of a full deploy (~42M).
+Total: roughly 0.9M gas instead of a full deploy (~44M).
 
 ## Vanity address
 
@@ -42,9 +42,9 @@ The app contract's address starts with five zero hex digits (`0x00000…`, `VANI
 
 ## Cost
 
-Measured on a mainnet fork (`test/fork/deploy.test.mjs`, which prints it) for the current build (186,376 B: the config chunk plus 8 chunks of up to 24,575 B, and SafeWeiApp with a 2,004 B runtime): **41,766,553 gas** in 10 transactions.
+Measured on a mainnet fork (`test/fork/deploy.test.mjs`, which prints it) for the current build (196,599 B: the config chunk plus 8 chunks of up to 24,575 B, and SafeWeiApp with a 2,004 B runtime): **43,993,949 gas** in 10 transactions. At 0.4 gwei that is ~0.018 ETH, at 1.2 gwei ~0.053 ETH; fees are usually lowest on weekends.
 
-Roughly 220 gas per page byte (200 code deposit + calldata). At 0.3 gwei that is ~0.0125 ETH; a full chunk is ~5.4M gas. Every transaction stays far below EIP-7825's 16,777,216 per-transaction gas cap; the script pins 15,000,000 so wallet estimation padding cannot push a chunk over it.
+Roughly 220 gas per page byte (200 code deposit + calldata). A full chunk is ~5.4M gas. Every transaction stays far below EIP-7825's 16,777,216 per-transaction gas cap; the script pins 15,000,000 so wallet estimation padding cannot push a chunk over it.
 
 ## Steps (spec §14)
 
