@@ -381,3 +381,5 @@ Clearing site data removes them; export a backup first.
 - **Your wallet shows a different hash than the review**: do not sign. safe.wei prints the hash your wallet should show.
 - **Switching chains fails**: some wallets do not know every chain; add it in the wallet first, or switch from the wallet.
 - **Copy does nothing on a LAN address**: browsers limit the clipboard on plain `http` pages; safe.wei falls back to an older copy method, which some browsers also block.
+
+Links can prefill the transaction builder with a call (`#/<safe>/custom?to=&value=&data=`, value in wei) and Create a Safe with owners and a threshold (`#/new?owners=&threshold=`); both show "Prefilled from a link" so you check them before reviewing. See [links.md](links.md).

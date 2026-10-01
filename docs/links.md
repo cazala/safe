@@ -11,7 +11,7 @@ This makes safe.wei easy to integrate with: a bot, a payroll script or another a
 | Link | Opens |
 | --- | --- |
 | `#/` | Home: open a Safe, saved Safes and labels |
-| `#/new` | Create a Safe (the owner list starts with the connected wallet) |
+| `#/new` | Create a Safe (the owner list starts with the connected wallet; `?owners=&threshold=` prefill it, below) |
 | `#/<safe>` or `#/<safe>/assets` | The Safe's balances |
 | `#/<safe>/send` | Send to one recipient |
 | `#/<safe>/batch` | Send to many recipients from CSV |
@@ -47,6 +47,26 @@ Example: 0.1 ETH to vitalik.eth and 250 USDC to alice.wei
     https://safe.caza.la/#/treasury.wei/batch?csv=vitalik.eth%2C0.1%0Aalice.wei%2C250%2CUSDC
 
 In JavaScript: `'#/' + safe + '/batch?csv=' + encodeURIComponent(rows.map((r) => r.join(',')).join('\n'))`.
+
+## Prefilled calls
+
+### Any call
+
+    #/<safe>/custom?to=<address|name>&value=<wei>&data=<0x calldata>
+
+Opens the transaction builder in Raw calldata with this call, under a "Prefilled from a link" warning. safe.wei uses the Safe's current nonce and checks the hash itself, so this is the simplest way for another app or an agent to propose any contract call: the owner reviews it, simulates it, and signs or adds it to a batch. Every parameter is optional.
+
+- `to`: 0x address or `.eth` / `.wei` name
+- `value`: the native coin to send, in **wei** (a decimal string; shown in ETH)
+- `data`: 0x calldata
+
+Only CALL; DELEGATECALL is never prefilled.
+
+### Create a Safe
+
+    #/new?owners=<address|name>,<address|name>&threshold=<n>
+
+Opens Create a Safe with these owners (comma-separated) and threshold, under the same warning.
 
 ## Shared transactions
 
@@ -96,6 +116,8 @@ safe.wei decodes a few well-known calls itself (ERC-20 transfers and approvals, 
 - Open `<any safe.wei gateway>/#tx=<payload>`. The fragment is the payload; any gateway serving safe.wei accepts it.
 - safe.wei recomputes the SafeTx hash and checks it against the Safe's own `getTransactionHash`; the link is never trusted.
 
+`node scripts/tx-link.mjs plan.json --rpc <url>` does all of this for one call or a batch: it reads the nonce over the RPC, builds the link with the call signatures, and refuses to print it unless the local SafeTx hash equals the Safe's own (`plan.json`: `{ "safe": "0x…", "calls": [{ "to", "value" (wei), "data", "signature" }], "nonce" }`).
+
 The reference implementation is `src/share.js` (`fragment`, `fromFragment`, `compact`, `uncompact`, `importPayload`), dependency-free apart from `abi.js` and `safe.js`; other apps can copy it.
 
 ### JSON
@@ -135,7 +157,7 @@ The JSON is `{ app: "safe.wei", v: 1, at, safes, tree, labels, labelsAt, abis, t
 
 Links are how other apps (bots, roles.wei, scripts) talk to safe.wei, and links already sent to people must keep working. **These formats are frozen:**
 
-- the routes in this document (`#/`, `#/new`, `#/<safe>[/<tab>]`, the `send` and `batch` query parameters, `?chain=`);
+- the routes in this document (`#/`, `#/new`, `#/<safe>[/<tab>]`, the `send`, `batch`, `custom` and `new` query parameters, `?chain=`);
 - readers ignoring `&key=value` parameters after a `#tx=` / `#msg=` payload (pinned by a test): future optional parameters (e.g. `app=` naming the app that built a link) go there, so old readers keep opening new links;
 - `#tx=` (payload above), including `compact`, which is also stored **onchain forever** in `approveHash` calldata of published transactions, and its call-signature section;
 - `#msg=` (payload above);
