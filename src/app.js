@@ -376,7 +376,7 @@ function settingsDialog() {
 
 function labelsSheet() {
   const { body } = sheet('tag', 'Labels', true);
-  body.append(labelsView());
+  body.append(h('p.mut.small.lead', 'Your names for addresses, shown instead of the address everywhere in safe.wei. Kept in this browser.'), labelsView());
 }
 
 
