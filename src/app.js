@@ -354,7 +354,7 @@ function settingsDialog() {
   const url = h('input', { placeholder: 'Endpoint URL (Alchemy, Infura, your node)', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'RPC URL' }), add = h('button', 'Add');
   add.onclick = act(add, async () => { const c = await addRpc(url.value); url.value = ''; draw(); put(out, h('p.ok', 'Added for ' + label(c).name + '.')); reset(); }, out);
   draw();
-  put(body, h('div.bsec', h('b', 'RPC endpoints')), h('p.mut.small', 'safe.wei reads the chain through your wallet. Add an RPC endpoint and every read on its chain goes there instead: faster, or where your wallet’s RPC is unreliable. Its chain is detected from the endpoint. Signing, accounts and chain switching always stay in your wallet, and every hash you sign is still checked against the Safe. Kept in this browser; not included in backups.'), list, h('div.row', url, add), out);
+  put(body, h('div.bsec', h('b', 'RPC endpoints')), h('p.mut.small', 'Reads on an endpoint’s chain go there instead of your wallet’s RPC. Your wallet still signs. Kept in this browser.'), list, h('div.row', url, add), out);
 }
 
 function labelsSheet() {
