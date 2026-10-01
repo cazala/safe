@@ -42,6 +42,10 @@ A minimal interface for [Safe](https://safe.global) multisig accounts that lives
 
 ## Agents
 
+[![skills.sh](https://skills.sh/b/cazala/safe)](https://skills.sh/cazala/safe)
+
+Install the skill for your agent (Claude Code, Codex, Cursor and others) with the [skills](https://skills.sh) CLI: `npx skills add cazala/safe`, and its sibling with `npx skills add cazala/roles`.
+
 safe.wei has no API: an agent builds a link, a person opens it, checks it and signs with their own wallet. Links only propose; safe.wei recomputes and checks everything it shows.
 
 - **Skill**: [skills/safe-wei/SKILL.md](skills/safe-wei/SKILL.md) tells an agent which link fits which goal (send, pay many from CSV, any contract call, owners and threshold, create a Safe, collect signatures), how to build it, and what to tell the person before handing it over.
