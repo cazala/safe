@@ -1395,6 +1395,10 @@ Only after MVP:
 - hardware-wallet-specific UX
 - alternate fully onchain compression/storage techniques
 
+## 27e. Post-MVP — your own RPC endpoints
+
+Home → ▾ → **Settings** holds RPC endpoints the user adds, one per chain (the chain is asked from the endpoint with `eth_chainId`; https only; kept in this browser as `safe.wei:rpcs`, never in backups). `src/endpoints.js` wraps the wallet's provider: the read methods (`eth_call`, `eth_getBalance`, `eth_getCode`, `eth_getStorageAt`, `eth_getLogs`, `eth_blockNumber`, block and transaction lookups, gas estimates) go to the endpoint for the connected chain when there is one; everything else (signing, sending, accounts, `eth_chainId`, chain switching) stays with the wallet. Hash checks are unchanged: nothing is signed unless the locally computed hash equals the Safe's own, now read through the user's endpoint. Adding or removing an endpoint reloads what is open.
+
 Done since: owner, threshold and module management (Settings), any EVM chain (§16), ERC-5219 (`contract/SafeWeiApp.sol`), WalletConnect both ways (§27c, §27d).
 
 ---
