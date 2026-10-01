@@ -1,6 +1,6 @@
 # Size report
 
-Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm run build` prints the numbers and fails above 200 KB.
+Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm run build` prints the numbers and fails above 200 KB (204,800 bytes).
 
 | Phase | raw | gzip | js | css | notes |
 | --- | --- | --- | --- | --- | --- |
@@ -30,8 +30,9 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | WalletConnect, both sides | 188,410 | 66,072 | 157,937 | 29,244 | wallet side (Dapps tab), dapp side (owner wallets by QR), ChaCha20-Poly1305, QR encoder |
 | tidy + roles.wei readiness | 186,376 | 65,825 | 156,609 | 28,538 | shared storage helper, dead code removed; simulation inside the Safe, module identification, bytes32 text, ?chain= |
 | deployModule decoding | 188,990 | — | — | — | Zodiac ModuleProxyFactory decode, CREATE2 prediction, setUp owner/avatar/target, batch enable check |
+| links, Settings, roles.wei | 196,599 | 69,349 | 165,347 | 29,913 | account names, RPC endpoints and the roles.wei gateway in Settings, Open in / Set up Zodiac Roles links, custom and new prefills, config-chunk links |
 
-The page is now about 185 KB: under the 200 KB limit, but close to it. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 8 chunks of up to 24,575 bytes plus the config chunk (~42M gas, docs/deploy.md → Cost).
+The page is now about 192 KB (196,599 bytes): under the 200 KB limit (204,800 bytes), with about 8 KB left. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 9 chunks of up to 24,575 bytes plus the config chunk (~44M gas, docs/deploy.md → Cost).
 
 ## Major contributors
 

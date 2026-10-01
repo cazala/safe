@@ -1,18 +1,19 @@
 # safe.wei
 
-A minimal interface for [Safe](https://safe.global) multisig accounts that lives on Ethereum.
+A minimal interface for [Safe](https://safe.global) multisig accounts that lives on Ethereum. Sibling app: **[roles.wei](https://github.com/cazala/roles)**, for Zodiac Roles permissions on a Safe.
 
 - **One self-contained HTML file**: no backend, no remote code, no API keys, no analytics.
-- **Reads from the chain**: every Safe fact comes from the Safe contract itself, through your wallet's RPC (WalletConnect's RPC when the wallet is connected with WalletConnect). No Safe Transaction Service, no indexer.
+- **Reads from the chain**: every Safe fact comes from the Safe contract itself, through your wallet's RPC (WalletConnect's RPC for a WalletConnect wallet, or your own RPC endpoint if you add one). No Safe Transaction Service, no indexer.
 - **Signs through your wallet**: safe.wei never holds a key.
 - **Served onchain** from an ERC-8244 `html()` contract at `safe.wei`, or from any copy of the file.
+- **Agent ready**: everything starts from a link, so agents can propose transactions for people to review and sign. See [Agents](#agents).
 
 ## Features
 
 **Safes**
 - Open any Safe from v1.3.0 up by address or `.eth` / `.wei` name, on any EVM chain your wallet is on.
 - Create new v1.5.0 Safes (v1.4.1 where 1.5.0 is not deployed), with a predicted address before deploying.
-- Your Safes on Home: search, pin, rename, nested folders with drag and drop, and a switcher in the header.
+- Your Safes on Home: search or open, pin, rename, nested folders with drag and drop, and a switcher in the header.
 
 **Transactions**
 - Send the native coin or any ERC-20, to one recipient or to many from pasted CSV (up to 200 rows in one transaction).
@@ -28,29 +29,43 @@ A minimal interface for [Safe](https://safe.global) multisig accounts that lives
 - Calls safe.wei cannot decode on its own are shown decoded when the link carries their function signatures, checked byte for byte against the calldata.
 - Every transaction's hash is checked against the Safe's own `getTransactionHash`; calls are simulated and risky ones flagged.
 
+**Zodiac Roles, with roles.wei**
+- Settings → Modules recognizes a Roles modifier and opens it in roles.wei (**Open in roles.wei**), or, on a Safe without one, offers **Set up Zodiac Roles in roles.wei**, which opens its create wizard on this Safe.
+- Permission changes made in roles.wei come back as a safe.wei link the owners review and sign like any transaction.
+
 **Yours, in the browser**
-- Address labels, remembered ABIs and added tokens, stored locally, and moved between devices with Backup and sync.
-- Links that open a screen or prefill a send, for bots and integrations.
+- Address labels, remembered ABIs and added tokens, stored locally, and moved between devices with Backup & sync (roles.wei reads these backups too).
+- **Settings**: your own RPC endpoints (reads on their chain go there; your wallet still signs) and which roles.wei gateway to link to.
+- Links that open any screen or prefill a send, a CSV batch, any contract call or a new Safe ([docs/links.md](docs/links.md)).
 - Use the Safe in other dapps through WalletConnect: requests go through the same review.
 - Sign as an owner with a wallet on your phone: **Connect → WalletConnect** shows a QR code.
+
+## Agents
+
+safe.wei has no API: an agent builds a link, a person opens it, checks it and signs with their own wallet. Links only propose; safe.wei recomputes and checks everything it shows.
+
+- **Skill**: [skills/safe-wei/SKILL.md](skills/safe-wei/SKILL.md) tells an agent which link fits which goal (send, pay many from CSV, any contract call, owners and threshold, create a Safe, collect signatures), how to build it, and what to tell the person before handing it over.
+- **Links reference**: [docs/links.md](docs/links.md), with the frozen formats.
+- **`#tx=` builder**: `node scripts/tx-link.mjs plan.json --rpc <url>` builds a shareable transaction link for one call or a batch, reading the nonce and refusing to print it unless its hash equals the Safe's own.
+- For permissions on a Safe (a bot or agent allowed specific calls without the full threshold), use roles.wei and its skill, [skills/roles-wei](https://github.com/cazala/roles/tree/main/skills/roles-wei).
 
 ## Documentation
 
 | Document | For |
 | --- | --- |
 | [User guide](docs/guide.md) | Every screen and feature, what is checked, what is stored, troubleshooting |
-| [Links](docs/links.md) | URLs that open a screen or prefill a form (integrations) |
+| [Links](docs/links.md) | URLs that open a screen, prefill a form or carry a transaction (integrations, agents) |
 | [Specification](docs/spec.md) | Design, protocol details and security model |
-| [Deploy](docs/deploy.md) | Deploying the ERC-8244 contract and pointing `safe.wei` |
+| [Deploy](docs/deploy.md) | Deploying the ERC-8244 contract (vanity address, cost) and pointing `safe.wei` |
 | [Research](docs/research.md) | Verified contract addresses and protocol references |
 | [Size](docs/size.md) | Page size budget per feature |
 | [Safe Apps](docs/safe-apps.md) | Why Safe Apps support was dropped |
-| [AGENTS.md](AGENTS.md) | Rules for contributors and agents: git, frozen link formats, verification |
+| [AGENTS.md](AGENTS.md) | Rules for contributors and coding agents: git, frozen link formats, verification |
 
 ## Use it
 
 - Open **https://safe.caza.la** (the same page, served by Cloudflare Pages from `main`; every PR gets a preview), or
-- open `safe.wei` through an ERC-8244 gateway, or
+- open `safe.wei` through an ERC-8244 gateway (`https://safe.wei.limo`, `https://safe.wei.is`), or
 - read the page straight from the contract and serve it locally:
 
 ```bash
@@ -84,7 +99,7 @@ node scripts/dev.mjs --anvil http://127.0.0.1:8545      # http://localhost:5173
 
 ## Deploy
 
-See [docs/deploy.md](docs/deploy.md): deterministic CREATE2 deployment of the page and the ERC-8244 contract, verification, gateway tests and pointing `safe.wei`.
+See [docs/deploy.md](docs/deploy.md): deterministic CREATE2 deployment of the page and the ERC-8244 contract (the app's address is mined to start with `0x00000`), verification, gateway tests and pointing `safe.wei`. The WalletConnect project ID and the links to roles.wei and the source (`config/`) sit in a small first chunk, so changing them redeploys only that chunk and the app contract.
 
 ## Deployments
 
