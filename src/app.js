@@ -946,8 +946,10 @@ function transactionsTab(s) {
   ];
 }
 
-// roles.wei's gateway, from the config chunk (config/gateway.json): replacing it redeploys only that chunk.
-const ROLES = typeof ROLES_WEI === 'string' ? ROLES_WEI : '';
+// Links from the config chunk (config/links.json; replacing them redeploys only that chunk): roles.wei on the
+// same gateway family as this page (safe.wei.is → roles.wei.is), else the first, and the source code.
+const LINK = typeof LINKS === 'object' && LINKS ? LINKS : {};
+const ROLES = (() => { const all = LINK.roles || []; return all.find((u) => location.hostname.endsWith('.' + new URL(u).hostname.split('.').slice(1).join('.'))) || all[0] || ''; })();
 /** "Zodiac Roles 2.1.1 · owner this Safe" (with a link to manage it in roles.wei), filled in once the contract is recognized. */
 function whatIs(contract, s) {
   const el = h('div.modinfo');
@@ -958,7 +960,7 @@ function whatIs(contract, s) {
         z.name ? [h('span.chip.ok', 'Zodiac ' + z.name), z.faulty && [' ', h('span.chip.bad', 'faulty version')]] : h('span.chip', z.empty ? 'No contract here yet' : z.proxy ? 'Unknown contract (proxy to ' + short(z.impl) + ')' : 'Unknown contract'),
         z.owner && h('span', h('span.mut', 'Owner '), z.owner === s.address ? 'this Safe' : s.owners.includes(z.owner) ? [addr(z.owner, null, short(z.owner)), ' (an owner)'] : [h('b.bad', addr(z.owner, null, short(z.owner))), ' (not this Safe or an owner: it can reconfigure this module)']),
         z.faulty && warn('Zodiac lists ' + z.name + ' as a faulty version. Consider replacing it.'),
-        ROLES && z.name === 'Roles 2.1.1' && h('a.rolesweb', { href: ROLES + '#/' + contract + '?chain=' + st.chainId, target: '_blank', rel: 'noopener' }, 'Manage in roles.wei ↗'),
+        ROLES && z.name === 'Roles 2.1.1' && h('div', h('a.btn.rolesweb', { href: ROLES + '#/' + contract + '?chain=' + st.chainId, target: '_blank', rel: 'noopener' }, 'Open in roles.wei ↗')),
       ),
     () => {},
   );
@@ -2183,6 +2185,8 @@ async function footer() {
     $('foot'),
     h('span', 'safe.wei · build ', h('code', { title: 'git tree hash of src/ this page was built from' }, BUILD)),
     app ? h('span', ' · app ', addr(app, null, short(app), true), g.name && h('span.mut', ' via ' + g.name)) : g.local ? h('span', ' · local build') : g.name && h('span.mut', ' · connect on Ethereum to see which app ' + g.name + ' points to'),
+    ROLES && h('span', ' · ', h('a', { href: ROLES, target: '_blank', rel: 'noopener', title: 'Safe permissions (Zodiac Roles), also served onchain' }, 'roles.wei')),
+    LINK.source && h('span', ' · ', h('a', { href: LINK.source, target: '_blank', rel: 'noopener' }, 'Source'))
   );
 }
 
