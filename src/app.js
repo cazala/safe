@@ -4,6 +4,7 @@ import { chainInfo, gatewayOf, handlerName, KNOWN_IDS, label } from './chains.js
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review, signMessageOf } from './review.js';
 import * as rpc from './rpc.js';
+import { reader, rpcs, addRpc, removeRpc } from './endpoints.js';
 import { create, createCall, modules, newTx, predict, readSafe, safeTxHash, SENTINEL } from './safe.js';
 import { compact, fragment, importMessage, importPayload, messageFragment, toJSON } from './share.js';
 import { payloadGas, scan } from './pending.js';
@@ -87,7 +88,7 @@ function useWallet(w) {
   const old = wallet && wallet.provider;
   if (old && old.removeListener) old.removeListener('chainChanged', reset), old.removeListener('accountsChanged', reset);
   wallet = w;
-  rpc.use(w && w.provider);
+  rpc.use(w && reader(w.provider, () => st.chainId)); // reads to your RPC endpoint for the chain, if you added one
   if (w && w.provider.on) w.provider.on('chainChanged', reset), w.provider.on('accountsChanged', reset);
 }
 
@@ -272,7 +273,7 @@ function homeFirstRun(c, openRef, out) {
     'div.home',
     h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'safe.wei'), h('p', 'Your Safe, straight from the chain. No servers, everything stays in your browser.')),
     h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), !c && h('p.fhint.connecthint', 'You’ll connect your wallet to open it. safe.wei reads the Safe through your wallet.'), out, create),
-    h('p.importhint', h('span.mut', 'Moving from another device? '), h('button.link', { onclick: () => backupDialog() }, 'Import a backup'), nl > 0 && [h('span.mut', ' · '), h('button.link', { onclick: labelsSheet }, 'Labels (' + nl + ')')]),
+    h('p.importhint', h('span.mut', 'Moving from another device? '), h('button.link', { onclick: () => backupDialog() }, 'Import a backup'), nl > 0 && [h('span.mut', ' · '), h('button.link', { onclick: labelsSheet }, 'Labels (' + nl + ')')], h('span.mut', ' · '), h('button.link', { onclick: settingsDialog }, 'Settings')),
   );
 }
 
@@ -335,12 +336,26 @@ function moreMenu(canCreate) {
   const n = Object.keys(labels.all()).length;
   const m = h('div.hmenu', { hidden: true });
   const item = (ic, text, fn) => h('button', { onclick: () => ((m.hidden = true), fn()) }, icon(...ICONS[ic]), text);
-  put(m, item('tag', n ? 'Labels (' + n + ')' : 'Labels', labelsSheet), item('gear', 'Backup & sync', () => backupDialog()));
-  const caret = h('button.splitcaret', { title: 'More: labels, backup & sync', 'aria-label': 'More', 'aria-haspopup': 'menu', onclick: () => (m.hidden = !m.hidden) }, icon(...CARET));
+  put(m, item('tag', n ? 'Labels (' + n + ')' : 'Labels', labelsSheet), item('sync', 'Backup & sync', () => backupDialog()), item('gear', 'Settings', settingsDialog));
+  const caret = h('button.splitcaret', { title: 'More: labels, backup & sync, settings', 'aria-label': 'More', 'aria-haspopup': 'menu', onclick: () => (m.hidden = !m.hidden) }, icon(...CARET));
   return h('div.gearwrap.split' + (canCreate ? '' : '.solo'), canCreate && h('a.splitmain', { href: '#/new', onclick: () => (st.intent = true), title: 'Create a new Safe' }, icon(...ICONS.plus), h('span', 'New')), caret, m);
 }
 // Menus (New ▾, the Safe switcher) close on any click outside them.
 document.addEventListener('pointerdown', (e) => document.querySelectorAll('.hmenu').forEach((m) => !m.parentElement.contains(e.target) && (m.hidden = true)));
+
+/** ▾ → Settings: your RPC endpoints (reads on an endpoint's chain go there instead of the wallet's RPC; the wallet still signs). */
+function settingsDialog() {
+  const { body } = sheet('gear', 'Settings');
+  const out = h('div'), list = h('div'), host = (u) => { try { return new URL(u).host; } catch { return u; } };
+  const draw = () => {
+    const m = Object.entries(rpcs());
+    put(list, m.length ? h('div.slist.rpcs', m.map(([c, u]) => h('div.srow', h('b', label(Number(c)).name), h('code.sa', host(u)), h('span.grow'), h('button.link', { onclick: () => (removeRpc(c), draw(), reset()) }, 'Remove')))) : h('p.mut.small', 'None: reads go through your wallet.'));
+  };
+  const url = h('input', { placeholder: 'Endpoint URL (Alchemy, Infura, your node)', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'RPC URL' }), add = h('button', 'Add');
+  add.onclick = act(add, async () => { const c = await addRpc(url.value); url.value = ''; draw(); put(out, h('p.ok', 'Added for ' + label(c).name + '.')); reset(); }, out);
+  draw();
+  put(body, h('div.bsec', h('b', 'RPC endpoints')), h('p.mut.small', 'safe.wei reads the chain through your wallet. Add an RPC endpoint and every read on its chain goes there instead: faster, or where your wallet’s RPC is unreliable. Its chain is detected from the endpoint. Signing, accounts and chain switching always stay in your wallet, and every hash you sign is still checked against the Safe. Kept in this browser; not included in backups.'), list, h('div.row', url, add), out);
+}
 
 function labelsSheet() {
   const { body } = sheet('tag', 'Labels', true);
@@ -350,7 +365,7 @@ function labelsSheet() {
 
 /** Backup & sync: export as a link or JSON, or import by pasting one (with a preview before anything changes). */
 function backupDialog(incoming) {
-  const { body: d, close, setTitle } = sheet('gear', 'Backup & sync', true);
+  const { body: d, close, setTitle } = sheet('sync', 'Backup & sync', true);
   const words = (c) => [c.safes + ' Safe' + (c.safes === 1 ? '' : 's'), c.labels + ' label' + (c.labels === 1 ? '' : 's'), c.abis + ' ABI' + (c.abis === 1 ? '' : 's'), c.tokens + ' token' + (c.tokens === 1 ? '' : 's')].join(' · ');
   const refresh = () => (close(), route());
 
