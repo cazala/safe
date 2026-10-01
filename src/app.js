@@ -272,7 +272,7 @@ function homeFirstRun(c, openRef, out) {
   return h(
     'div.home',
     h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'safe.wei'), h('p', 'Your Safe, straight from the chain.', h('br'), 'No servers, everything stays in your browser.')),
-    h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), !c && h('p.fhint.connecthint', 'You’ll connect your wallet to open it. safe.wei reads the Safe through your wallet.'), out, create),
+    h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), !c && h('p.fhint.connecthint', 'You’ll connect your wallet to open it.'), out, create),
     h('p.importhint', h('span.mut', 'Moving from another device? '), h('button.link', { onclick: () => backupDialog() }, 'Import a backup'), nl > 0 && [h('span.mut', ' · '), h('button.link', { onclick: labelsSheet }, 'Labels (' + nl + ')')], h('span.mut', ' · '), h('button.link', { onclick: settingsDialog }, 'Settings')),
   );
 }

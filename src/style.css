@@ -313,7 +313,7 @@ p.gatealt { margin: 12px 0 0; font-size: 13px; }
 p.gateback { text-align: center; font-size: 13px; }
 p.gateback a { color: var(--mut); text-decoration: none; }
 p.gateback a:hover { color: var(--fg); }
-.panel .connecthint { margin: 10px 0 0; font-size: 13px; color: var(--mut); }
+.panel .connecthint { margin: 8px 0 0; font-size: 12px; color: var(--mut); }
 /* ---- Home, returning: search-or-open bar, then your Safes as one list ---- */
 .home.returning { max-width: none; padding-top: 20px; }
 .hbar { display: flex; align-items: center; gap: 8px; }
