@@ -12,11 +12,13 @@ The footer shows the build ID and, at runtime, the app contract serving the page
 
 ## Replacing the WalletConnect project ID
 
-The WalletConnect project ID (`config/walletconnect.json`) is built into its own tiny first chunk: the page's head up to the `<!--config-->` marker, about 150 bytes. Everything after the marker is in chunks 1…8. Changing the ID therefore changes only chunk 0 and, since the app contract lists its chunks, the app contract; chunks 1…8 keep their addresses and are reused. `test/unit/deployplan.test.mjs` pins this, and it was checked on the real build (a different ID changed only chunk 0 and the app). The config is outside `src/`, so the build ID in the footer stays the same.
+The WalletConnect project ID (`config/walletconnect.json`) and the roles.wei gateway (`config/gateway.json`, the link behind "Manage in roles.wei" next to a Roles modifier in Settings) are built into their own tiny first chunk: the page's head up to the `<!--config-->` marker, about 190 bytes. Everything after the marker is in chunks 1…8. Changing either therefore changes only chunk 0 and, since the app contract lists its chunks, the app contract; chunks 1…8 keep their addresses and are reused. `test/unit/deployplan.test.mjs` pins this, and it was checked on the real build (a different ID changed only chunk 0 and the app). The config is outside `src/`, so the build ID in the footer stays the same.
 
 When: the relay refuses the ID (WalletConnect bans it, or the project is deleted). Users see "the project ID was not accepted" when connecting. Until a new deployment is live, anyone can paste their own ID in the Dapps tab (WalletConnect project), and it applies to both directions of WalletConnect.
 
 **The catch: build from the deployed code.** Chunks 1…8 are reused only if everything after the marker is byte-for-byte what was deployed, i.e. the same `src/` tree. If `main` has moved on since the deploy, rebuilding from `main` changes every chunk and becomes a full deploy (~42M gas). So start from the commit that was deployed (the `deployed-<n>` tag from the deploy steps below; `deploy/1.json` also records the chunks and `contentHash`).
+
+To change the roles.wei gateway instead, follow the same steps with `echo '{ "roles": "https://<gateway>/" }' > config/gateway.json` in step 2 (an https URL ending in `/`).
 
 Steps:
 

@@ -19,13 +19,15 @@ const git = (...a) => {
 };
 const BUILD = (git('rev-parse', '--short=7', 'HEAD:src') || 'unknown') + (git('status', '--porcelain', '--', 'src') ? '+' : '');
 
-// Config that may need replacing after deployment (the WalletConnect project ID) lives outside src/
+// Config that may need replacing after deployment (the WalletConnect project ID, the roles.wei gateway) lives outside src/
 // and goes into its own tiny first chunk, cut at the <!--config--> marker (scripts/deploy-lib.mjs).
 // Replacing it redeploys only that chunk and the app contract; every other chunk stays byte for byte.
 const config = JSON.parse(readFileSync(root + 'config/walletconnect.json', 'utf8'));
 if (!/^[0-9a-f]{32}$/.test(config.projectId)) throw Error('config/walletconnect.json: projectId must be 32 hex characters');
 const OPEN = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
-const head = OPEN + '<script>var WC_PROJECT="' + config.projectId + '"</script><!--config-->';
+const gateway = JSON.parse(readFileSync(root + 'config/gateway.json', 'utf8'));
+if (!/^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)+\/$/.test(gateway.roles || '')) throw Error('config/gateway.json: roles must be an https:// gateway URL ending in /');
+const head = OPEN + '<script>var WC_PROJECT="' + config.projectId + '",ROLES_WEI="' + gateway.roles + '"</script><!--config-->';
 
 const js = (
   await build({
@@ -57,7 +59,8 @@ const html = head + shell.slice(OPEN.length).replace('<!--CSS-->', () => '<style
 const SVG_NS = 'http://www.w3.org/2000/svg';
 // Reads for a WalletConnect wallet (which cannot serve them) go to WalletConnect's RPC: data, never code.
 const WC_RPC = 'https://rpc.walletconnect.org/v1/?chainId=eip155:';
-const scan = html.split(SVG_NS).join('').split(WC_RPC).join('');
+// The roles.wei gateway (config/gateway.json) is a link users open, in the config chunk: data, never code.
+const scan = html.split(SVG_NS).join('').split(WC_RPC).join('').split(gateway.roles).join('');
 const banned = [/<script[^>]+src=/i, /<link[^>]+rel=["']?stylesheet/i, /http:\/\//i, /https:\/\//i, /@import/i];
 for (const re of banned) if (re.test(scan)) throw Error('Build check failed: output matches ' + re);
 

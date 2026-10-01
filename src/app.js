@@ -946,7 +946,9 @@ function transactionsTab(s) {
   ];
 }
 
-/** "Zodiac Roles 2.1.1 · owner this Safe", filled in once the contract is recognized. */
+// roles.wei's gateway, from the config chunk (config/gateway.json): replacing it redeploys only that chunk.
+const ROLES = typeof ROLES_WEI === 'string' ? ROLES_WEI : '';
+/** "Zodiac Roles 2.1.1 · owner this Safe" (with a link to manage it in roles.wei), filled in once the contract is recognized. */
 function whatIs(contract, s) {
   const el = h('div.modinfo');
   identify(contract).then(
@@ -956,6 +958,7 @@ function whatIs(contract, s) {
         z.name ? [h('span.chip.ok', 'Zodiac ' + z.name), z.faulty && [' ', h('span.chip.bad', 'faulty version')]] : h('span.chip', z.empty ? 'No contract here yet' : z.proxy ? 'Unknown contract (proxy to ' + short(z.impl) + ')' : 'Unknown contract'),
         z.owner && h('span', h('span.mut', 'Owner '), z.owner === s.address ? 'this Safe' : s.owners.includes(z.owner) ? [addr(z.owner, null, short(z.owner)), ' (an owner)'] : [h('b.bad', addr(z.owner, null, short(z.owner))), ' (not this Safe or an owner: it can reconfigure this module)']),
         z.faulty && warn('Zodiac lists ' + z.name + ' as a faulty version. Consider replacing it.'),
+        ROLES && z.name === 'Roles 2.1.1' && h('a.rolesweb', { href: ROLES + '#/' + contract + '?chain=' + st.chainId, target: '_blank', rel: 'noopener' }, 'Manage in roles.wei ↗'),
       ),
     () => {},
   );
