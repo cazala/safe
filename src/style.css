@@ -510,3 +510,4 @@ footer#foot a { color: inherit; }
 footer#foot a:hover { color: var(--fg); }
 a.btn.rolesweb { margin-top: 8px; }
 .gwpick { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 4px; }
+p.rolessetup { margin: 8px 0 10px; font-size: 13px; }

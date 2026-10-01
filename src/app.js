@@ -1053,9 +1053,12 @@ function settingsTab(s) {
   const threshold = [h('div.row.inline', 'Any transaction requires', th, 'out of ' + n + ' owner' + (n > 1 ? 's' : '') + ' to approve.'), thActs, thOut];
 
   // Modules: can execute transactions without any owner signature.
-  const mods = h('div', h('p.mut', 'Loading modules…'));
+  const mods = h('div', h('p.mut', 'Loading modules…')), rolesSetup = h('div');
   modules(s.address).then(
-    (ms) =>
+    (ms) => (
+      // No Roles modifier yet: a quiet way to set one up in roles.wei (its wizard opens on this Safe and chain).
+      rolesGateway() && Promise.all(ms.map((m) => identify(m).catch(() => ({})))).then((zs) => !zs.some((z) => /^Roles /.test(z.name || '')) &&
+        put(rolesSetup, h('p.rolessetup', h('a', { href: rolesGateway() + '#/' + s.address + '?chain=' + st.chainId + '&create', target: '_blank', rel: 'noopener' }, 'Set up Zodiac Roles in roles.wei ↗'), h('span.mut', ' · give roles scoped permissions instead of full control'))), () => {}),
       put(
         mods,
         ms.length
@@ -1067,7 +1070,8 @@ function settingsTab(s) {
               })),
             ]
           : h('p.mut', 'No modules enabled. Only owner-approved transactions can move funds.'),
-      ),
+      )
+    ),
     (e) => put(mods, warn('Could not read modules: ' + e.message)),
   );
   const modIn = h('input', { placeholder: 'Module contract 0x…', spellcheck: 'false' }), modOut = h('div');
@@ -1083,6 +1087,7 @@ function settingsTab(s) {
     threshold,
     h('h2', 'Modules'),
     mods,
+    rolesSetup,
     enable,
     h('h2', 'Guard'),
     s.guard
