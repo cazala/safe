@@ -2205,7 +2205,7 @@ async function footer() {
     h('span', 'safe.wei · build ', h('code', { title: 'git tree hash of src/ this page was built from' }, BUILD)),
     app ? h('span', ' · app ', addr(app, null, short(app), true), g.name && h('span.mut', ' via ' + g.name)) : g.local ? h('span', ' · local build') : g.name && h('span.mut', ' · connect on Ethereum to see which app ' + g.name + ' points to'),
     rolesGateway() && h('span', ' · ', h('a', { href: rolesGateway(), target: '_blank', rel: 'noopener', title: 'Safe permissions (Zodiac Roles), also served onchain' }, 'roles.wei')),
-    LINK.source && h('span', ' · ', h('a', { href: LINK.source, target: '_blank', rel: 'noopener' }, 'Source'))
+    LINK.source && h('span', ' · ', h('a', { href: LINK.source, target: '_blank', rel: 'noopener' }, 'source'))
   );
 }
 
