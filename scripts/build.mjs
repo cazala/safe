@@ -19,13 +19,19 @@ const git = (...a) => {
 };
 const BUILD = (git('rev-parse', '--short=7', 'HEAD:src') || 'unknown') + (git('status', '--porcelain', '--', 'src') ? '+' : '');
 
-// Config that may need replacing after deployment (the WalletConnect project ID) lives outside src/
+// Config that may need replacing after deployment (the WalletConnect project ID, links to roles.wei and the source) lives outside src/
 // and goes into its own tiny first chunk, cut at the <!--config--> marker (scripts/deploy-lib.mjs).
 // Replacing it redeploys only that chunk and the app contract; every other chunk stays byte for byte.
 const config = JSON.parse(readFileSync(root + 'config/walletconnect.json', 'utf8'));
 if (!/^[0-9a-f]{32}$/.test(config.projectId)) throw Error('config/walletconnect.json: projectId must be 32 hex characters');
 const OPEN = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
-const head = OPEN + '<script>var WC_PROJECT="' + config.projectId + '"</script><!--config-->';
+// Links to other places (roles.wei's gateways, the source code), also in the config chunk: config/links.json.
+const links = JSON.parse(readFileSync(root + 'config/links.json', 'utf8'));
+const url = (u) => typeof u === 'string' && /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)+\/[\w./-]*$/.test(u);
+if (!Array.isArray(links.roles) || !links.roles.length || !links.roles.every((u) => url(u) && u.endsWith('/')) || !url(links.source + '/'))
+  throw Error('config/links.json: roles must be https:// gateway URLs ending in /, source an https:// URL');
+const LINKS = JSON.stringify({ roles: links.roles, source: links.source });
+const head = OPEN + '<script>var WC_PROJECT="' + config.projectId + '",LINKS=' + LINKS + '</script><!--config-->';
 
 const js = (
   await build({
@@ -57,7 +63,8 @@ const html = head + shell.slice(OPEN.length).replace('<!--CSS-->', () => '<style
 const SVG_NS = 'http://www.w3.org/2000/svg';
 // Reads for a WalletConnect wallet (which cannot serve them) go to WalletConnect's RPC: data, never code.
 const WC_RPC = 'https://rpc.walletconnect.org/v1/?chainId=eip155:';
-const scan = html.split(SVG_NS).join('').split(WC_RPC).join('');
+// The links in config/links.json are pages users open, in the config chunk: data, never code.
+const scan = [...links.roles, links.source].reduce((t, u) => t.split(u).join(''), html.split(SVG_NS).join('').split(WC_RPC).join(''));
 const banned = [/<script[^>]+src=/i, /<link[^>]+rel=["']?stylesheet/i, /http:\/\//i, /https:\/\//i, /@import/i];
 for (const re of banned) if (re.test(scan)) throw Error('Build check failed: output matches ' + re);
 

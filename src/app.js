@@ -271,8 +271,8 @@ function homeFirstRun(c, openRef, out) {
   const nl = Object.keys(labels.all()).length;
   return h(
     'div.home',
-    h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'safe.wei'), h('p', 'Your Safe, straight from the chain. No servers, everything stays in your browser.')),
-    h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), !c && h('p.fhint.connecthint', 'You’ll connect your wallet to open it. safe.wei reads the Safe through your wallet.'), out, create),
+    h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'safe.wei'), h('p', 'Your Safe, straight from the chain.', h('br'), 'No servers, everything stays in your browser.')),
+    h('div.panel', h('label', { for: 'safeIn' }, 'Open a Safe'), h('div.row', input, open), !c && h('p.fhint.connecthint', 'You’ll connect your wallet to open it.'), out, create),
     h('p.importhint', h('span.mut', 'Moving from another device? '), h('button.link', { onclick: () => backupDialog() }, 'Import a backup'), nl > 0 && [h('span.mut', ' · '), h('button.link', { onclick: labelsSheet }, 'Labels (' + nl + ')')], h('span.mut', ' · '), h('button.link', { onclick: settingsDialog }, 'Settings')),
   );
 }
@@ -353,13 +353,30 @@ function settingsDialog() {
   };
   const url = h('input', { placeholder: 'Endpoint URL (Alchemy, Infura, your node)', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'RPC URL' }), add = h('button', 'Add');
   add.onclick = act(add, async () => { const c = await addRpc(url.value); url.value = ''; draw(); put(out, h('p.ok', 'Added for ' + label(c).name + '.')); reset(); }, out);
+  // roles.wei's gateway: one of the built-in ones (config/links.json) or your own.
+  const gws = LINK.roles || [], cur = rolesGateway(), gwOut = h('div');
+  const pick = h('select', { 'aria-label': 'roles.wei gateway' }, gws.map((u) => h('option', { value: u }, new URL(u).host)), h('option', { value: '' }, 'Custom…'));
+  const custom = h('input', { placeholder: 'Gateway URL', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Custom roles.wei gateway' });
+  pick.value = gws.includes(cur) ? cur : ''; custom.value = gws.includes(cur) ? '' : cur; custom.hidden = gws.includes(cur);
+  const choose = (v) => {
+    let u;
+    try { u = new URL(v); } catch { return put(gwOut, bad('Enter the gateway’s full https URL.')); }
+    if (u.protocol !== 'https:' || u.username || u.password) return put(gwOut, bad('Enter the gateway’s full https URL.'));
+    u.hash = ''; u.search = ''; if (!u.pathname.endsWith('/')) u.pathname += '/';
+    store('rolesgateway', u.href === ROLES_DEFAULT ? '' : u.href);
+    put(gwOut, h('p.ok', 'Roles modifiers open in ' + u.host + '.'));
+    footer();
+  };
+  pick.onchange = () => { custom.hidden = !!pick.value; if (pick.value) choose(pick.value); else custom.focus(); };
+  custom.onchange = () => custom.value.trim() && choose(custom.value.trim());
   draw();
-  put(body, h('div.bsec', h('b', 'RPC endpoints')), h('p.mut.small', 'Reads on an endpoint’s chain go there instead of your wallet’s RPC. Your wallet still signs. Kept in this browser.'), list, h('div.row', url, add), out);
+  put(body, gws.length > 0 && [h('div.bsec', h('b', 'roles.wei gateway')), h('p.mut.small', 'Where “Open in roles.wei” and the footer link go.'), h('div.gwpick', pick, custom), gwOut],
+    h('div.bsec', h('b', 'RPC endpoints')), h('p.mut.small', 'Reads on an endpoint’s chain go there instead of your wallet’s RPC. Your wallet still signs. Kept in this browser.'), list, h('div.row', url, add), out);
 }
 
 function labelsSheet() {
   const { body } = sheet('tag', 'Labels', true);
-  body.append(labelsView());
+  body.append(h('p.mut.small.lead', 'Your names for addresses, shown instead of the address everywhere in safe.wei. Kept in this browser.'), labelsView());
 }
 
 
@@ -946,7 +963,13 @@ function transactionsTab(s) {
   ];
 }
 
-/** "Zodiac Roles 2.1.1 · owner this Safe", filled in once the contract is recognized. */
+// Links from the config chunk (config/links.json; replacing them redeploys only that chunk): roles.wei on the
+// same gateway family as this page (safe.wei.is → roles.wei.is), else the first, and the source code.
+const LINK = typeof LINKS === 'object' && LINKS ? LINKS : {};
+const ROLES_DEFAULT = (() => { const all = LINK.roles || []; return all.find((u) => location.hostname.endsWith('.' + new URL(u).hostname.split('.').slice(1).join('.'))) || all[0] || ''; })();
+// Settings → roles.wei gateway: your choice (a built-in one or your own https URL), kept in this browser; the default is never saved.
+const rolesGateway = () => load('rolesgateway', '') || ROLES_DEFAULT;
+/** "Zodiac Roles 2.1.1 · owner this Safe" (with a link to manage it in roles.wei), filled in once the contract is recognized. */
 function whatIs(contract, s) {
   const el = h('div.modinfo');
   identify(contract).then(
@@ -956,6 +979,7 @@ function whatIs(contract, s) {
         z.name ? [h('span.chip.ok', 'Zodiac ' + z.name), z.faulty && [' ', h('span.chip.bad', 'faulty version')]] : h('span.chip', z.empty ? 'No contract here yet' : z.proxy ? 'Unknown contract (proxy to ' + short(z.impl) + ')' : 'Unknown contract'),
         z.owner && h('span', h('span.mut', 'Owner '), z.owner === s.address ? 'this Safe' : s.owners.includes(z.owner) ? [addr(z.owner, null, short(z.owner)), ' (an owner)'] : [h('b.bad', addr(z.owner, null, short(z.owner))), ' (not this Safe or an owner: it can reconfigure this module)']),
         z.faulty && warn('Zodiac lists ' + z.name + ' as a faulty version. Consider replacing it.'),
+        rolesGateway() && z.name === 'Roles 2.1.1' && h('div', h('a.btn.rolesweb', { href: rolesGateway() + '#/' + contract + '?chain=' + st.chainId, target: '_blank', rel: 'noopener' }, 'Open in roles.wei ↗')),
       ),
     () => {},
   );
@@ -1029,9 +1053,12 @@ function settingsTab(s) {
   const threshold = [h('div.row.inline', 'Any transaction requires', th, 'out of ' + n + ' owner' + (n > 1 ? 's' : '') + ' to approve.'), thActs, thOut];
 
   // Modules: can execute transactions without any owner signature.
-  const mods = h('div', h('p.mut', 'Loading modules…'));
+  const mods = h('div', h('p.mut', 'Loading modules…')), rolesSetup = h('div');
   modules(s.address).then(
-    (ms) =>
+    (ms) => (
+      // No Roles modifier yet: a quiet way to set one up in roles.wei (its wizard opens on this Safe and chain).
+      rolesGateway() && Promise.all(ms.map((m) => identify(m).catch(() => ({})))).then((zs) => !zs.some((z) => /^Roles /.test(z.name || '')) &&
+        put(rolesSetup, h('p.rolessetup', h('a', { href: rolesGateway() + '#/' + s.address + '?chain=' + st.chainId + '&create', target: '_blank', rel: 'noopener' }, 'Set up Zodiac Roles in roles.wei ↗'), h('span.mut', ' · give roles scoped permissions instead of full control'))), () => {}),
       put(
         mods,
         ms.length
@@ -1043,7 +1070,8 @@ function settingsTab(s) {
               })),
             ]
           : h('p.mut', 'No modules enabled. Only owner-approved transactions can move funds.'),
-      ),
+      )
+    ),
     (e) => put(mods, warn('Could not read modules: ' + e.message)),
   );
   const modIn = h('input', { placeholder: 'Module contract 0x…', spellcheck: 'false' }), modOut = h('div');
@@ -1059,6 +1087,7 @@ function settingsTab(s) {
     threshold,
     h('h2', 'Modules'),
     mods,
+    rolesSetup,
     enable,
     h('h2', 'Guard'),
     s.guard
@@ -2180,6 +2209,8 @@ async function footer() {
     $('foot'),
     h('span', 'safe.wei · build ', h('code', { title: 'git tree hash of src/ this page was built from' }, BUILD)),
     app ? h('span', ' · app ', addr(app, null, short(app), true), g.name && h('span.mut', ' via ' + g.name)) : g.local ? h('span', ' · local build') : g.name && h('span.mut', ' · connect on Ethereum to see which app ' + g.name + ' points to'),
+    rolesGateway() && h('span', ' · ', h('a', { href: rolesGateway(), target: '_blank', rel: 'noopener', title: 'Safe permissions (Zodiac Roles), also served onchain' }, 'roles.wei')),
+    LINK.source && h('span', ' · ', h('a', { href: LINK.source, target: '_blank', rel: 'noopener' }, 'source'))
   );
 }
 
