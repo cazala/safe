@@ -504,10 +504,11 @@ function labelsView() {
   return el;
 }
 
-function createView() {
-  const c = chain();
-  const owners = h('textarea', { placeholder: 'One owner per line: 0x address or name.eth / name.wei', spellcheck: 'false' }, st.account || '');
-  const threshold = h('input', { value: '1', inputmode: 'numeric' });
+// q: link prefills (docs/links.md): owners (comma-separated addresses or names) and threshold.
+function createView(q = new URLSearchParams()) {
+  const c = chain(), fromLink = q.has('owners') || q.has('threshold');
+  const owners = h('textarea', { placeholder: 'One owner per line: 0x address or name.eth / name.wei', spellcheck: 'false' }, q.has('owners') ? q.get('owners').split(',').map((x) => x.trim()).filter(Boolean).join('\n') : st.account || '');
+  const threshold = h('input', { value: /^\d+$/.test(q.get('threshold') || '') ? q.get('threshold') : '1', inputmode: 'numeric' });
   const rand = crypto.getRandomValues(new Uint8Array(8)).reduce((n, b) => n * 256n + BigInt(b), 0n);
   const salt = h('input', { value: String(rand) });
   const out = h('div'), plan = h('div');
@@ -564,8 +565,9 @@ function createView() {
     h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'Create a Safe'), h('p', 'A shared account on ' + c.name + ' that moves funds only with enough owner approvals.')),
     h(
       'div.panel',
+      fromLink && warn('Prefilled from a link. Check every owner and the threshold before reviewing.'),
       h('label', 'Owners'),
-      h('p.fhint', 'One per line: a 0x address or a name.eth / name.wei. Your wallet is filled in.'),
+      h('p.fhint', 'One per line: a 0x address or a name.eth / name.wei.' + (fromLink ? '' : ' Your wallet is filled in.')),
       owners,
       h('label', 'Threshold'),
       h('div.thresh', threshold, ofN),
@@ -1236,9 +1238,12 @@ const noteView = (data) => {
   );
 };
 
-function builder(s) {
+// q: link prefills (docs/links.md): to, value (wei) and data open the raw-calldata builder with that call.
+function builder(s, q = new URLSearchParams()) {
   const mode = h('select', h('option', { value: 'abi' }, 'Custom ABI'), h('option', { value: 'raw' }, 'Raw calldata'), h('option', { value: 'msg' }, 'Message (signed by the Safe)'));
   const to = h('input', { spellcheck: 'false' });
+  const fromLink = q.has('to') || q.has('data') || q.has('value');
+  if (fromLink) (mode.value = 'raw'), (to.value = q.get('to') || '');
   const abiText = h('textarea', { placeholder: '[{"type":"function","name":"stake","inputs":[…]}]  (a Hardhat/Foundry artifact, or one function signature per line, also works)', spellcheck: 'false', rows: 5 });
   const file = h('input', { type: 'file', accept: '.json,application/json' });
   const abiBox = h('div', h('label', 'Paste JSON ABI'), abiText, h('label', 'Or upload a .json file'), file);
@@ -1253,7 +1258,7 @@ function builder(s) {
     to.placeholder = (raw ? 'Address' : 'Contract address') + ' 0x… or name.eth / name.wei';
     abiBox.hidden = raw;
     put(methods);
-    if (raw) return put(methods, rawBuilder(s, to));
+    if (raw) return put(methods, fromLink && warn('Prefilled from a link. Check the destination, the amount and what the calldata does before reviewing.'), rawBuilder(s, to, fromLink ? q : null));
     if (!contract || !abiText.value.trim()) return;
     let fns;
     try {
@@ -1398,10 +1403,13 @@ function shape(p) {
 }
 
 /** Raw call: value, calldata, operation, nonce. The destination is the builder's "To" field. */
-function rawBuilder(s, to) {
+function rawBuilder(s, to, q) {
   const sym = chain().sym;
   const value = h('input', { placeholder: '0', inputmode: 'decimal' });
   const data = h('textarea', { placeholder: '0x (calldata, optional)', spellcheck: 'false' });
+  // From a link: value in wei (shown in the native unit), calldata as given.
+  if (q && /^\d+$/.test(q.get('value') || '')) value.value = fmt(BigInt(q.get('value')), 18).replace(/,/g, '');
+  if (q && q.get('data')) data.value = q.get('data');
   const op = h('select', h('option', { value: 0 }, 'CALL'), h('option', { value: 1 }, 'DELEGATECALL (dangerous)'));
   const nonce = h('input', { value: String(s.nonce) });
   const out = h('div');
@@ -1911,9 +1919,9 @@ async function route() {
   if (m && m[1] === 'new') m = null;
   try {
     if (path.startsWith('import=')) return put(main, home()), backupDialog(path);
-    if (path === '/new') {
+    if (path === '/new' || path.startsWith('/new?')) {
       if (!chain()) throw new Gate(connectView('create a Safe'));
-      return put(main, chain().canCreate ? createView() : bad('Safe’s contracts are not deployed on ' + chain().name + '.'));
+      return put(main, chain().canCreate ? createView(new URLSearchParams(path.split('?')[1] || '')) : bad('Safe’s contracts are not deployed on ' + chain().name + '.'));
     }
     if (path.startsWith('tx=')) (p = importPayload(path)), addHints(p.abi), (m = [0, p.tx.safe, 'review']);
     if (path.startsWith('msg=')) (pm = importMessage(path)), (m = [0, pm.msg.safe, 'review']);
@@ -1940,7 +1948,7 @@ async function route() {
     const s = st.safe;
     if (p) return showReview(p.tx, p.sigs, 'none');
     if (pm) return showMessage(pm.msg, pm.sigs, 'none');
-    const tabs = { assets: assetsTab, send: sendTab, batch: sendTab, transactions: transactionsTab, custom: builder, dapps: dappsTab, settings: settingsTab, setup: settingsTab };
+    const tabs = { assets: assetsTab, send: sendTab, batch: sendTab, transactions: transactionsTab, custom: (s) => builder(s, q), dapps: dappsTab, settings: settingsTab, setup: settingsTab };
     if (!tabs[tab]) return (location.hash = link('assets'));
     page(s, tab === 'batch' ? 'send' : tab, tab === 'send' || tab === 'batch' ? sendTab(s, tab === 'batch', q) : tabs[tab](s));
   } catch (e) {
