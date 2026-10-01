@@ -1,5 +1,7 @@
 # Links
 
+For agents, [skills/safe-wei/SKILL.md](../skills/safe-wei/SKILL.md) explains how to use these links.
+
 Every screen in safe.wei has a URL, and some URLs prefill a form. Everything lives in the URL fragment (after `#`), so it is never sent to a server. Links never approve, sign or submit anything: they open a screen, and a prefilled form says it came from a link so the user checks it before reviewing.
 
 This makes safe.wei easy to integrate with: a bot, a payroll script or another app can build a link with the fields filled in and send it to an owner, who opens it, checks it and signs.
