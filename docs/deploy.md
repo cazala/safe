@@ -118,7 +118,7 @@ Besides the onchain deploy, the same `dist/index.html` is served at **https://sa
 - every PR from this repository deploys a preview at `https://<branch>.safe-wei.pages.dev` and comments the URL on the PR (one comment, updated on each push).
 - one run per PR: a new commit cancels the PR's run in progress, so the preview is always the latest commit; on `main`, runs queue and are never cancelled mid-deploy.
 
-The site is the page plus a `_headers` file that refuses framing (`X-Frame-Options: DENY`, `frame-ancestors 'none'`); the app also refuses to run in a frame.
+The site is the page plus a `_headers` file that refuses framing (`X-Frame-Options: DENY`, `frame-ancestors 'none'`); the app also refuses to run in a frame. `scripts/pages.mjs` adds link-preview tags (description, Open Graph, `summary_large_image`) and their image, `pages/og.jpg`, to the web copy only: a preview image needs an absolute https URL, so the onchain page stays exactly `dist/index.html` and gateway links show no preview image.
 
 One-time setup (owner):
 

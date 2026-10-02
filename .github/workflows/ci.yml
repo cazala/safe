@@ -49,9 +49,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      # The page is one file; the site adds headers that refuse framing (the app refuses it too).
+      # The page is one file; the site adds link-preview tags and their image (scripts/pages.mjs, web copy only)
+      # and headers that refuse framing (the app refuses it too).
       - run: |
-          mkdir site && cp dist/index.html site/
+          node scripts/pages.mjs
           printf '/*\n  X-Frame-Options: DENY\n  Content-Security-Policy: frame-ancestors '"'"'none'"'"'\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer\n' > site/_headers
       - name: Create the Pages project if missing
         run: npx --yes wrangler@4 pages project create "$PROJECT" --production-branch=main || true
