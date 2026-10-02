@@ -95,7 +95,8 @@ Do not skip ahead: pointing `safe.wei` is the only step that changes what users 
    ```
    As of 2026-09-27, `safe.wei` (tokenId `0x5ee9ac06…c938c62d`) is owned by `0x3107af70f278d3824f9bab4222b3361a545356c2` and resolves to that same address. Send the printed `setAddr(uint256,address)` from that wallet. This was rehearsed on a mainnet fork by impersonating the owner.
 9. **Verify resolution:** re-run `node scripts/name.mjs --rpc <rpc> --app <app>` (it must say "already points at the app" and "html() matches"), then open `https://safe.wei.limo/` and run a small transaction.
-10. **Record** the deployment address, `contentHash` and runtime `codeHash` in the README.
+10. **Agent links:** once `https://safe.wei.limo/` loads the app, `skills/safe-wei/SKILL.md` and `scripts/tx-link.mjs` can default to it again (they use `https://safe.caza.la/` until `safe.wei` is deployed).
+11. **Record** the deployment address, `contentHash` and runtime `codeHash` in the README.
 
 ## Using safe.wei without any gateway or DNS
 
