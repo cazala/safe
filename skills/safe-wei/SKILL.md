@@ -7,7 +7,7 @@ description: Propose Safe (Gnosis Safe) multisig transactions for people to revi
 
 safe.wei is a Safe wallet interface that runs entirely in the browser and reads the chain through the user's wallet. Everything it does starts from a link: you build the link, a person opens it, checks it, and signs with their own wallet. **You never sign, send or hold keys.** A link only proposes; safe.wei recomputes everything it shows (the SafeTx hash against the Safe's own `getTransactionHash`, simulations, decoded calls) and never trusts the link.
 
-Gateways (any works; prefer the one the user uses): `https://safe.wei.limo/`, `https://safe.wei.is/`, `https://safe.caza.la/`. The full reference is `docs/links.md` in the safe.wei repository.
+Gateway: use `https://safe.caza.la/` unless the user uses another one. `https://safe.wei.limo/` and `https://safe.wei.is/` serve the onchain app once `safe.wei` is deployed; until then they do not load. The full reference is `docs/links.md` in the safe.wei repository.
 
 ## Pick the right link
 
@@ -25,12 +25,12 @@ Prefer the prefill links (`send`, `batch`, `custom`, `new`): they need no encodi
 
 ## Building links
 
-- Prefills: plain URL parameters; URL-encode values (`encodeURIComponent`). Example: send 250 USDC to vitalik.eth from treasury.wei: `https://safe.wei.limo/#/treasury.wei/send?to=vitalik.eth&amount=250&token=USDC`.
+- Prefills: plain URL parameters; URL-encode values (`encodeURIComponent`). Example: send 250 USDC to vitalik.eth from treasury.wei: `https://safe.caza.la/#/treasury.wei/send?to=vitalik.eth&amount=250&token=USDC`.
 - Calldata for `custom`: ABI-encode it yourself (any library), and double-check the function and arguments; the person sees the raw call and safe.wei's decoding of it.
 - `#tx=`: run, in a checkout of the safe.wei repository,
 
   ```bash
-  node scripts/tx-link.mjs plan.json --rpc <an RPC URL for the Safe's chain> [--gateway https://safe.wei.limo/]
+  node scripts/tx-link.mjs plan.json --rpc <an RPC URL for the Safe's chain> [--gateway https://safe.caza.la/]
   ```
 
   with `plan.json` `{ "safe": "0x…", "calls": [{ "to": "0x…", "value": "0", "data": "0x…", "signature": "transfer(address to, uint256 amount)" }], "nonce": "12" }` (`value` in wei; `signature` optional but include it, so owners read the call; `nonce` optional, default the current one; two or more calls become one MultiSendCallOnly batch). The script reads the nonce over the RPC and prints a link only if its SafeTx hash equals the Safe's `getTransactionHash`. Never hand-encode `#tx=`.

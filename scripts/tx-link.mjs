@@ -1,7 +1,7 @@
 // A safe.wei #tx= link (docs/links.md → Shared transactions) for one call or a batch, built and checked the way
 // safe.wei does it: the Safe's nonce is read over the RPC, and the locally computed SafeTx hash must equal the Safe's
 // own getTransactionHash before a link is printed. Only that RPC is contacted; nothing is signed or sent.
-//   node scripts/tx-link.mjs plan.json --rpc https://… [--gateway https://safe.wei.limo/]
+//   node scripts/tx-link.mjs plan.json --rpc https://… [--gateway https://safe.caza.la/]
 //   plan.json: { "safe": "0x…", "calls": [{ "to": "0x…", "value": "0", "data": "0x…", "signature": "transfer(address,uint256)" }], "nonce": "12" }
 // "value" is in wei (a decimal string); "signature" (optional, recommended) lets the owners read the call; "nonce"
 // (optional) queues the transaction at a later nonce. Two or more calls become one MultiSendCallOnly batch.
@@ -15,9 +15,9 @@ import { parseAbi, humanSig } from '../src/abicoder.js';
 
 const args = process.argv.slice(2), opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
 const file = args.find((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--')));
-const rpcUrl = opt('rpc'), gateway = opt('gateway', 'https://safe.wei.limo/');
+const rpcUrl = opt('rpc'), gateway = opt('gateway', 'https://safe.caza.la/');
 if (!file || !/^https?:\/\//.test(rpcUrl || '') || !/^(https:\/\/[^\s#?]+|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)\/$/.test(gateway)) {
-  console.error('Usage: node scripts/tx-link.mjs <plan.json | -> --rpc <url> [--gateway https://safe.wei.limo/]');
+  console.error('Usage: node scripts/tx-link.mjs <plan.json | -> --rpc <url> [--gateway https://safe.caza.la/]');
   process.exit(2);
 }
 let id = 1;
