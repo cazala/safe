@@ -30,8 +30,84 @@ export const removeRpc = (chain) => { const m = rpcs(); delete m[chain]; store('
 
 // Reads only: everything that signs, sends, or concerns the account or the chain stays with the wallet.
 const READS = new Set(['eth_call', 'eth_getBalance', 'eth_getCode', 'eth_getStorageAt', 'eth_getLogs', 'eth_blockNumber', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_getTransactionByHash', 'eth_getTransactionReceipt', 'eth_getTransactionCount', 'eth_estimateGas', 'eth_gasPrice', 'eth_feeHistory', 'eth_maxPriorityFeePerGas']);
-/** The wallet's provider, with reads sent to your endpoint for `chain()` when there is one. */
+// An Etherscan API key (optional, kept in this browser): history scans read event logs from Etherscan's index in a
+// few requests instead of block by block. Etherscan is trusted to return every log; each block a log comes from is
+// checked against the chain's own header, and every log is still decoded and checked as before. docs/spec.md §27f.
+export const explorerKey = () => String(load('explorerkey', '') || '');
+export function setExplorerKey(k) {
+  k = String(k || '').trim();
+  if (k && !/^[A-Za-z0-9]{20,64}$/.test(k)) throw Error('That does not look like an Etherscan API key.');
+  store('explorerkey', k);
+  return k;
+}
+// The free plan allows a few requests a second: one at a time, spaced, retried on its rate limit.
+let lane = Promise.resolve();
+function etherscan(q) {
+  const run = async () => {
+    for (let i = 0; ; i++) {
+      const r = await fetch('https://api.etherscan.io/v2/api?' + q).then((x) => x.json(), (e) => Promise.reject(Error('Etherscan could not be reached (' + e.message + ').')));
+      if (i < 2 && r.status === '0' && /rate limit/i.test(r.result + ' ' + r.message)) { await new Promise((ok) => setTimeout(ok, 1100)); continue; }
+      return r;
+    }
+  };
+  const next = lane.then(run);
+  lane = next.catch(() => {}).then(() => new Promise((ok) => setTimeout(ok, 250)));
+  return next;
+}
+const hx = (v) => '0x' + BigInt(!v || v === '0x' ? 0 : v).toString(16); // Etherscan writes zero as "0x"; RPCs refuse leading zeros
+/** eth_getLogs from Etherscan's index: the whole range, in pages of 1,000, as RPC logs. */
+async function explorerLogs(key, chain, { address, topics, fromBlock, toBlock }) {
+  const out = [], seen = new Set(), to = toBlock === 'latest' ? toBlock : Number(toBlock);
+  let from = Number(fromBlock), page = 1;
+  for (;;) {
+    const q = new URLSearchParams({ chainid: chain, module: 'logs', action: 'getLogs', address, fromBlock: from, toBlock: to, page, offset: 1000, apikey: key });
+    if (topics && topics[0]) q.set('topic0', topics[0]);
+    const r = await etherscan(q);
+    if (r.status !== '1' && !/no records/i.test(r.message || '')) throw Error('Etherscan: ' + (typeof r.result === 'string' ? r.result : r.message || 'request failed') + '. Check the key in ▾ → Settings.');
+    const list = Array.isArray(r.result) ? r.result : [];
+    for (const l of list) {
+      const log = { address: l.address.toLowerCase(), topics: l.topics.filter(Boolean), data: l.data, blockNumber: hx(l.blockNumber), blockHash: l.blockHash, transactionHash: l.transactionHash, logIndex: hx(l.logIndex) };
+      const k = log.transactionHash + ':' + Number(log.logIndex);
+      if (!seen.has(k)) seen.add(k), out.push(log);
+    }
+    if (list.length < 1000) break;
+    // Pages stop at 10,000 results: continue from the last block seen (duplicates are dropped).
+    if (page < 10) page++;
+    else (from = Number(list[list.length - 1].blockNumber)), (page = 1);
+  }
+  return out;
+}
+
+/** The wallet's provider, with reads sent to your endpoint for `chain()` when there is one, and logs to Etherscan with a key. */
 export function reader(provider, chain) {
   if (!provider) return provider;
-  return { request: (a) => { const u = READS.has(a.method) && rpcs()[chain()]; return u ? post(u, a.method, a.params) : provider.request(a); } };
+  const checked = new Map(); // block → hash, already checked against the chain
+  const r = {
+    request: async (a) => {
+      if (a.method === 'eth_getLogs' && explorerKey()) {
+        const logs = await explorerLogs(explorerKey(), chain(), a.params[0]), blocks = [...new Set(logs.map((l) => l.blockNumber))];
+        // Four header checks at a time (a long history is thousands of blocks), retried when the RPC throttles,
+        // and each block checked once per session.
+        const check = async (b) => {
+          const want = logs.find((l) => l.blockNumber === b).blockHash;
+          if (checked.get(b) === want) return;
+          for (let i = 0; ; i++) {
+            try {
+              const head = await r.request({ method: 'eth_getBlockByNumber', params: [b, false] });
+              if (!head || head.hash !== want) throw Object.assign(Error('Etherscan returned a log in block ' + Number(b) + ' that does not match the chain. Remove the Etherscan key in ▾ → Settings and try again.'), { final: true });
+              return checked.set(b, want);
+            } catch (e) {
+              if (e.final || i > 4 || !/rate|limit|capacity|too many|429|busy|timeout/i.test(e.message)) throw e;
+              await new Promise((ok) => setTimeout(ok, 500 * 2 ** i));
+            }
+          }
+        };
+        for (let i = 0; i < blocks.length; i += 4) await Promise.all(blocks.slice(i, i + 4).map(check));
+        return logs;
+      }
+      const u = READS.has(a.method) && rpcs()[chain()];
+      return u ? post(u, a.method, a.params) : provider.request(a);
+    },
+  };
+  return r;
 }
