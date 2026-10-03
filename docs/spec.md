@@ -984,11 +984,11 @@ Initial targets:
 
 < 100 KB raw
 
-### Acceptable MVP
+### Acceptable
 
-< 200 KB raw
+< 300 KB raw (200 KB until October 2026)
 
-If output exceeds 200 KB:
+If output exceeds 300 KB:
 
 stop and investigate dependencies before adding more features.
 

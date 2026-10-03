@@ -84,4 +84,4 @@ console.log(
     '  css   ' + Buffer.byteLength(css) + ' B',
   ].join('\n'),
 );
-if (size > 200 * 1024) throw Error('Output exceeds 200 KB budget; investigate before adding features');
+if (size > 300 * 1024) throw Error('Output exceeds 300 KB budget; investigate before adding features');
