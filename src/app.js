@@ -966,7 +966,8 @@ function historyView(s) {
   const tip = () => !r.wide && r.next >= 0 && h('span', ' ', h('button.link', { onclick: settingsDialog }, 'Add an Etherscan key'), ' to search the whole history at once.');
   const draw = () => {
     put(list, r.entries.length ? r.entries.map(row) : h('p.empty', 'No executed transactions found yet.'));
-    put(status, r.head == null ? 'Executed here, kept in this browser.' : r.wide && !r.error ? 'Searched the whole history, through Etherscan.' : 'Searched the last ' + (r.head - r.next).toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.'), r.error && ' This RPC does not serve older logs.', tip());
+    put(status, r.head == null ? 'Executed here, kept in this browser.' : r.wide ? (r.error ? '' : 'Searched the whole history, through Etherscan.') : 'Searched the last ' + (r.head - r.next).toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.'),
+      r.error && [r.wide ? 'Etherscan could not finish the search.' : ' This RPC does not serve older logs.', h('details.err', h('summary', 'Details'), h('code', r.error.slice(0, 300)))], tip());
     more.disabled = r.head == null || r.next < 0 || !!r.error;
   };
   const busy = (p) => (put(status, (explorerKey() ? 'Searching the whole history through Etherscan' : 'Searching executed transactions') + ' · ' + Math.floor(100 * p) + '%', meter, !explorerKey() && h('div', tip())), (fill.style.width = 100 * p + '%'));

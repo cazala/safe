@@ -34,9 +34,10 @@ function fromExec(s, d, hash, guess) {
   try {
     const r = d.slice(8);
     const t = { chainId: s.chainId, safe: s.address, to: a(r, 0), value: u(r, 1), data: dbytes(r, 2), operation: Number(u(r, 3)), safeTxGas: u(r, 4), baseGas: u(r, 5), gasPrice: u(r, 6), gasToken: a(r, 7), refundReceiver: a(r, 8) };
-    // The nonce is not in the call: try the expected one first, then the rest.
-    const n = Number(s.nonce), order = [guess, ...Array.from({ length: n }, (_, i) => guess - 1 - i).filter((x) => x >= 0), ...Array.from({ length: n }, (_, i) => guess + 1 + i).filter((x) => x < n)];
-    for (const k of order) if (k >= 0 && safeTxHash({ ...t, nonce: BigInt(k) }) === hash) return { ...t, nonce: BigInt(k) };
+    // The nonce is not in the call: try the expected one, then outward from it (failed executions shift it).
+    const n = Number(s.nonce);
+    for (let d = 0; d < n; d++)
+      for (const k of d ? [guess - d, guess + d] : [guess]) if (k >= 0 && k < n && safeTxHash({ ...t, nonce: BigInt(k) }) === hash) return { ...t, nonce: BigInt(k) };
   } catch {}
   return null;
 }
@@ -57,7 +58,7 @@ export async function scanHistory(s, { blocks = 50000, step = 5000, end, progres
     try {
       logs = await rpc('eth_getLogs', [{ address: s.address, topics: [T.ExecutionSuccess], fromBlock: hx(start), toBlock: hx(end) }]);
     } catch (e) {
-      if (win > 16) {
+      if (win > 16 && !wide) {
         win = Math.floor(win / 2);
         continue;
       }
