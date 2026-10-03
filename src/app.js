@@ -89,7 +89,7 @@ function useWallet(w) {
   const old = wallet && wallet.provider;
   if (old && old.removeListener) old.removeListener('chainChanged', reset), old.removeListener('accountsChanged', reset);
   wallet = w;
-  rpc.use(w && reader(w.provider, () => st.chainId)); // reads to your RPC endpoint for the chain, if you added one
+  rpc.use(w && reader(w.provider, () => st.chainId, () => wcProject())); // reads to your RPC endpoint for the chain, if you added one; old history to WalletConnect's
   if (w && w.provider.on) w.provider.on('chainChanged', reset), w.provider.on('accountsChanged', reset);
 }
 
@@ -973,7 +973,8 @@ function historyView(s) {
   const draw = () => {
     put(list, r.entries.length ? r.entries.map(row) : h('p.empty', 'No executed transactions found yet.'));
     put(status, r.head == null ? 'Executed here, kept in this browser.' : r.wide ? (r.error ? '' : 'Searched the whole history, through Etherscan.') : 'Searched the last ' + (r.head - r.next).toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.'),
-      r.error && [r.wide ? 'Etherscan could not finish the search.' : ' This RPC does not serve older logs.', h('details.err', h('summary', 'Details'), h('code', r.error.slice(0, 300)))], tip());
+      r.error && [r.wide ? 'Etherscan could not finish the search.' : ' This RPC does not serve older logs.', h('details.err', h('summary', 'Details'), h('code', r.error.slice(0, 300)))],
+      r.skipped > 0 && ' ' + r.skipped + (r.skipped > 1 ? ' executions' : ' execution') + ' could not be read: no RPC served the transaction.', tip());
     more.disabled = r.head == null || r.next < 0 || !!r.error;
   };
   const busy = (p) => (put(status, (explorerKey() ? 'Searching the whole history through Etherscan' : 'Searching executed transactions') + ' · ' + Math.floor(100 * p) + '%', meter, !explorerKey() && h('div', tip())), (fill.style.width = 100 * p + '%'));

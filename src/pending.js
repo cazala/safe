@@ -54,7 +54,7 @@ export async function scan(s, { blocks = 50000, step = 5000, end, progress } = {
     }
     for (const l of logs) {
       if (found.has(l.topics[1])) continue;
-      const tx = await rpc('eth_getTransactionByHash', [l.transactionHash]);
+      const tx = await rpc('eth_getTransactionByHash', [l.transactionHash]).catch(() => null); // one no RPC serves is skipped
       const p = tx && fromApproval(s, tx);
       if (p && p.hash === l.topics[1] && p.tx.nonce >= s.nonce) found.set(p.hash, { ...p, block: Number(l.blockNumber) });
     }
