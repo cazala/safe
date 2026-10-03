@@ -964,8 +964,20 @@ function historyView(s) {
       [h('b', 'Nonce ' + e.nonce), chip('executed', '.ok')],
       [what(t), ' → ', addr(t.to, null, short(t.to))],
       ['Executed in ', addr(e.txHash, null, short(e.txHash))],
-      [button('Review again', async () => ((st.named = {}), showReview(newTx(s, { to: t.to, value: t.value, data: t.data, operation: t.operation }))), o),
-        calls && chain().canBatch && button('Add to batch', async () => calls.forEach((c) => queue({ to: c.to, value: c.value, data: c.data })), o)],
+      [button('Redo', async () => ((st.named = {}), showReview(newTx(s, { to: t.to, value: t.value, data: t.data, operation: t.operation }))), o),
+        calls && chain().canBatch && button('Add to batch', async () => calls.forEach((c) => queue({ to: c.to, value: c.value, data: c.data })), o),
+        calls && h('button', { onclick: () => {
+          const name = h('input', { value: what(t) + ' · ' + short(t.to), 'aria-label': 'Name for this transaction' });
+          const keep = button('Save', async () => {
+            putCalls([...callsOf(), { name: name.value.trim().slice(0, 60) || what(t), to: t.to, value: String(t.value), data: t.data, operation: t.operation, sig: '', human: '', line: '', vals: [], hints: e.hints || [] }]);
+            put(o, h('p.ok', '\u2713 Saved. It is listed under Saved calls in Custom.'));
+          }, o, '.primary');
+          name.onkeydown = (k) => {
+            if (k.key === 'Enter') keep.click();
+          };
+          put(o, h('div.row.savecall', name, keep));
+          name.select();
+        } }, 'Save\u2026')],
       o,
     );
   };
@@ -988,7 +1000,7 @@ function historyView(s) {
   draw();
   // After the pending scan, so the two do not compete for the RPC.
   loadPending(s).catch(() => {}).then(() => run()).catch((e) => put(status, warn('Could not search executed transactions: ' + e.message)));
-  return [h('h2', 'History'), h('p.mut', 'Executed transactions: those executed here, and those found onchain (each checked against its SafeTx hash). Review one again, or add its calls to the batch.'), list, status, h('div.actions', more)];
+  return [h('h2', 'History'), h('p.mut', 'Executed transactions: those executed here, and those found onchain (each checked against its SafeTx hash). Redo one at the current nonce, add its calls to the batch, or save it for later.'), list, status, h('div.actions', more)];
 }
 
 function transactionsTab(s) {
@@ -1338,10 +1350,12 @@ function builder(s, q = new URLSearchParams()) {
       l.length > 0 && [
         h('h3', 'Saved calls'),
         h('div.slist', l.map((c, i) => {
-          const o = h('div'), call = () => (addHints([c.human]), { to: c.to, value: BigInt(c.value), data: c.data });
-          return h('div.srow.saved', h('span.nline', h('b.name', c.name), h('code.sa', c.human.split('(')[0] + ' · ' + short(c.to))), h('span.grow'),
-            h('span.sacts', button('Review', async () => showReview(newTx(s, call())), o), chain().canBatch && button('Add to batch', async () => queue(call()), o),
-              h('button', { onclick: () => edit(c) }, 'Edit'),
+          // A call saved from a method card, or a transaction saved from History (one call, or a whole batch).
+          const o = h('div'), t = newTx(s, { to: c.to, value: BigInt(c.value), data: c.data, operation: c.operation || 0 });
+          const use = () => (addHints([c.human, ...(c.hints || [])].filter(Boolean)), t);
+          return h('div.srow.saved', h('span.nline', h('b.name', c.name), h('code.sa', (c.human ? c.human.split('(')[0] : (use(), what(t))) + ' · ' + short(c.to))), h('span.grow'),
+            h('span.sacts', button('Review', async () => showReview(newTx(s, use())), o), chain().canBatch && button('Add to batch', async () => (unpack(use()) || [t]).forEach((x) => queue({ to: x.to, value: x.value, data: x.data })), o),
+              c.line && h('button', { onclick: () => edit(c) }, 'Edit'),
               h('button.ib', { title: 'Delete', 'aria-label': 'Delete ' + c.name, onclick: () => (putCalls(callsOf().filter((_, j) => j !== i)), drawSaved()) }, icon(...ICONS.close))), o);
         })),
       ],
