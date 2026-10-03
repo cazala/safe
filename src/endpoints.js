@@ -81,16 +81,28 @@ async function explorerLogs(key, chain, { address, topics, fromBlock, toBlock })
 /** The wallet's provider, with reads sent to your endpoint for `chain()` when there is one, and logs to Etherscan with a key. */
 export function reader(provider, chain) {
   if (!provider) return provider;
+  const checked = new Map(); // block → hash, already checked against the chain
   const r = {
     request: async (a) => {
       if (a.method === 'eth_getLogs' && explorerKey()) {
         const logs = await explorerLogs(explorerKey(), chain(), a.params[0]), blocks = [...new Set(logs.map((l) => l.blockNumber))];
-        // Six header checks at a time: a long history is thousands of blocks.
+        // Four header checks at a time (a long history is thousands of blocks), retried when the RPC throttles,
+        // and each block checked once per session.
         const check = async (b) => {
-          const head = await r.request({ method: 'eth_getBlockByNumber', params: [b, false] });
-          if (!head || head.hash !== logs.find((l) => l.blockNumber === b).blockHash) throw Error('Etherscan returned a log in block ' + Number(b) + ' that does not match the chain. Remove the Etherscan key in ▾ → Settings and try again.');
+          const want = logs.find((l) => l.blockNumber === b).blockHash;
+          if (checked.get(b) === want) return;
+          for (let i = 0; ; i++) {
+            try {
+              const head = await r.request({ method: 'eth_getBlockByNumber', params: [b, false] });
+              if (!head || head.hash !== want) throw Object.assign(Error('Etherscan returned a log in block ' + Number(b) + ' that does not match the chain. Remove the Etherscan key in ▾ → Settings and try again.'), { final: true });
+              return checked.set(b, want);
+            } catch (e) {
+              if (e.final || i > 4 || !/rate|limit|capacity|too many|429|busy|timeout/i.test(e.message)) throw e;
+              await new Promise((ok) => setTimeout(ok, 500 * 2 ** i));
+            }
+          }
         };
-        for (let i = 0; i < blocks.length; i += 6) await Promise.all(blocks.slice(i, i + 6).map(check));
+        for (let i = 0; i < blocks.length; i += 4) await Promise.all(blocks.slice(i, i + 4).map(check));
         return logs;
       }
       const u = READS.has(a.method) && rpcs()[chain()];
