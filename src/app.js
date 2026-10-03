@@ -956,7 +956,7 @@ function what(t) {
 /** History: executed transactions, kept here and found onchain; each can be reviewed again or added to the batch. */
 function historyView(s) {
   const list = h('div'), status = h('p.mut'), fill = h('span'), meter = h('div.meter', fill);
-  let r = { entries: historyOf(s) };
+  let r = { entries: historyOf(s) }, searching = true;
   const row = (e) => {
     addHints(e.hints);
     const t = toTx(s, e), calls = unpack(t) || (t.operation === 0 && [t]), o = h('div');
@@ -983,22 +983,34 @@ function historyView(s) {
   };
   const tip = () => !r.wide && r.next >= 0 && h('span', ' ', h('button.link', { onclick: settingsDialog }, 'Add an Etherscan key'), ' to search the whole history at once.');
   const draw = () => {
-    put(list, r.entries.length ? r.entries.map(row) : h('p.empty', 'No executed transactions found yet.'));
+    put(list, r.entries.length ? r.entries.map(row) : h('p.empty', searching ? 'Searching for executed transactions…' : 'No executed transactions found.'));
     put(status, r.head == null ? 'Executed here, kept in this browser.' : r.wide ? (r.error ? '' : 'Searched the whole history, through Etherscan.') : 'Searched the last ' + (r.head - r.next).toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.'),
       r.error && [r.wide ? 'Etherscan could not finish the search.' : ' This RPC does not serve older logs.', h('details.err', h('summary', 'Details'), h('code', r.error.slice(0, 300)))],
       r.skipped > 0 && ' ' + r.skipped + (r.skipped > 1 ? ' executions' : ' execution') + ' could not be read: no RPC served the transaction.', tip());
     more.disabled = r.head == null || r.next < 0 || !!r.error;
   };
-  const busy = (p) => (put(status, (explorerKey() ? 'Searching the whole history through Etherscan' : 'Searching executed transactions') + ' · ' + Math.floor(100 * p) + '%', meter, !explorerKey() && h('div', tip())), (fill.style.width = 100 * p + '%'));
+  // While it searches: what it is doing, and a bar (moving while there is no share to show yet).
+  const busy = (p, x) => {
+    put(status, x ? 'Reading executions · ' + x.read + ' of ' + x.of : p == null ? (explorerKey() ? 'Searching the whole history through Etherscan…' : 'Searching for executed transactions…') : 'Searching executed transactions · ' + Math.floor(100 * p) + '%', meter, !explorerKey() && !x && h('div', tip()));
+    meter.classList.toggle('wait', !x && p == null);
+    fill.style.width = x ? (100 * x.read) / x.of + '%' : p == null ? '' : 100 * p + '%';
+  };
   let top; // where the first search started: the status counts from there
   const run = async (end) => {
-    const x = await scanHistory(s, { end, progress: busy });
-    top = top ?? x.head;
-    r = { ...x, head: top };
-    draw();
+    searching = true;
+    busy(null);
+    try {
+      const x = await scanHistory(s, { end, progress: busy });
+      top = top ?? x.head;
+      r = { ...x, head: top };
+    } finally {
+      searching = false;
+      draw();
+    }
   };
   const more = button('Search older blocks', () => run(r.next), status);
   draw();
+  busy(null); // searching from the start: the pending scan goes first
   // After the pending scan, so the two do not compete for the RPC.
   loadPending(s).catch(() => {}).then(() => run()).catch((e) => put(status, warn('Could not search executed transactions: ' + e.message)));
   return [h('h2', 'History'), h('p.mut', 'Executed transactions: those executed here, and those found onchain (each checked against its SafeTx hash). Redo one at the current nonce, add its calls to the batch, or save it for later.'), list, status, h('div.actions', more)];

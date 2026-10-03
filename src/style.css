@@ -522,3 +522,5 @@ p.rolessetup { margin: 8px 0 10px; font-size: 13px; }
 .meter { height: 3px; margin: 8px 0; border-radius: 2px; background: var(--line); overflow: hidden; }
 .meter span { display: block; width: 0; height: 100%; background: var(--fg); transition: width .2s; }
 .srow.saved .sa { margin-left: 10px; }
+.meter.wait span { width: 30%; animation: meterwait 1.2s ease-in-out infinite; }
+@keyframes meterwait { from { transform: translateX(-100%); } to { transform: translateX(340%); } }

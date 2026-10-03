@@ -44,7 +44,8 @@ function fromExec(s, d, hash, guess) {
 
 /**
  * Scan ExecutionSuccess logs backwards from `end` (default: latest) over `blocks` blocks (all of them with an
- * Etherscan key), decode each execution and add it to the history. Returns { entries, head, next, wide, error }.
+ * Etherscan key), decode each execution and add it to the history. Returns { entries, head, next, wide, error, skipped }.
+ * `progress(share)` follows the block windows; `progress(null, { read, of })` the executions being read.
  */
 export async function scanHistory(s, { blocks = 50000, step = 5000, end, progress } = {}) {
   end = end ?? Number(await rpc('eth_blockNumber'));
@@ -65,8 +66,10 @@ export async function scanHistory(s, { blocks = 50000, step = 5000, end, progres
       error = e.message || String(e);
       break;
     }
-    // Newest first: the expected nonce counts down from the Safe's current one.
+    // Newest first: the expected nonce counts down from the Safe's current one. Each one read is reported.
+    let k = 0;
     for (const l of logs.sort((x, y) => Number(y.blockNumber) - Number(x.blockNumber) || Number(y.logIndex) - Number(x.logIndex))) {
+      progress && progress(null, { read: ++k, of: logs.length });
       const hash = l.topics[1] || '0x' + strip(l.data).slice(0, 64), guess = Number(s.nonce) - 1 - rank++;
       if (have.has(hash)) continue;
       // An execution whose transaction no RPC serves any more is skipped and counted, not a reason to stop.
