@@ -106,3 +106,11 @@ test('backups: saved calls (optional key) are kept when well formed, dropped oth
   assert.deepEqual(d.calls, { 1: [good, good] });
   assert.deepEqual((await parse(JSON.stringify({ app: 'safe.wei', v: 1, safes: [] }))).calls, {});
 });
+
+test('backups: a saved transaction may be a batch (DELEGATECALL only into the canonical MultiSendCallOnly)', async () => {
+  const { MULTISEND } = await import('../../src/chains.js');
+  const base = { name: 'Payroll', value: '0', data: '0x8d80ff0a', sig: '', human: '', line: '', vals: [] };
+  const batch = { ...base, to: MULTISEND[0], operation: 1, hints: ['transfer(address to, uint256 amount)'] };
+  const d = await parse(JSON.stringify({ app: 'safe.wei', v: 1, safes: [], calls: { 1: [batch, { ...base, to: '0xae7ab96520de3a18e5e111b5eaab095312d7fe84', operation: 1 }, { ...base, to: MULTISEND[0], operation: 2 }] } }));
+  assert.deepEqual(d.calls, { 1: [batch] });
+});
