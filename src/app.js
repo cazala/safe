@@ -1694,6 +1694,8 @@ function nextStep(r) {
     };
     const executed = async (rc) => {
       record(s, t, rc.transactionHash, hintsFor(t));
+      st.used[s.chainId + ':' + s.address] = t.nonce + 1n;
+      if (st.safe && st.safe.address === s.address && st.safe.nonce <= t.nonce) st.safe.nonce = t.nonce + 1n;
       if (wcFor(t)) wcAnswer(rc.transactionHash);
       if (r.batch) (st.batch = []), (st.batchNames = {});
       st.stale = true;
@@ -2062,7 +2064,7 @@ async function route() {
     st.intent = false;
     if (!st.safe || st.safe.address !== address || st.stale) {
       if (!st.safe || st.safe.address !== address) put(main, h('p.mut', 'Loading ' + ref + '…'));
-      const s = await readSafe(address);
+      const s = fresh(await readSafe(address));
       if (n !== seq) return;
       if (!st.safe || st.safe.address !== s.address) (st.refName = isAddr(ref) ? null : ref), (st.safeName = (recent.find(s.chainId, s.address) || {}).label || st.refName || labels.get(s.address));
       recent.touch(s.chainId, s.address, isAddr(ref) ? null : ref);
@@ -2231,14 +2233,22 @@ function renderWcBar() {
   );
 }
 
+// Nonces used by executions here, per Safe: an RPC a block behind may still report the old nonce, and a
+// transaction built on it would fail (a dapp's second transaction right after its first, say).
+st.used = {};
+const fresh = (s) => {
+  const n = st.used[s.chainId + ':' + s.address];
+  return n && s.nonce < n ? { ...s, nonce: n } : s;
+};
+
 /** Open a dapp's request in the normal review (switching Safe, and asking the wallet to switch chain, if needed). */
 async function wcOpen(r, s) {
   if (st.chainId !== s.chainId) return switchChain(s.chainId);
-  if (!st.safe || st.safe.address !== s.account) {
-    st.safe = await readSafe(s.account);
-    st.ref = s.account;
-    st.safeName = (recent.find(s.chainId, s.account) || {}).label || null;
-  }
+  // Always read the Safe again: a dapp often sends its next transaction right after the last one executed.
+  const other = !st.safe || st.safe.address !== s.account;
+  st.safe = fresh(await readSafe(s.account));
+  st.stale = false;
+  if (other) (st.ref = s.account), (st.safeName = (recent.find(s.chainId, s.account) || {}).label || null);
   const p = r.params || [], base = { topic: r.topic, id: r.id, method: r.method, peer: s.peer, safe: s.account };
   st.named = {};
   if (r.method === 'eth_sendTransaction') {
