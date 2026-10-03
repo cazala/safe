@@ -943,6 +943,10 @@ function bulkForm(s, q) {
   );
 }
 
+/** A row of Pending or History: nonce and status, what it does, where it came from; the actions on the right. */
+const txRow = (head, main, meta, acts, out = null) =>
+  h('div.card.txrow', h('div.txmain', h('div.txhead', ...head), h('div.txwhat', ...main), h('div.txmeta', ...meta), out), h('div.txacts', ...acts));
+
 /** What a transaction does, in a few words (the rows of Pending and History). */
 function what(t) {
   const b = unpack(t), d = !b && decode(t), hm = !b && !d && hintOf(t.data);
@@ -956,12 +960,14 @@ function historyView(s) {
   const row = (e) => {
     addHints(e.hints);
     const t = toTx(s, e), calls = unpack(t) || (t.operation === 0 && [t]), o = h('div');
-    return h('div.card.txrow',
-      h('div', h('b', 'Nonce ' + e.nonce), chip('executed', '.ok')),
-      h('div', what(t), ' → ', addr(t.to, null, short(t.to))),
-      h('div.mut', 'Executed in ', addr(e.txHash, null, short(e.txHash))),
-      h('div.actions', button('Review again', async () => ((st.named = {}), showReview(newTx(s, { to: t.to, value: t.value, data: t.data, operation: t.operation }))), o),
-        calls && chain().canBatch && button('Add to batch', async () => calls.forEach((c) => queue({ to: c.to, value: c.value, data: c.data })), o)), o);
+    return txRow(
+      [h('b', 'Nonce ' + e.nonce), chip('executed', '.ok')],
+      [what(t), ' → ', addr(t.to, null, short(t.to))],
+      ['Executed in ', addr(e.txHash, null, short(e.txHash))],
+      [button('Review again', async () => ((st.named = {}), showReview(newTx(s, { to: t.to, value: t.value, data: t.data, operation: t.operation }))), o),
+        calls && chain().canBatch && button('Add to batch', async () => calls.forEach((c) => queue({ to: c.to, value: c.value, data: c.data })), o)],
+      o,
+    );
   };
   const tip = () => !r.wide && r.next >= 0 && h('span', ' ', h('button.link', { onclick: settingsDialog }, 'Add an Etherscan key'), ' to search the whole history at once.');
   const draw = () => {
@@ -993,12 +999,11 @@ function transactionsTab(s) {
       seen.add(p.hash);
       addHints(p.abi);
       list.append(
-        h(
-          'div.card.txrow',
-          h('div', h('b', 'Nonce ' + p.tx.nonce), p.tx.nonce > s.nonce ? chip('queued') : chip('next', '.ok')),
-          h('div', what(p.tx), ' → ', addr(p.tx.to, null, short(p.tx.to))),
-          h('div.mut', 'Proposed by ', addr(p.proposer, null, short(p.proposer)), ' · SafeTx ', addr(p.hash, null, short(p.hash))),
-          h('button', { onclick: () => ((st.named = {}), showReview(p.tx)) }, 'Review'),
+        txRow(
+          [h('b', 'Nonce ' + p.tx.nonce), p.tx.nonce > s.nonce ? chip('queued') : chip('next', '.ok')],
+          [what(p.tx), ' → ', addr(p.tx.to, null, short(p.tx.to))],
+          ['Proposed by ', addr(p.proposer, null, short(p.proposer)), ' · SafeTx ', addr(p.hash, null, short(p.hash))],
+          [h('button', { onclick: () => ((st.named = {}), showReview(p.tx)) }, 'Review')],
         ),
       );
     }
