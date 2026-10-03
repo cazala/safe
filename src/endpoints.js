@@ -78,6 +78,30 @@ async function explorerLogs(key, chain, { address, topics, fromBlock, toBlock })
   return out;
 }
 
+/**
+ * A contract's verified ABI from Etherscan, merged with its implementation's for a proxy (JSON text), or null when
+ * it is not verified. Only used to build calls: a function's selector comes from its name and types, so an ABI
+ * cannot make one call look like another.
+ */
+export async function explorerAbi(chain, address) {
+  const get = async (a) => {
+    const r = await etherscan(new URLSearchParams({ chainid: chain, module: 'contract', action: 'getsourcecode', address: a, apikey: explorerKey() }));
+    if (r.status !== '1' || !Array.isArray(r.result) || !r.result[0]) throw Error('Etherscan: ' + (typeof r.result === 'string' ? r.result : r.message || 'request failed'));
+    return r.result[0];
+  };
+  const c = await get(address), all = [];
+  if (String(c.ABI).startsWith('[')) all.push(...JSON.parse(c.ABI));
+  if (c.Proxy === '1' && /^0x[0-9a-fA-F]{40}$/.test(c.Implementation || '')) {
+    const i = await get(c.Implementation.toLowerCase());
+    if (String(i.ABI).startsWith('[')) all.push(...JSON.parse(i.ABI));
+  }
+  const seen = new Set(), abi = all.filter((f) => {
+    const k = f.type + ' ' + f.name + '(' + (f.inputs || []).map((x) => x.type).join(',') + ')';
+    return !seen.has(k) && seen.add(k);
+  });
+  return abi.length ? JSON.stringify(abi) : null;
+}
+
 /** The wallet's provider, with reads sent to your endpoint for `chain()` when there is one, and logs to Etherscan with a key. */
 export function reader(provider, chain) {
   if (!provider) return provider;

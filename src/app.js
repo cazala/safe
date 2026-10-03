@@ -4,7 +4,7 @@ import { chainInfo, gatewayOf, handlerName, KNOWN_IDS, label } from './chains.js
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review, signMessageOf } from './review.js';
 import * as rpc from './rpc.js';
-import { reader, rpcs, addRpc, removeRpc, explorerKey, setExplorerKey } from './endpoints.js';
+import { reader, rpcs, addRpc, removeRpc, explorerAbi, explorerKey, setExplorerKey } from './endpoints.js';
 import { create, createCall, modules, newTx, predict, readSafe, safeTxHash, SENTINEL } from './safe.js';
 import { compact, fragment, importMessage, importPayload, messageFragment, toJSON } from './share.js';
 import { payloadGas, scan } from './pending.js';
@@ -372,11 +372,11 @@ function settingsDialog() {
   custom.onchange = () => custom.value.trim() && choose(custom.value.trim());
   // Etherscan: history scans (pending, history) in a few requests instead of block by block.
   const key = h('input', { value: explorerKey(), placeholder: 'Etherscan API key', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Etherscan API key' }), saveKey = h('button', 'Save'), keyOut = h('div');
-  saveKey.onclick = act(saveKey, async () => (setExplorerKey(key.value), (st.pendingFor = null), put(keyOut, h('p.ok', key.value.trim() ? 'Saved: history searches go through Etherscan.' : 'Removed: history searches go through your RPC again.'))), keyOut);
+  saveKey.onclick = act(saveKey, async () => (setExplorerKey(key.value), (st.pendingFor = null), put(keyOut, h('p.ok', key.value.trim() ? 'Saved.' : 'Removed.'))), keyOut);
   draw();
   put(body, gws.length > 0 && [h('div.bsec', h('b', 'roles.wei gateway')), h('p.mut.small', 'Where “Open in roles.wei” and the footer link go.'), h('div.gwpick', pick, custom), gwOut],
     h('div.bsec', h('b', 'RPC endpoints')), h('p.mut.small', 'Reads on an endpoint’s chain go there instead of your wallet’s RPC. Your wallet still signs. Kept in this browser.'), list, h('div.row', url, add), out,
-    h('div.bsec', h('b', 'Etherscan API key'), h('span.mut.small', ' · optional, faster history')), h('p.mut.small', 'Searches a Safe’s history (pending and executed transactions) in a few requests instead of block by block, on every chain Etherscan indexes; each result is checked against the chain. Free at etherscan.io/apis. Kept in this browser, sent only to Etherscan.'), h('div.row', key, saveKey), keyOut);
+    h('div.bsec', h('b', 'Etherscan API key'), h('span.mut.small', ' · optional')), h('p.mut.small', 'Faster history searches, and verified ABIs in Custom. Free at etherscan.io/apis; kept in this browser.'), h('div.row', key, saveKey), keyOut);
 }
 
 function labelsSheet() {
@@ -1395,6 +1395,13 @@ function builder(s, q = new URLSearchParams()) {
       await loadBalances(s).catch(() => {}); // token metadata, for decimals-aware amount inputs
       contract = to.value.trim() ? await target(to.value) : null;
       if (contract && !abiText.value.trim() && loadAbi(contract)) abiText.value = loadAbi(contract); // remembered for this contract
+      // With an Etherscan key: its verified ABI (and the implementation's, for a proxy).
+      else if (contract && !abiText.value.trim() && explorerKey() && mode.value === 'abi') {
+        put(out, h('p.mut', 'Loading the verified ABI from Etherscan…'));
+        const abi = await explorerAbi(st.chainId, contract).catch((e) => (put(out, warn(e.message)), undefined));
+        if (abi) (abiText.value = abi), put(out, h('p.ok.small', '✓ Verified ABI from Etherscan.'));
+        else if (abi === null) put(out, h('p.mut', 'Not verified on Etherscan: paste its ABI below.'));
+      }
     } catch (e) {
       contract = null;
       put(out, bad(e.message));
@@ -1411,7 +1418,7 @@ function builder(s, q = new URLSearchParams()) {
   drawSaved();
   return h(
     'div.form.wide',
-    h('p.mut', 'Call any contract from its ABI, or send raw calldata. Review each call, or add several to a batch. Nothing is fetched: the ABI is only used here to encode the call.'),
+    h('p.mut', 'Call any contract from its ABI (loaded from Etherscan if you added a key in Settings), or send raw calldata. Review each call, or add several to a batch.'),
     savedBox,
     h('label', 'Type'),
     mode,
