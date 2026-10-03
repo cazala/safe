@@ -1,6 +1,6 @@
 # Size report
 
-Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm run build` prints the numbers and fails above 200 KB (204,800 bytes).
+Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 300 KB raw (raised from 200 KB in October 2026, for transaction history, saved calls and faster scans). `npm run build` prints the numbers and fails above 300 KB (307,200 bytes).
 
 | Phase | raw | gzip | js | css | notes |
 | --- | --- | --- | --- | --- | --- |
@@ -31,9 +31,10 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 200 KB raw. `npm 
 | tidy + roles.wei readiness | 186,376 | 65,825 | 156,609 | 28,538 | shared storage helper, dead code removed; simulation inside the Safe, module identification, bytes32 text, ?chain= |
 | deployModule decoding | 188,990 | — | — | — | Zodiac ModuleProxyFactory decode, CREATE2 prediction, setUp owner/avatar/target, batch enable check |
 | links, Settings, roles.wei | 196,599 | 69,349 | 165,347 | 29,913 | account names, RPC endpoints and the roles.wei gateway in Settings, Open in / Set up Zodiac Roles links, custom and new prefills, config-chunk links |
-| saved calls | 199,515 | — | — | — | Save… on a method card, Saved calls in Custom (Review, Add to batch, Edit, delete), in backups |
+| hide tokens | 197,553 | 69,714 | 166,204 | 29,985 | per-Safe hidden tokens in Assets (eye on the row, Show / Hide them under the table) |
+| saved calls | 200,443 | — | — | — | Save… on a method card, Saved calls in Custom (Review, Add to batch, Edit, delete), in backups |
 
-The page is now about 192 KB (196,599 bytes): under the 200 KB limit (204,800 bytes), with about 8 KB left. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 9 chunks of up to 24,575 bytes plus the config chunk (~44M gas, docs/deploy.md → Cost).
+The page is now about 192 KB (196,599 bytes): under the 300 KB limit (307,200 bytes), with about 108 KB left. Each extra 24,575-byte chunk adds roughly 5M gas to the deploy. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 9 chunks of up to 24,575 bytes plus the config chunk (~44M gas, docs/deploy.md → Cost).
 
 ## Major contributors
 
