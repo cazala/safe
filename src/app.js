@@ -388,7 +388,7 @@ function labelsSheet() {
 /** Backup & sync: export as a link or JSON, or import by pasting one (with a preview before anything changes). */
 function backupDialog(incoming) {
   const { body: d, close, setTitle } = sheet('sync', 'Backup & sync', true);
-  const words = (c) => [c.safes + ' Safe' + (c.safes === 1 ? '' : 's'), c.labels + ' label' + (c.labels === 1 ? '' : 's'), c.abis + ' ABI' + (c.abis === 1 ? '' : 's'), c.tokens + ' token' + (c.tokens === 1 ? '' : 's')].join(' · ');
+  const words = (c) => [c.safes + ' Safe' + (c.safes === 1 ? '' : 's'), c.labels + ' label' + (c.labels === 1 ? '' : 's'), c.abis + ' ABI' + (c.abis === 1 ? '' : 's'), c.tokens + ' token' + (c.tokens === 1 ? '' : 's'), c.calls > 0 && c.calls + ' saved call' + (c.calls === 1 ? '' : 's')].filter(Boolean).join(' · ');
   const refresh = () => (close(), route());
 
   function exportView() {
@@ -1268,6 +1268,13 @@ const callLabel = (x, names = st.batchNames) => {
 const abiMap = () => load('abis', {});
 const loadAbi = (addr) => abiMap()[st.chainId + ':' + addr] || null;
 const storeAbi = (addr, text) => store('abis', { ...abiMap(), [st.chainId + ':' + addr]: text });
+// Saved custom calls, per chain: { name, to, value, data, sig, line, vals } (vals: the card's inputs as typed, for Edit).
+const callsOf = () => load('calls', {})[st.chainId] || [];
+const putCalls = (l) => {
+  const m = load('calls', {});
+  l.length ? (m[st.chainId] = l) : delete m[st.chainId];
+  store('calls', m);
+};
 // ---- call signatures: names for calls safe.wei cannot decode on its own ----
 // They come from the ABI used in Custom, or with a #tx= link. A call is shown decoded only if its
 // values re-encode to exactly its calldata (abicoder.js → matchCall): the names are someone's
@@ -1322,8 +1329,38 @@ function builder(s, q = new URLSearchParams()) {
   const abiText = h('textarea', { placeholder: '[{"type":"function","name":"stake","inputs":[…]}]  (a Hardhat/Foundry artifact, or one function signature per line, also works)', spellcheck: 'false', rows: 5 });
   const file = h('input', { type: 'file', accept: '.json,application/json' });
   const abiBox = h('div', h('label', 'Paste JSON ABI'), abiText, h('label', 'Or upload a .json file'), file);
-  const methods = h('div'), out = h('div'), toLabel = h('label');
+  const methods = h('div'), out = h('div'), toLabel = h('label'), savedBox = h('div');
   let contract = null;
+  const drawSaved = () => {
+    const l = callsOf();
+    put(
+      savedBox,
+      l.length > 0 && [
+        h('h3', 'Saved calls'),
+        h('div.slist', l.map((c, i) => {
+          const o = h('div'), call = () => (addHints([c.human]), { to: c.to, value: BigInt(c.value), data: c.data });
+          return h('div.srow.saved', h('span.nline', h('b.name', c.name), h('code.sa', c.human.split('(')[0] + ' · ' + short(c.to))), h('span.grow'),
+            h('span.sacts', button('Review', async () => showReview(newTx(s, call())), o), chain().canBatch && button('Add to batch', async () => queue(call()), o),
+              h('button', { onclick: () => edit(c) }, 'Edit'),
+              h('button.ib', { title: 'Delete', 'aria-label': 'Delete ' + c.name, onclick: () => (putCalls(callsOf().filter((_, j) => j !== i)), drawSaved()) }, icon(...ICONS.close))), o);
+        })),
+      ],
+    );
+  };
+  // Edit: back to the method card, filled as it was saved.
+  const edit = async (c) => {
+    mode.value = 'abi';
+    to.value = c.to;
+    await to.onchange();
+    if (!abiText.value.trim()) (abiText.value = c.line), await render();
+    const card = [...methods.querySelectorAll('details.method')].find((d) => d.querySelector('.sig').textContent === c.sig);
+    if (!card) return put(out, warn('This contract\u2019s ABI no longer has ' + c.sig + '.'));
+    card.open = true;
+    const els = [...card.querySelectorAll('input, select, textarea')];
+    c.vals.forEach((v, i) => els[i] && (els[i].value = v));
+    els.forEach((e) => e.dispatchEvent(new Event(e.tagName === 'SELECT' ? 'change' : 'input')));
+    card.scrollIntoView({ block: 'center' });
+  };
 
   const render = async () => {
     const raw = mode.value === 'raw', msg = mode.value === 'msg';
@@ -1348,7 +1385,7 @@ function builder(s, q = new URLSearchParams()) {
       methods,
       code === '0x' && warn('There is no contract at this address on ' + chain().name + '.'),
       h('h3', 'Write methods'),
-      fns.map((f, i) => methodCard(s, contract, f, i + 1)),
+      fns.map((f, i) => methodCard(s, contract, f, i + 1, drawSaved)),
     );
   };
   to.onchange = async () => {
@@ -1362,7 +1399,7 @@ function builder(s, q = new URLSearchParams()) {
       contract = null;
       put(out, bad(e.message));
     }
-    if (mode.value !== 'raw') render();
+    if (mode.value !== 'raw') await render();
   };
   mode.onchange = render;
   abiText.oninput = () => clearTimeout(abiText.t) || (abiText.t = setTimeout(render, 300));
@@ -1371,9 +1408,11 @@ function builder(s, q = new URLSearchParams()) {
     if (f) (abiText.value = await f.text()), render();
   };
   render();
+  drawSaved();
   return h(
     'div.form.wide',
     h('p.mut', 'Call any contract from its ABI, or send raw calldata. Review each call, or add several to a batch. Nothing is fetched: the ABI is only used here to encode the call.'),
+    savedBox,
     h('label', 'Type'),
     mode,
     toLabel,
@@ -1384,7 +1423,7 @@ function builder(s, q = new URLSearchParams()) {
   );
 }
 
-function methodCard(s, contract, f, n) {
+function methodCard(s, contract, f, n, onSaved) {
   const fields = f.inputs.map((p) => paramField(s, contract, f, p));
   const value = f.payable && h('input', { placeholder: '0', inputmode: 'decimal' });
   const out = h('div'), preview = h('div');
@@ -1408,6 +1447,20 @@ function methodCard(s, contract, f, n) {
       chain().canBatch && button('Add to batch', async () => queue(await read()), out, '.primary'),
       button('Review', async () => showReview(newTx(s, await read())), out, chain().canBatch ? '' : '.primary'),
       button('Show calldata', read, out),
+      h('button', { onclick: (e) => {
+        const card = e.currentTarget.closest('details.method'), name = h('input', { value: f.name + ' · ' + short(contract), 'aria-label': 'Name for this call' });
+        const keep = button('Save', async () => {
+          const c = await read(), vals = [...card.querySelectorAll('input, select, textarea')].filter((x) => x !== name).map((x) => x.value);
+          putCalls([...callsOf(), { name: name.value.trim().slice(0, 60) || f.name, to: contract, value: String(c.value), data: c.data, sig: f.sig, human: humanSig(f), line: 'function ' + humanSig(f) + (f.payable ? ' payable' : ''), vals }]);
+          put(out, h('p.ok', '\u2713 Saved. It is listed at the top of Custom.'));
+          onSaved && onSaved();
+        }, out, '.primary');
+        name.onkeydown = (k) => {
+          if (k.key === 'Enter') keep.click();
+        };
+        put(out, h('div.row.savecall', name, keep));
+        name.select();
+      } }, 'Save\u2026'),
     ),
     out,
     preview,

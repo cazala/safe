@@ -394,6 +394,8 @@ table.assets td.num { font-variant-numeric: tabular-nums; }
 .racts { display: inline-flex; align-items: center; gap: 4px; opacity: 0; transition: opacity .12s; }
 table.assets tr:hover .racts, table.assets tr:focus-within .racts { opacity: 1; }
 @media (hover: none) { .racts { opacity: 1; } }
+.sacts { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.savecall { margin-top: 8px; }
 table.assets tr.hid td { opacity: .55; }
 table.assets tr.hid .racts { opacity: 1; }
 .btn.off { display: inline-block; padding: 5px 12px; border: 1px solid var(--line); border-radius: 4px; color: var(--mut); opacity: .5; font-size: 14px; cursor: default; }
@@ -519,3 +521,4 @@ a.btn.rolesweb { margin-top: 8px; }
 p.rolessetup { margin: 8px 0 10px; font-size: 13px; }
 .meter { height: 3px; margin: 8px 0; border-radius: 2px; background: var(--line); overflow: hidden; }
 .meter span { display: block; width: 0; height: 100%; background: var(--fg); transition: width .2s; }
+.srow.saved .sa { margin-left: 10px; }

@@ -32,7 +32,7 @@ safe.wei is a single HTML page with no backend. It is served from an onchain con
 - **Reads** go to the Safe contract itself, through your wallet's RPC (WalletConnect's RPC for a wallet connected with WalletConnect, see [§2](#a-wallet-on-your-phone-walletconnect)): owners, threshold, nonce, modules, guard, balances. There is no Safe Transaction Service, indexer or API key.
 - **Writes** are signed and sent by your wallet. safe.wei never holds a key.
 - **Coordination between owners** happens by link (the transaction and its signatures travel in the URL fragment, which is never sent to a server) or onchain (an approval can carry the transaction's details, so other owners find it without a link).
-- **Your own data** (saved Safes, folders, labels, ABIs, added tokens) lives in your browser's `localStorage` and can be moved to another device with Backup and sync.
+- **Your own data** (saved Safes, folders, labels, ABIs, added tokens, saved calls) lives in your browser's `localStorage` and can be moved to another device with Backup and sync.
 - **The footer** shows the build ID (the code version) and the app contract serving the page, so you can check it against the deployment record.
 
 ## 2. Wallets and chains
@@ -181,6 +181,7 @@ An Etherscan-style "Write contract" for any contract.
 - **Custom ABI**: paste a JSON ABI (an array, or a Hardhat / Foundry artifact with an `abi` field), upload a `.json` file, or write human-readable signatures, one per line (`function transfer(address to, uint256 amount)`).
   - Write methods are listed first, each with a form for its parameters. Payable methods get a value field.
   - ABIs are remembered per contract and chain, so the next time you pick that contract the ABI is already there.
+  - **Save…** on a method card keeps the filled-in call under a name you choose (default: the function and contract). **Saved calls** are listed at the top of Custom, per chain: **Review** and **Add to batch** use it as saved; **Edit** reopens its method card filled as you typed it, to change something and review or save it again; **×** deletes it.
 - **Raw calldata**: a `to`, a value and hex calldata (and, under Advanced, the operation and the nonce).
 - **Message (signed by the Safe)**: text, EIP-712 typed data (JSON) or a raw 32-byte hash, for the Safe to sign (see [§11b](#11b-signing-messages)).
 
@@ -333,7 +334,7 @@ Your own names for addresses (owners, recipients, contracts), in this browser.
 
 ## 15. Backup and sync
 
-Home → New ▾ → **Backup & sync** moves your Safes, folders, labels, ABIs and added tokens to another device.
+Home → New ▾ → **Backup & sync** moves your Safes, folders, labels, ABIs, added tokens and saved calls to another device.
 
 - **Export**: **Copy link** (a compressed `#import=` link) or **Copy JSON**.
 - **Import**: paste a link or JSON. A preview shows what it contains, then choose:
@@ -367,6 +368,7 @@ All in `localStorage`, under `safe.wei:`:
 | `labels`, `labelsAt` | Your address labels, and when each was added |
 | `labelsort` | Labels sort order |
 | `abis` | ABIs you used, per chain and contract |
+| `calls` | Saved custom calls, per chain: name, contract, value, calldata, the function and what you typed |
 | `tokens:<chainId>` | Tokens you added, per chain |
 | `hidden` | Tokens you hid, per Safe (`<chainId>:<safe>`) |
 | `wallet` | The wallet you chose (or that you disconnected) |
