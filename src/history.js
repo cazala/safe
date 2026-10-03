@@ -51,7 +51,7 @@ export async function scanHistory(s, { blocks = 50000, step = 5000, end, progres
   const head = end, wide = !!explorerKey(), have = new Set(saved(s).map((e) => e.hash)), found = [];
   if (wide) blocks = step = end + 1;
   const stop = Math.max(0, end - blocks + 1);
-  let win = step, error, rank = 0;
+  let win = step, error, rank = 0, skipped = 0;
   while (end >= stop) {
     const start = Math.max(stop, end - win + 1);
     let logs;
@@ -69,7 +69,13 @@ export async function scanHistory(s, { blocks = 50000, step = 5000, end, progres
     for (const l of logs.sort((x, y) => Number(y.blockNumber) - Number(x.blockNumber) || Number(y.logIndex) - Number(x.logIndex))) {
       const hash = l.topics[1] || '0x' + strip(l.data).slice(0, 64), guess = Number(s.nonce) - 1 - rank++;
       if (have.has(hash)) continue;
-      const tx = await rpc('eth_getTransactionByHash', [l.transactionHash]), d = strip((tx && tx.input) || '').toLowerCase();
+      // An execution whose transaction no RPC serves any more is skipped and counted, not a reason to stop.
+      const tx = await rpc('eth_getTransactionByHash', [l.transactionHash]).catch(() => null);
+      if (!tx) {
+        skipped++;
+        continue;
+      }
+      const d = strip(tx.input || '').toLowerCase();
       let t = null;
       for (let i = d.indexOf(S.execTransaction); i >= 0 && !t; i = d.indexOf(S.execTransaction, i + 1)) if (i % 2 === 0) t = fromExec(s, d.slice(i), hash, guess);
       if (t) have.add(hash), found.push({ ...plain(t), hash, txHash: l.transactionHash });
@@ -77,5 +83,5 @@ export async function scanHistory(s, { blocks = 50000, step = 5000, end, progres
     end = start - 1;
     progress && progress(Math.min(1, (head - end) / (head - stop + 1)));
   }
-  return { entries: found.length ? keep(s, found) : saved(s), head, next: end, wide, error };
+  return { entries: found.length ? keep(s, found) : saved(s), head, next: end, wide, error, skipped };
 }
