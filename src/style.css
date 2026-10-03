@@ -390,6 +390,8 @@ table.assets td.num { font-variant-numeric: tabular-nums; }
 .racts { display: inline-flex; align-items: center; gap: 4px; opacity: 0; transition: opacity .12s; }
 table.assets tr:hover .racts, table.assets tr:focus-within .racts { opacity: 1; }
 @media (hover: none) { .racts { opacity: 1; } }
+table.assets tr.hid td { opacity: .55; }
+table.assets tr.hid .racts { opacity: 1; }
 .btn.off { display: inline-block; padding: 5px 12px; border: 1px solid var(--line); border-radius: 4px; color: var(--mut); opacity: .5; font-size: 14px; cursor: default; }
 .afoot { display: flex; align-items: center; gap: 8px; padding: 12px 0 0; font-size: 13px; }
 .afoot .grow { flex: 1; }
