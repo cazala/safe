@@ -19,7 +19,7 @@ const tokenChains = () => {
 export function collect() {
   const tokens = {};
   for (const c of tokenChains()) tokens[c] = read('tokens:' + c, []);
-  return { app: 'safe.wei', v: 1, at: new Date().toISOString(), safes: read('safes', []), tree: read('tree', []), labels: read('labels', {}), labelsAt: read('labelsAt', {}), abis: read('abis', {}), tokens };
+  return { app: 'safe.wei', v: 1, at: new Date().toISOString(), safes: read('safes', []), tree: read('tree', []), labels: read('labels', {}), labelsAt: read('labelsAt', {}), abis: read('abis', {}), tokens, ...(Object.keys(read('calls', {})).length ? { calls: read('calls', {}) } : {}) };
 }
 
 export const counts = (d) => ({
@@ -27,6 +27,7 @@ export const counts = (d) => ({
   labels: Object.keys(d.labels || {}).length,
   abis: Object.keys(d.abis || {}).length,
   tokens: Object.values(d.tokens || {}).reduce((n, l) => n + l.length, 0),
+  calls: Object.values(d.calls || {}).reduce((n, l) => n + l.length, 0),
 });
 
 // ---- links: #import=<z|j><base64url>, deflated when the browser can ----
@@ -58,6 +59,9 @@ export async function parse(text) {
   d.labelsAt = Object.fromEntries(Object.entries(d.labelsAt || {}).filter(([a, t]) => d.labels[a] && Number.isFinite(t)));
   d.abis = Object.fromEntries(Object.entries(d.abis || {}).filter(([k, v]) => /^\d+:0x[0-9a-f]{40}$/.test(k) && typeof v === 'string'));
   d.tokens = Object.fromEntries(Object.entries(d.tokens || {}).filter(([c, l]) => /^\d+$/.test(c) && Array.isArray(l)).map(([c, l]) => [c, l.filter((t) => t && addr(t.address) && Number.isInteger(t.decimals))]));
+  // Saved custom calls (optional key): well-formed ones only.
+  const str = (v, n) => typeof v === 'string' && v.length <= n;
+  d.calls = Object.fromEntries(Object.entries(d.calls && typeof d.calls === 'object' ? d.calls : {}).filter(([c, l]) => /^\d+$/.test(c) && Array.isArray(l)).map(([c, l]) => [c, l.filter((x) => x && addr(x.to) && str(x.name, 60) && /^\d+$/.test(x.value) && /^0x([0-9a-f]{2})*$/.test(x.data) && str(x.sig, 2000) && str(x.human, 4000) && str(x.line, 4000) && Array.isArray(x.vals) && x.vals.every((v) => str(v, 20000))).map(({ name, to, value, data, sig, human, line, vals }) => ({ name, to, value, data, sig, human, line, vals }))]));
   d.tree = Array.isArray(d.tree) ? d.tree : [];
   return d;
 }
@@ -74,6 +78,7 @@ export function apply(d, mode) {
     write('labels', d.labels);
     write('labelsAt', d.labelsAt);
     write('abis', d.abis);
+    write('calls', d.calls);
     for (const [c, l] of Object.entries(d.tokens)) write('tokens:' + c, l);
     return;
   }
@@ -86,6 +91,9 @@ export function apply(d, mode) {
   // Dates follow the label that is kept: imported ones only for labels that were new here.
   write('labelsAt', { ...Object.fromEntries(Object.entries(d.labelsAt).filter(([a]) => !mine[a])), ...read('labelsAt', {}) });
   write('abis', { ...d.abis, ...read('abis', {}) });
+  const calls = read('calls', {}), same = (a, b) => a.to === b.to && a.data === b.data && a.value === b.value;
+  for (const [c, l] of Object.entries(d.calls)) calls[c] = [...(calls[c] || []), ...l.filter((x) => !(calls[c] || []).some((y) => same(x, y)))];
+  write('calls', calls);
   for (const [c, l] of Object.entries(d.tokens)) {
     const cur = read('tokens:' + c, []), seen = new Set(cur.map((t) => t.address));
     write('tokens:' + c, [...cur, ...l.filter((t) => !seen.has(t.address))]);

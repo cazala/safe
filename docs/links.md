@@ -153,7 +153,7 @@ What the owners sign: `SafeMessage(bytes message)` under the Safe's EIP-712 doma
 
 Saved Safes, folders, labels, ABIs and added tokens, made by Backup & sync on Home (`z` = deflate-raw compressed JSON, `j` = plain JSON). Opening it asks whether to merge the data into this browser (keeps everything already here) or replace it. Anyone holding the link sees the data, so share it only with yourself.
 
-The JSON is `{ app: "safe.wei", v: 1, at, safes, tree, labels, labelsAt, abis, tokens }`; unknown or malformed entries are dropped on import (`src/backup.js` → `parse`).
+The JSON is `{ app: "safe.wei", v: 1, at, safes, tree, labels, labelsAt, abis, tokens }`, plus `calls` (saved custom calls per chain: `{ name, to, value, data, sig, human, line, vals }`) when there are any, an optional addition; unknown or malformed entries are dropped on import (`src/backup.js` → `parse`).
 
 ## Stability
 
