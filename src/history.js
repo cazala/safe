@@ -43,20 +43,22 @@ function fromExec(s, d, hash, guess) {
 }
 
 /**
- * Scan ExecutionSuccess logs backwards from `end` (default: latest) over `blocks` blocks (all of them with an
- * Etherscan key), decode each execution and add it to the history. Returns { entries, head, next, wide, error }.
+ * Find this Safe's executions: ExecutionSuccess logs backwards from `end` (default: latest) over `blocks` blocks
+ * (all of them at once with an Etherscan key), newest first. Nothing is read yet: see readExecutions. Returns
+ * { logs, head, next, wide, error }; each log gets `guess`, the nonce it most likely had. `progress(share)`.
  */
-export async function scanHistory(s, { blocks = 50000, step = 5000, end, progress } = {}) {
+export async function findExecutions(s, { blocks = 50000, step = 5000, end, progress } = {}) {
   end = end ?? Number(await rpc('eth_blockNumber'));
-  const head = end, wide = !!explorerKey(), have = new Set(saved(s).map((e) => e.hash)), found = [];
+  const head = end, wide = !!explorerKey(), found = [];
   if (wide) blocks = step = end + 1;
   const stop = Math.max(0, end - blocks + 1);
-  let win = step, error, rank = 0, skipped = 0;
+  let win = step, error;
   while (end >= stop) {
     const start = Math.max(stop, end - win + 1);
     let logs;
     try {
-      logs = await rpc('eth_getLogs', [{ address: s.address, topics: [T.ExecutionSuccess], fromBlock: hx(start), toBlock: hx(end) }]);
+      // From Etherscan these are not checked against the chain here: readExecutions checks each one it reads.
+      logs = await rpc('eth_getLogs', [{ address: s.address, topics: [T.ExecutionSuccess], fromBlock: hx(start), toBlock: hx(end), checked: false }]);
     } catch (e) {
       if (win > 16 && !wide) {
         win = Math.floor(win / 2);
@@ -65,23 +67,38 @@ export async function scanHistory(s, { blocks = 50000, step = 5000, end, progres
       error = e.message || String(e);
       break;
     }
-    // Newest first: the expected nonce counts down from the Safe's current one.
-    for (const l of logs.sort((x, y) => Number(y.blockNumber) - Number(x.blockNumber) || Number(y.logIndex) - Number(x.logIndex))) {
-      const hash = l.topics[1] || '0x' + strip(l.data).slice(0, 64), guess = Number(s.nonce) - 1 - rank++;
-      if (have.has(hash)) continue;
-      // An execution whose transaction no RPC serves any more is skipped and counted, not a reason to stop.
-      const tx = await rpc('eth_getTransactionByHash', [l.transactionHash]).catch(() => null);
-      if (!tx) {
-        skipped++;
-        continue;
-      }
-      const d = strip(tx.input || '').toLowerCase();
-      let t = null;
-      for (let i = d.indexOf(S.execTransaction); i >= 0 && !t; i = d.indexOf(S.execTransaction, i + 1)) if (i % 2 === 0) t = fromExec(s, d.slice(i), hash, guess);
-      if (t) have.add(hash), found.push({ ...plain(t), hash, txHash: l.transactionHash });
-    }
+    found.push(...logs.sort((x, y) => Number(y.blockNumber) - Number(x.blockNumber) || Number(y.logIndex) - Number(x.logIndex)));
     end = start - 1;
     progress && progress(Math.min(1, (head - end) / (head - stop + 1)));
   }
-  return { entries: found.length ? keep(s, found) : saved(s), head, next: end, wide, error, skipped };
+  // Newest first, the expected nonce counts down from the Safe's current one (failed executions shift it a little).
+  found.forEach((l, i) => (l.guess = Number(s.nonce) - 1 - i));
+  return { logs: found, head, next: end, wide, error };
+}
+
+/**
+ * Read the next `limit` executions of `logs` (from findExecutions) not in the history yet: each one's transaction
+ * must be in the block the log says, and its execTransaction call must hash to the log's SafeTx hash. Adds them to
+ * the history. Returns { entries, rest, skipped }; `progress(null, { read, of })`.
+ */
+export async function readExecutions(s, logs, { limit = 25, progress } = {}) {
+  const have = new Set(saved(s).map((e) => e.hash)), todo = logs.filter((l) => !have.has(l.topics[1] || '0x' + strip(l.data).slice(0, 64)));
+  const now = todo.slice(0, limit), found = [];
+  let skipped = 0, k = 0;
+  for (const l of now) {
+    progress && progress(null, { read: ++k, of: now.length });
+    const hash = l.topics[1] || '0x' + strip(l.data).slice(0, 64);
+    // A transaction no RPC serves any more is skipped and counted, not a reason to stop.
+    const tx = await rpc('eth_getTransactionByHash', [l.transactionHash]).catch(() => null);
+    if (!tx) {
+      skipped++;
+      continue;
+    }
+    if (tx.blockHash !== l.blockHash) throw Error('An execution in block ' + Number(l.blockNumber) + ' does not match the chain. If it came from Etherscan, remove the key in ▾ → Settings and try again.');
+    const d = strip(tx.input || '').toLowerCase();
+    let t = null;
+    for (let i = d.indexOf(S.execTransaction); i >= 0 && !t; i = d.indexOf(S.execTransaction, i + 1)) if (i % 2 === 0) t = fromExec(s, d.slice(i), hash, l.guess);
+    if (t) found.push({ ...plain(t), hash, txHash: l.transactionHash });
+  }
+  return { entries: found.length ? keep(s, found) : saved(s), rest: todo.slice(limit), skipped };
 }
