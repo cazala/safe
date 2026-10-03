@@ -1247,12 +1247,13 @@ const batchWord = (n) => n + ' call' + (n > 1 ? 's' : '');
 function batchBody() {
   const out = h('div'), n = st.batch.length;
   return [
-    h('p.mut.small', 'Runs atomically in one Safe transaction: if one call fails, none happen.'),
-    h('ol.calls', st.batch.map((x, i) => h('li', h('div.crow', h('span.call', callLabel(x)), h('button.link', { onclick: () => (st.batch.splice(i, 1), renderBatch(true)) }, 'remove'))))),
+    h('p.bnote', 'Runs atomically in one Safe transaction: if one call fails, none happen.'),
+    h('ol.calls', st.batch.map((x, i) => h('li', h('span.cnum', String(i + 1)), h('span.call', callLabel(x)), h('button.ib', { title: 'Remove', 'aria-label': 'Remove call ' + (i + 1), onclick: () => (st.batch.splice(i, 1), renderBatch(true)) }, icon(...ICONS.close))))),
     h(
-      'div.actions',
-      n > 1 ? button('Review batch', async () => (closeBatch(), (st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(chain().multiSendCallOnly, st.batch)))), out, '.primary') : h('span.mut', 'Add at least one more call to batch'),
+      'div.bfoot',
+      n > 1 ? h('span.grow') : h('span.mut.grow', 'Add one more call to review'),
       h('button', { onclick: () => ((st.batch = []), (st.batchNames = {}), renderBatch()) }, 'Clear'),
+      n > 1 && button('Review batch', async () => (closeBatch(), (st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(chain().multiSendCallOnly, st.batch)))), out, '.primary'),
     ),
     out,
   ];
@@ -1272,8 +1273,8 @@ function renderBatch(keep) {
   const wasOpen = !!bb.querySelector('.batchpop'), wasExpanded = !!(bq.querySelector('details') || {}).open;
   if (!n || !onSafe) return put(bb), put(bq), document.body.classList.remove('hasbar');
   const badge = h('button.batchbtn', { 'aria-label': 'Batch: ' + batchWord(n), 'aria-expanded': String(keep && wasOpen) }, 'Batch ', h('span.badge', String(n)));
-  badge.onclick = () => (bb.querySelector('.batchpop') ? closeBatch() : bb.append(h('div.dropdown.batchpop', h('div.head', h('b', 'Batch · ' + batchWord(n))), batchBody())));
-  put(bb, badge, keep && wasOpen && h('div.dropdown.batchpop', h('div.head', h('b', 'Batch · ' + batchWord(n))), batchBody()));
+  badge.onclick = () => (bb.querySelector('.batchpop') ? closeBatch() : bb.append(h('div.dropdown.batchpop', h('div.head', h('b', 'Batch'), h('span.grow'), h('span.chip', batchWord(n))), batchBody())));
+  put(bb, badge, keep && wasOpen && h('div.dropdown.batchpop', h('div.head', h('b', 'Batch'), h('span.grow'), h('span.chip', batchWord(n))), batchBody()));
   const reviewNow = n > 1 && button('Review', async () => ((st.named = { ...st.batchNames }), await showReview(newTx(st.safe, batch(chain().multiSendCallOnly, st.batch)))), null, '.primary');
   put(
     bq,
