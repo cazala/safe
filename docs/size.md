@@ -31,15 +31,18 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 300 KB raw (raise
 | tidy + roles.wei readiness | 186,376 | 65,825 | 156,609 | 28,538 | shared storage helper, dead code removed; simulation inside the Safe, module identification, bytes32 text, ?chain= |
 | deployModule decoding | 188,990 | — | — | — | Zodiac ModuleProxyFactory decode, CREATE2 prediction, setUp owner/avatar/target, batch enable check |
 | links, Settings, roles.wei | 196,599 | 69,349 | 165,347 | 29,913 | account names, RPC endpoints and the roles.wei gateway in Settings, Open in / Set up Zodiac Roles links, custom and new prefills, config-chunk links |
-| hide tokens | 197,553 | 69,714 | 166,204 | 29,985 | per-Safe hidden tokens in Assets (eye on the row, Show / Hide them under the table) |
-| saved calls | 200,443 | — | — | — | Save… on a method card, Saved calls in Custom (Review, Add to batch, Edit, delete), in backups |
-| Etherscan key, scan progress | 204,319 | — | — | — | optional Etherscan key in Settings (logs from its index, each block checked against the chain), progress and a tip while scanning block by block |
-| transaction history | 208,658 | — | — | — | executed transactions kept and found onchain (ExecutionSuccess, execTransaction decoded and hash-checked), Review again, Add to batch |
-| Redo, save from History | 209,581 | — | — | — | History rows: Redo, Save… (a batch as a whole) into Saved calls |
-| Etherscan ABIs in Custom | 209,458 | — | — | — | a contract's verified ABI (merged with its implementation's for a proxy) when you added a key |
-| hashes for hardware wallets | 209,363 | — | — | — | domain, message and SafeTx / SafeMessage hashes in the review, for an owner who has not signed |
+| hide tokens (#116) | 197,552 | 69,712 | 166,203 | 29,985 | per-Safe hidden tokens in Assets (eye on the row, Show / Hide them under the table) |
+| saved calls (#117) | 200,442 | 70,718 | 168,966 | 30,112 | Save… on a method card, Saved calls in Custom (Review, Add to batch, Edit, delete), in backups |
+| Etherscan key, scan progress (#118) | 204,318 | 72,141 | 172,666 | 30,288 | optional Etherscan key in Settings (logs from its index, checked against the chain), progress and a tip while scanning block by block |
+| transaction history (#119) | 208,657 | 73,390 | 176,839 | 30,454 | executed transactions kept and found onchain (ExecutionSuccess, execTransaction decoded and hash-checked), Redo, Add to batch |
+| dapp nonce fix (#120) | 208,907 | 73,510 | 177,089 | 30,454 | a dapp request reads the Safe again; never a nonce below one just executed here |
+| old history through WalletConnect (#125) | 209,661 | 73,823 | 177,843 | 30,454 | reads the wallet’s RPC no longer keeps go to WalletConnect’s RPC; unreadable executions skipped and counted |
+| History: save, loading, pages (#121) | 211,936 | 74,602 | 179,964 | 30,608 | Save… into Saved calls (a batch as a whole), a loading state, executions read 25 at a time |
+| Etherscan ABIs in Custom (#122) | 212,736 | 74,822 | 180,764 | 30,608 | a contract’s verified ABI (merged with its implementation’s for a proxy) when you added a key |
+| hashes for hardware wallets (#123) | 213,441 | 75,076 | 181,176 | 30,901 | domain, message and SafeTx / SafeMessage hashes in the review, for an owner who has not signed |
+| batch popover (#124) | 214,202 | 75,231 | 181,305 | 31,533 | header with a count, numbered calls with ×, a footer with the actions |
 
-The page is now about 204 KB (208,658 bytes): under the 300 KB limit (307,200 bytes), with about 96 KB left. Each extra 24,575-byte chunk adds roughly 5M gas to the deploy. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 9 chunks of up to 24,575 bytes plus the config chunk (~44M gas, docs/deploy.md → Cost).
+The page is now about 209 KB (214,202 bytes, 75,231 gzip): under the 300 KB limit (307,200 bytes), with about 91 KB left. The rows from hide tokens on were measured at each merge on `main`. Each extra 24,575-byte chunk adds roughly 5M gas to the deploy. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 9 chunks of up to 24,575 bytes plus the config chunk (~44M gas, docs/deploy.md → Cost).
 
 ## Major contributors
 
