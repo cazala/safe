@@ -78,8 +78,16 @@ async function explorerLogs(key, chain, { address, topics, fromBlock, toBlock })
   return out;
 }
 
-/** The wallet's provider, with reads sent to your endpoint for `chain()` when there is one, and logs to Etherscan with a key. */
-export function reader(provider, chain) {
+// Many RPCs no longer keep old history (geth indexes about a year of transactions; nodes drop pre-Merge blocks).
+// Those reads go to WalletConnect's RPC instead, as for a WalletConnect wallet (docs/spec.md §27d).
+const HISTORY = new Set(['eth_getLogs', 'eth_getBlockByNumber', 'eth_getTransactionByHash', 'eth_getTransactionReceipt', 'eth_getCode']);
+const pruned = (e) => /pruned|historical|history (is )?unavailable|missing trie|archive|not available|index(ing)? (is )?(in progress|not)/i.test((e && e.message) || '');
+
+/**
+ * The wallet's provider, with reads sent to your endpoint for `chain()` when there is one, logs to Etherscan with a
+ * key, and old history the RPC no longer keeps to WalletConnect's RPC (`project()`: its project ID).
+ */
+export function reader(provider, chain, project = () => '') {
   if (!provider) return provider;
   const checked = new Map(); // block → hash, already checked against the chain
   const r = {
@@ -106,7 +114,15 @@ export function reader(provider, chain) {
         return logs;
       }
       const u = READS.has(a.method) && rpcs()[chain()];
-      return u ? post(u, a.method, a.params) : provider.request(a);
+      try {
+        const v = await (u ? post(u, a.method, a.params) : provider.request(a));
+        // A transaction this RPC no longer indexes comes back as null: ask WalletConnect's RPC too.
+        if (v == null && a.method === 'eth_getTransactionByHash' && project()) throw Error('pruned: transaction not indexed');
+        return v;
+      } catch (e) {
+        if (!HISTORY.has(a.method) || !pruned(e) || !project()) throw e;
+        return post('https://rpc.walletconnect.org/v1/?chainId=eip155:' + chain() + '&projectId=' + project(), a.method, a.params);
+      }
     },
   };
   return r;

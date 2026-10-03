@@ -384,6 +384,7 @@ Clearing site data removes them; export a backup first.
 
 - **"Not a Safe, or unreadable"**: the address has no Safe on the connected chain. Check the chain, or the address.
 - **A name does not resolve**: names resolve on Ethereum only, onchain only (no CCIP-read). Use the 0x address on other chains.
+- **History stops early, or says executions could not be read**: your wallet's RPC no longer keeps old transactions (many keep about a year). safe.wei asks WalletConnect's RPC for those; if it cannot serve them either, add your own RPC endpoint (an archive node) in Settings.
 - **Pending transactions are missing**: only transactions published onchain with an approval are listed, and only as far back as your wallet's RPC serves logs. Use **Scan older blocks**, add an Etherscan key in Settings (the whole history at once), or import the link.
 - **Your wallet shows a different hash than the review**: do not sign. safe.wei prints the hash your wallet should show.
 - **Switching chains fails**: some wallets do not know every chain; add it in the wallet first, or switch from the wallet.

@@ -22,7 +22,7 @@ Extend only with optional additions (a new flag bit plus an appended section, a 
 ## Principles
 
 - One self-contained HTML file: no backend, no remote resources (the build fails on them), no API keys of its own (only ones you add), no analytics. Size budget: good < 100 KB, hard limit 300 KB raw (`npm run build` prints it; keep `docs/size.md` current).
-- Reads only through the connected wallet's RPC; the wallet signs. Three exceptions: a wallet connected with WalletConnect cannot serve reads, so those go to WalletConnect's RPC (docs/spec.md §27d); an RPC endpoint you add yourself in ▾ → Settings takes the reads on its chain (§27e); and with an Etherscan key you add there, event logs come from Etherscan's index, each block checked against the chain (§27f). Nothing else is contacted.
+- Reads only through the connected wallet's RPC; the wallet signs. Three exceptions: a wallet connected with WalletConnect cannot serve reads, so those go to WalletConnect's RPC, as do reads of old history a wallet's RPC no longer keeps (docs/spec.md §27d); an RPC endpoint you add yourself in ▾ → Settings takes the reads on its chain (§27e); and with an Etherscan key you add there, event logs come from Etherscan's index, each block checked against the chain (§27f). Nothing else is contacted.
 - Nothing is signed unless the locally computed hash equals the Safe's own (`getTransactionHash`, `getMessageHash`). Decode only exact, canonical encodings; never guess.
 - Addresses show short for browsing and **in full wherever something is signed** (`.fulladdr`).
 - The UI conventions are described in `~/Code/roles/DESIGN.md` (derived from this app); follow them.
