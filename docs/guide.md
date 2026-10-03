@@ -138,7 +138,8 @@ Tabs: **Assets**, **Send**, **Transactions**, **Custom**, **Dapps**, **Settings*
 
 - The native balance, then the tokens: on Ethereum, every token of the zOrg TokenList with a non-zero balance ("Zero balances hidden" under the table); on every chain, the tokens you added, even at zero.
 - Balances use aligned figures and two decimals when fractional; hover for the exact amount.
-- Hover a row for **Send** (prefilled with that token) and, for tokens you added, **×** to remove them from your list. Send is disabled when the balance is zero.
+- Hover a row for **Send** (prefilled with that token), the eye to **hide** the token (dust, say) and, for tokens you added, **×** to remove them from your list. Send is disabled when the balance is zero.
+- Hidden tokens are left out of this Safe's list (other Safes are not affected) and counted under the table ("1 token hidden"); **Show** lists them dimmed, with the eye to unhide. Send still offers them.
 - **+ Add token** (under the table) adds any ERC-20 by address. Added tokens are saved in your browser for every Safe on that chain.
 - A callout appears when pending transactions were found onchain.
 
@@ -366,6 +367,7 @@ All in `localStorage`, under `safe.wei:`:
 | `labelsort` | Labels sort order |
 | `abis` | ABIs you used, per chain and contract |
 | `tokens:<chainId>` | Tokens you added, per chain |
+| `hidden` | Tokens you hid, per Safe (`<chainId>:<safe>`) |
 | `wallet` | The wallet you chose (or that you disconnected) |
 | `wc` | Dapps connected to your Safes (WalletConnect sessions and keys) |
 | `wcowner` | A wallet connected with WalletConnect (session and keys) |

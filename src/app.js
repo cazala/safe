@@ -720,6 +720,20 @@ function assetsTab(s) {
   // Actions show on row hover (always on touch). Nothing to send: no Send.
   // Actions sit next to the asset and show on row hover (always on touch), so balances stay flush right.
   const acts = (bal, href, extra) => h('span.racts', extra, bal > 0n ? h('a.btn', { href }, 'Send') : h('span.btn.off', { title: 'Nothing to send' }, 'Send'));
+  // Tokens you hid (dust, say), per Safe: left out of the list until Show; Send still offers them.
+  const hk = st.chainId + ':' + s.address, hidden = new Set(load('hidden', {})[hk] || []);
+  let showHidden = false;
+  const setHidden = (a, on) => {
+    on ? hidden.add(a) : hidden.delete(a);
+    const m = load('hidden', {});
+    hidden.size ? (m[hk] = [...hidden]) : delete m[hk];
+    store('hidden', m);
+    draw();
+  };
+  const hideBtn = (t) => {
+    const on = hidden.has(t.address);
+    return h('button.ib', { title: on ? 'Show in this list again' : 'Hide from this list', 'aria-label': (on ? 'Unhide ' : 'Hide ') + t.symbol, onclick: () => setHidden(t.address, !on) }, icon(...(on ? ICONS.eye : ICONS.eyeoff)));
+  };
   const asset = (name, sub, actions) => h('td', h('div.arow', h('div', name, sub), h('span.grow'), actions));
   const removeBtn = (t) =>
     !t.listed && h('button.ib', { title: 'Remove from your token list', 'aria-label': 'Remove ' + t.symbol, onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), delete st.tokens[t.address], draw()) }, icon(...ICONS.close));
@@ -740,17 +754,19 @@ function assetsTab(s) {
     addOut,
   );
   const addBox = h('div.addtoken', { hidden: true }, h('p.mut', 'Added tokens are saved in this browser for every Safe on ' + c.name + '.'), h('div.row', addIn, add), addOut);
-  const draw = () =>
+  const draw = () => {
+    const nHid = held().filter((t) => hidden.has(t.address)).length;
+    const note = [c.mainnet && 'Zero balances hidden', nHid > 0 && nHid + (nHid > 1 ? ' tokens' : ' token') + ' hidden'].filter(Boolean).join(' · ');
     put(
       rows,
       h(
         'table.assets',
         h('tr', h('th', 'Asset'), h('th.num', 'Balance')),
         h('tr', asset(h('b', c.sym), h('div.mut', c.sym === 'ETH' ? 'Ether' : 'Native token'), acts(s.balance, link('send'))), h('td.num', { title: fmt(s.balance) + ' ' + c.sym }, amt2(s.balance, 18))),
-        held().map((t) =>
+        held().filter((t) => showHidden || !hidden.has(t.address)).map((t) =>
           h(
-            'tr',
-            asset(h('b', t.symbol), h('div.mut', addr(t.address)), acts(st.bal[t.address] || 0n, link('send', { token: tokenSpec(t) }), removeBtn(t))),
+            'tr' + (hidden.has(t.address) ? '.hid' : ''),
+            asset(h('b', t.symbol), h('div.mut', addr(t.address)), acts(st.bal[t.address] || 0n, link('send', { token: tokenSpec(t) }), [hideBtn(t), removeBtn(t)])),
             h(
               'td.num',
               { title: st.bal[t.address] == null ? null : fmt(st.bal[t.address], t.decimals) + ' ' + t.symbol },
@@ -761,11 +777,12 @@ function assetsTab(s) {
       ),
       h(
         'div.afoot',
-        c.mainnet && h('span.mut', 'Zero balances hidden'),
+        note && h('span.mut', note, nHid > 0 && [' · ', h('button.link', { onclick: () => ((showHidden = !showHidden), draw()) }, showHidden ? 'Hide them' : 'Show')]),
         h('span.grow'),
         h('button.link.addlink', { onclick: () => ((addBox.hidden = !addBox.hidden), addBox.hidden || addIn.focus()) }, icon(...ICONS.plus), 'Add token'),
       ),
     );
+  };
   loadBalances(s).then(draw, (e) => put(rows, warn('Could not read token balances: ' + e.message)));
   loadPending(s).then((r) => r.found.length && put(pend, h('a.callout', { href: link('transactions') }, h('b', r.found.length + ' pending transaction' + (r.found.length > 1 ? 's' : '')), ' published onchain · Review ›')), () => {});
   return [pend, rows, addBox];
