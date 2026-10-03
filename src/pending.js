@@ -45,7 +45,7 @@ export async function scan(s, { blocks = 50000, step = 5000, end, progress } = {
     try {
       logs = await rpc('eth_getLogs', [{ address: s.address, topics: [T.ApproveHash], fromBlock: hx(start), toBlock: hx(end) }]);
     } catch (e) {
-      if (win > 16) {
+      if (win > 16 && !wide) {
         win = Math.floor(win / 2);
         continue;
       }

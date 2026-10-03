@@ -54,7 +54,7 @@ function etherscan(q) {
   lane = next.catch(() => {}).then(() => new Promise((ok) => setTimeout(ok, 250)));
   return next;
 }
-const hx = (v) => (!v || v === '0x' ? '0x0' : v); // Etherscan writes zero as "0x"
+const hx = (v) => '0x' + BigInt(!v || v === '0x' ? 0 : v).toString(16); // Etherscan writes zero as "0x"; RPCs refuse leading zeros
 /** eth_getLogs from Etherscan's index: the whole range, in pages of 1,000, as RPC logs. */
 async function explorerLogs(key, chain, { address, topics, fromBlock, toBlock }) {
   const out = [], seen = new Set(), to = toBlock === 'latest' ? toBlock : Number(toBlock);
@@ -84,11 +84,13 @@ export function reader(provider, chain) {
   const r = {
     request: async (a) => {
       if (a.method === 'eth_getLogs' && explorerKey()) {
-        const logs = await explorerLogs(explorerKey(), chain(), a.params[0]);
-        for (const b of new Set(logs.map((l) => l.blockNumber))) {
+        const logs = await explorerLogs(explorerKey(), chain(), a.params[0]), blocks = [...new Set(logs.map((l) => l.blockNumber))];
+        // Six header checks at a time: a long history is thousands of blocks.
+        const check = async (b) => {
           const head = await r.request({ method: 'eth_getBlockByNumber', params: [b, false] });
           if (!head || head.hash !== logs.find((l) => l.blockNumber === b).blockHash) throw Error('Etherscan returned a log in block ' + Number(b) + ' that does not match the chain. Remove the Etherscan key in ▾ → Settings and try again.');
-        }
+        };
+        for (let i = 0; i < blocks.length; i += 6) await Promise.all(blocks.slice(i, i + 6).map(check));
         return logs;
       }
       const u = READS.has(a.method) && rpcs()[chain()];
