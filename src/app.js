@@ -965,8 +965,8 @@ function transactionsTab(s) {
     put(
       status,
       seen.size ? '' : 'No pending transactions found',
-      r.wide && !r.error ? (seen.size ? 'Searched' : ' in') + ' the whole history, through Etherscan.' : blocks > 0 ? (seen.size ? 'Searched' : ' in') + ' the last ' + blocks.toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.') : '',
-      r.error && [blocks > 0 ? ' This wallet’s RPC does not serve older logs.' : ' This wallet’s RPC could not be searched for pending transactions.', h('details.err', h('summary', 'Details'), h('code', r.error.slice(0, 300)))],
+      r.wide ? (r.error ? '' : (seen.size ? 'Searched' : ' in') + ' the whole history, through Etherscan.') : blocks > 0 ? (seen.size ? 'Searched' : ' in') + ' the last ' + blocks.toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.') : '',
+      r.error && [r.wide ? ' Etherscan could not finish the search.' : blocks > 0 ? ' This wallet’s RPC does not serve older logs.' : ' This wallet’s RPC could not be searched for pending transactions.', h('details.err', h('summary', 'Details'), h('code', r.error.slice(0, 300)))],
       !r.wide && r.next >= 0 && tip(),
     );
     more.disabled = r.next < 0 || !!r.error;
