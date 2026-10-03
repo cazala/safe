@@ -92,8 +92,11 @@ export function reader(provider, chain, project = () => '') {
   const checked = new Map(); // block → hash, already checked against the chain
   const r = {
     request: async (a) => {
+      // `checked: false`: the caller checks each log it uses against the chain itself (History reads each one's transaction).
+      const { checked, ...filter } = (a.method === 'eth_getLogs' && a.params[0]) || {};
+      if (a.method === 'eth_getLogs') a = { ...a, params: [filter] };
       if (a.method === 'eth_getLogs' && explorerKey()) {
-        const logs = await explorerLogs(explorerKey(), chain(), a.params[0]), blocks = [...new Set(logs.map((l) => l.blockNumber))];
+        const logs = await explorerLogs(explorerKey(), chain(), filter), blocks = checked === false ? [] : [...new Set(logs.map((l) => l.blockNumber))];
         // Four header checks at a time (a long history is thousands of blocks), retried when the RPC throttles,
         // and each block checked once per session.
         const check = async (b) => {
