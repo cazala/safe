@@ -64,7 +64,9 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 // Reads for a WalletConnect wallet (which cannot serve them) go to WalletConnect's RPC: data, never code.
 const WC_RPC = 'https://rpc.walletconnect.org/v1/?chainId=eip155:';
 // The links in config/links.json are pages users open, in the config chunk: data, never code.
-const scan = [...links.roles, links.source].reduce((t, u) => t.split(u).join(''), html.split(SVG_NS).join('').split(WC_RPC).join(''));
+// With an Etherscan key you add in Settings, history scans read event logs from its API: data, never code.
+const ETHERSCAN = 'https://api.etherscan.io/v2/api?';
+const scan = [...links.roles, links.source, ETHERSCAN].reduce((t, u) => t.split(u).join(''), html.split(SVG_NS).join('').split(WC_RPC).join(''));
 const banned = [/<script[^>]+src=/i, /<link[^>]+rel=["']?stylesheet/i, /http:\/\//i, /https:\/\//i, /@import/i];
 for (const re of banned) if (re.test(scan)) throw Error('Build check failed: output matches ' + re);
 

@@ -2,7 +2,7 @@
 
 A minimal interface for [Safe](https://safe.global) multisig accounts that lives on Ethereum. Sibling app: **[roles.wei](https://github.com/cazala/roles)**, for Zodiac Roles permissions on a Safe.
 
-- **One self-contained HTML file**: no backend, no remote code, no API keys, no analytics.
+- **One self-contained HTML file**: no backend, no remote code, no API keys of its own, no analytics.
 - **Reads from the chain**: every Safe fact comes from the Safe contract itself, through your wallet's RPC (WalletConnect's RPC for a WalletConnect wallet, or your own RPC endpoint if you add one). No Safe Transaction Service, no indexer.
 - **Signs through your wallet**: safe.wei never holds a key.
 - **Served onchain** from an ERC-8244 `html()` contract at `safe.wei`, or from any copy of the file.
@@ -35,7 +35,7 @@ A minimal interface for [Safe](https://safe.global) multisig accounts that lives
 
 **Yours, in the browser**
 - Address labels, remembered ABIs and added tokens, stored locally, and moved between devices with Backup & sync (roles.wei reads these backups too).
-- **Settings**: your own RPC endpoints (reads on their chain go there; your wallet still signs) and which roles.wei gateway to link to.
+- **Settings**: your own RPC endpoints (reads on their chain go there; your wallet still signs), an optional Etherscan key (history searches in one request, each result checked against the chain) and which roles.wei gateway to link to.
 - Links that open any screen or prefill a send, a CSV batch, any contract call or a new Safe ([docs/links.md](docs/links.md)).
 - Use the Safe in other dapps through WalletConnect: requests go through the same review.
 - Sign as an owner with a wallet on your phone: **Connect → WalletConnect** shows a QR code.

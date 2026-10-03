@@ -4,7 +4,7 @@ import { chainInfo, gatewayOf, handlerName, KNOWN_IDS, label } from './chains.js
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review, signMessageOf } from './review.js';
 import * as rpc from './rpc.js';
-import { reader, rpcs, addRpc, removeRpc } from './endpoints.js';
+import { reader, rpcs, addRpc, removeRpc, explorerKey, setExplorerKey } from './endpoints.js';
 import { create, createCall, modules, newTx, predict, readSafe, safeTxHash, SENTINEL } from './safe.js';
 import { compact, fragment, importMessage, importPayload, messageFragment, toJSON } from './share.js';
 import { payloadGas, scan } from './pending.js';
@@ -369,9 +369,13 @@ function settingsDialog() {
   };
   pick.onchange = () => { custom.hidden = !!pick.value; if (pick.value) choose(pick.value); else custom.focus(); };
   custom.onchange = () => custom.value.trim() && choose(custom.value.trim());
+  // Etherscan: history scans (pending, history) in a few requests instead of block by block.
+  const key = h('input', { value: explorerKey(), placeholder: 'Etherscan API key', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Etherscan API key' }), saveKey = h('button', 'Save'), keyOut = h('div');
+  saveKey.onclick = act(saveKey, async () => (setExplorerKey(key.value), (st.pendingFor = null), put(keyOut, h('p.ok', key.value.trim() ? 'Saved: history searches go through Etherscan.' : 'Removed: history searches go through your RPC again.'))), keyOut);
   draw();
   put(body, gws.length > 0 && [h('div.bsec', h('b', 'roles.wei gateway')), h('p.mut.small', 'Where “Open in roles.wei” and the footer link go.'), h('div.gwpick', pick, custom), gwOut],
-    h('div.bsec', h('b', 'RPC endpoints')), h('p.mut.small', 'Reads on an endpoint’s chain go there instead of your wallet’s RPC. Your wallet still signs. Kept in this browser.'), list, h('div.row', url, add), out);
+    h('div.bsec', h('b', 'RPC endpoints')), h('p.mut.small', 'Reads on an endpoint’s chain go there instead of your wallet’s RPC. Your wallet still signs. Kept in this browser.'), list, h('div.row', url, add), out,
+    h('div.bsec', h('b', 'Etherscan API key'), h('span.mut.small', ' · optional, faster history')), h('p.mut.small', 'Searches a Safe’s history (pending transactions) in a few requests instead of block by block, on every chain Etherscan indexes; each result is checked against the chain. Free at etherscan.io/apis. Kept in this browser, sent only to Etherscan.'), h('div.row', key, saveKey), keyOut);
 }
 
 function labelsSheet() {
@@ -687,7 +691,7 @@ function loadPending(s) {
   if (st.pendingFor === s.address) return st.pendingJob;
   st.pendingFor = s.address;
   st.pending = null;
-  return (st.pendingJob = scan(s).then((r) => {
+  return (st.pendingJob = scan(s, { progress: (p) => st.onScan && st.onScan(p) }).then((r) => {
     st.pending = r;
     const badge = document.querySelector('.tabs a[href$="/transactions"]');
     if (badge && r.found.length && !badge.querySelector('.badge')) badge.append(h('span.badge', String(r.found.length)));
@@ -944,13 +948,19 @@ function transactionsTab(s) {
     put(
       status,
       seen.size ? '' : 'No pending transactions found',
-      blocks > 0 ? (seen.size ? 'Searched' : ' in') + ' the last ' + blocks.toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.') : '',
+      r.wide && !r.error ? (seen.size ? 'Searched' : ' in') + ' the whole history, through Etherscan.' : blocks > 0 ? (seen.size ? 'Searched' : ' in') + ' the last ' + blocks.toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.') : '',
       r.error && [blocks > 0 ? ' This wallet’s RPC does not serve older logs.' : ' This wallet’s RPC could not be searched for pending transactions.', h('details.err', h('summary', 'Details'), h('code', r.error.slice(0, 300)))],
+      !r.wide && r.next >= 0 && tip(),
     );
     more.disabled = r.next < 0 || !!r.error;
   };
-  const more = button('Scan older blocks', async () => draw((st.pending = { ...(await scan(s, { end: st.pending.next })), head: st.pending.head })), status);
+  const more = button('Scan older blocks', async () => draw((st.pending = { ...(await scan(s, { end: st.pending.next, progress: busy })), head: st.pending.head })), status);
   more.disabled = true; // until the first scan finishes
+  // While it scans block by block: how far it got, and the fast path (an Etherscan key searches all of it at once).
+  const tip = () => h('span.mut', ' ', h('button.link', { onclick: settingsDialog }, 'Add an Etherscan key'), ' to search the whole history at once.');
+  const fill = h('span'), meter = h('div.meter', fill);
+  const busy = (p) => (put(status, (explorerKey() ? 'Searching the whole history through Etherscan' : 'Scanning recent blocks') + ' · ' + Math.floor(100 * p) + '%', meter, !explorerKey() && h('div', tip())), (fill.style.width = 100 * p + '%'));
+  st.onScan = busy;
   loadPending(s).then(draw, (e) => put(status, warn('Could not scan logs through the wallet RPC: ' + e.message)));
   return [
     st.review && st.review.tx.safe === s.address && st.review.tx.nonce >= s.nonce &&

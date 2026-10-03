@@ -1399,6 +1399,10 @@ Only after MVP:
 
 Home → ▾ → **Settings** holds RPC endpoints the user adds, one per chain (the chain is asked from the endpoint with `eth_chainId`; https only; kept in this browser as `safe.wei:rpcs`, never in backups). `src/endpoints.js` wraps the wallet's provider: the read methods (`eth_call`, `eth_getBalance`, `eth_getCode`, `eth_getStorageAt`, `eth_getLogs`, `eth_blockNumber`, block and transaction lookups, gas estimates) go to the endpoint for the connected chain when there is one; everything else (signing, sending, accounts, `eth_chainId`, chain switching) stays with the wallet. Hash checks are unchanged: nothing is signed unless the locally computed hash equals the Safe's own, now read through the user's endpoint. Adding or removing an endpoint reloads what is open.
 
+## 27f. Post-MVP — an optional Etherscan key for history
+
+Scanning a Safe's events block by block through a wallet's RPC is slow and often cut short (many RPCs refuse old or wide log ranges). Home → ▾ → **Settings** takes an optional Etherscan API key (kept in this browser as `safe.wei:explorerkey`, never in backups). With a key, `eth_getLogs` goes to Etherscan's API (`api.etherscan.io/v2`, one key for every chain it indexes) instead of the RPC: the whole range in pages of 1,000, one request at a time and spaced for the free plan. Etherscan is trusted to return every log; it is not trusted for their contents: every block a log comes from must have the hash the chain itself returns for it (`eth_getBlockByNumber`, through the wallet or the user's endpoint), and every log is decoded and checked as before (a pending transaction is listed only if its payload hashes to the approved hash). Without a key, scans show their progress and point to Settings. This is the second service safe.wei may contact besides the user's wallet and endpoints (after WalletConnect's RPC, §27d), and only when the user adds a key.
+
 Done since: owner, threshold and module management (Settings), any EVM chain (§16), ERC-5219 (`contract/SafeWeiApp.sol`), WalletConnect both ways (§27c, §27d).
 
 ---

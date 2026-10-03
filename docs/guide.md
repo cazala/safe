@@ -99,7 +99,7 @@ Home becomes your list of Safes, under one bar:
 
 - **Search, or open**: typing filters your Safes by nickname, the name they were opened by, their label or their address. If what you type is a new address or name, an **Open …** row appears. **Enter** opens the only match (or the Open row). **Escape** clears.
 - **+ New ▾**: **New** creates a Safe; the caret opens a menu with **Labels**, **Backup & sync** and **Settings**. On chains without Safe's contracts only the menu shows.
-- **Settings** holds the **roles.wei gateway** (where Open in roles.wei and the footer link go: by default the one on the same gateway as this page, safe.caza.la → roles.caza.la, safe.wei.limo → roles.wei.limo, safe.wei.is → roles.wei.is, else roles.caza.la; or a built-in one or Custom…) and your own **RPC endpoints**: add an endpoint URL (Alchemy, Infura, your node) and every read on its chain goes there instead of your wallet's RPC, faster or where the wallet's RPC is unreliable. Its chain is detected from the endpoint; Remove takes it out. Signing, accounts and chain switching always stay in your wallet, and every hash you sign is still checked against the Safe. Endpoints are kept in this browser and are not included in backups. The first-visit page links to it too.
+- **Settings** holds the **roles.wei gateway** (where Open in roles.wei and the footer link go: by default the one on the same gateway as this page, safe.caza.la → roles.caza.la, safe.wei.limo → roles.wei.limo, safe.wei.is → roles.wei.is, else roles.caza.la; or a built-in one or Custom…) and your own **RPC endpoints**: add an endpoint URL (Alchemy, Infura, your node) and every read on its chain goes there instead of your wallet's RPC, faster or where the wallet's RPC is unreliable. Its chain is detected from the endpoint; Remove takes it out. Signing, accounts and chain switching always stay in your wallet, and every hash you sign is still checked against the Safe. Endpoints are kept in this browser and are not included in backups. An optional **Etherscan API key** (free at etherscan.io) makes history searches (pending transactions) one quick request through Etherscan's index instead of a scan block by block; each block a result comes from is checked against the chain, and the key is sent only to Etherscan. The first-visit page links to it too.
 
 Every Safe you open is saved automatically.
 
@@ -170,7 +170,7 @@ Both forms can be prefilled by a link (for bots and integrations): see [links.md
 - **Pending**: transactions a proposer published onchain together with their approval (see [§11](#11-review-approve-and-execute)). safe.wei scans recent `ApproveHash` events (the last 50,000 blocks, in steps) and decodes the transaction carried in the approval. **Scan older blocks** goes further back. Each shows its nonce (next or queued), what it does, who proposed it and **Review**.
 - **Import**: paste a safe.wei link, a `tx=` fragment or transaction JSON from another owner. If it is the transaction you are reviewing, its signatures are merged in.
 
-Wallet RPCs limit how far back logs can be read; the status line says how far the search went.
+Wallet RPCs limit how far back logs can be read; the status line says how far the search went. While it scans block by block it shows its progress, and **Add an Etherscan key** opens Settings: with a key the whole history is searched at once.
 
 ## 8. Custom (contract calls)
 
@@ -370,6 +370,7 @@ All in `localStorage`, under `safe.wei:`:
 | `wc` | Dapps connected to your Safes (WalletConnect sessions and keys) |
 | `wcowner` | A wallet connected with WalletConnect (session and keys) |
 | `wcproject` | Your own WalletConnect project ID, if you set one |
+| `explorerkey` | Your Etherscan API key, if you added one |
 
 Clearing site data removes them; export a backup first.
 
@@ -377,7 +378,7 @@ Clearing site data removes them; export a backup first.
 
 - **"Not a Safe, or unreadable"**: the address has no Safe on the connected chain. Check the chain, or the address.
 - **A name does not resolve**: names resolve on Ethereum only, onchain only (no CCIP-read). Use the 0x address on other chains.
-- **Pending transactions are missing**: only transactions published onchain with an approval are listed, and only as far back as your wallet's RPC serves logs. Use **Scan older blocks**, or import the link.
+- **Pending transactions are missing**: only transactions published onchain with an approval are listed, and only as far back as your wallet's RPC serves logs. Use **Scan older blocks**, add an Etherscan key in Settings (the whole history at once), or import the link.
 - **Your wallet shows a different hash than the review**: do not sign. safe.wei prints the hash your wallet should show.
 - **Switching chains fails**: some wallets do not know every chain; add it in the wallet first, or switch from the wallet.
 - **Copy does nothing on a LAN address**: browsers limit the clipboard on plain `http` pages; safe.wei falls back to an older copy method, which some browsers also block.
