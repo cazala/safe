@@ -99,7 +99,7 @@ Home becomes your list of Safes, under one bar:
 
 - **Search, or open**: typing filters your Safes by nickname, the name they were opened by, their label or their address. If what you type is a new address or name, an **Open …** row appears. **Enter** opens the only match (or the Open row). **Escape** clears.
 - **+ New ▾**: **New** creates a Safe; the caret opens a menu with **Labels**, **Backup & sync** and **Settings**. On chains without Safe's contracts only the menu shows.
-- **Settings** holds the **roles.wei gateway** (where Open in roles.wei and the footer link go: by default the one on the same gateway as this page, safe.caza.la → roles.caza.la, safe.wei.limo → roles.wei.limo, safe.wei.is → roles.wei.is, else roles.caza.la; or a built-in one or Custom…) and your own **RPC endpoints**: add an endpoint URL (Alchemy, Infura, your node) and every read on its chain goes there instead of your wallet's RPC, faster or where the wallet's RPC is unreliable. Its chain is detected from the endpoint; Remove takes it out. Signing, accounts and chain switching always stay in your wallet, and every hash you sign is still checked against the Safe. Endpoints are kept in this browser and are not included in backups. An optional **Etherscan API key** (free at etherscan.io) makes history searches (pending transactions) one quick request through Etherscan's index instead of a scan block by block; each block a result comes from is checked against the chain, and the key is sent only to Etherscan. The first-visit page links to it too.
+- **Settings** holds the **roles.wei gateway** (where Open in roles.wei and the footer link go: by default the one on the same gateway as this page, safe.caza.la → roles.caza.la, safe.wei.limo → roles.wei.limo, safe.wei.is → roles.wei.is, else roles.caza.la; or a built-in one or Custom…) and your own **RPC endpoints**: add an endpoint URL (Alchemy, Infura, your node) and every read on its chain goes there instead of your wallet's RPC, faster or where the wallet's RPC is unreliable. Its chain is detected from the endpoint; Remove takes it out. Signing, accounts and chain switching always stay in your wallet, and every hash you sign is still checked against the Safe. Endpoints are kept in this browser and are not included in backups. An optional **Etherscan API key** (free at etherscan.io) makes history searches (pending and executed transactions) one quick request through Etherscan's index instead of a scan block by block; each block a result comes from is checked against the chain, and the key is sent only to Etherscan. The first-visit page links to it too.
 
 Every Safe you open is saved automatically.
 
@@ -168,6 +168,7 @@ Both forms can be prefilled by a link (for bots and integrations): see [links.md
 
 - **In progress**: the transaction you were last reviewing, to continue it.
 - **Pending**: transactions a proposer published onchain together with their approval (see [§11](#11-review-approve-and-execute)). safe.wei scans recent `ApproveHash` events (the last 50,000 blocks, in steps) and decodes the transaction carried in the approval. **Scan older blocks** goes further back. Each shows its nonce (next or queued), what it does, who proposed it and **Review**.
+- **History**: executed transactions, newest first. Those executed in safe.wei are kept in this browser right away; the rest are found onchain from the Safe's `ExecutionSuccess` events (the last 50,000 blocks, or the whole history with an Etherscan key; **Search older blocks** goes further): safe.wei reads the transaction that executed it, decodes the `execTransaction` call (also inside a relayer's or multicall's call) and lists it only if it hashes to the SafeTx hash in the event. Each row shows its nonce, what it did and the execution transaction. **Review again** opens the same transaction at the current nonce; **Add to batch** adds its call, or each call of a batch, to the batch. Transactions executed by a module are not listed (they have no SafeTx).
 - **Import**: paste a safe.wei link, a `tx=` fragment or transaction JSON from another owner. If it is the transaction you are reviewing, its signatures are merged in.
 
 Wallet RPCs limit how far back logs can be read; the status line says how far the search went. While it scans block by block it shows its progress, and **Add an Etherscan key** opens Settings: with a key the whole history is searched at once.
@@ -371,6 +372,7 @@ All in `localStorage`, under `safe.wei:`:
 | `wcowner` | A wallet connected with WalletConnect (session and keys) |
 | `wcproject` | Your own WalletConnect project ID, if you set one |
 | `explorerkey` | Your Etherscan API key, if you added one |
+| `history` | Executed transactions, per Safe (`<chainId>:<safe>`): their fields, SafeTx hash and execution transaction |
 
 Clearing site data removes them; export a backup first.
 
