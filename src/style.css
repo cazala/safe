@@ -528,3 +528,5 @@ p.rolessetup { margin: 8px 0 10px; font-size: 13px; }
 .hrow { display: grid; grid-template-columns: 110px 1fr auto; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
 .hrow code { word-break: break-all; }
 @media (max-width: 600px) { .hrow { grid-template-columns: 1fr auto; } .hrow > span { grid-column: 1 / -1; } }
+.meter.wait span { width: 30%; animation: meterwait 1.2s ease-in-out infinite; }
+@keyframes meterwait { from { transform: translateX(-100%); } to { transform: translateX(340%); } }

@@ -1,6 +1,7 @@
 // Backup & sync: everything this browser keeps for safe.wei (Safes and their layout,
 // labels, ABIs, added tokens), as JSON or a link to open on another device.
 // FROZEN FORMAT (#import= links, JSON shape): see docs/links.md → Stability and test/unit/links.test.mjs.
+import { MULTISEND } from './chains.js';
 import { utf8 } from './abi.js';
 import { load as read, store as write } from './store.js';
 
@@ -61,7 +62,10 @@ export async function parse(text) {
   d.tokens = Object.fromEntries(Object.entries(d.tokens || {}).filter(([c, l]) => /^\d+$/.test(c) && Array.isArray(l)).map(([c, l]) => [c, l.filter((t) => t && addr(t.address) && Number.isInteger(t.decimals))]));
   // Saved custom calls (optional key): well-formed ones only.
   const str = (v, n) => typeof v === 'string' && v.length <= n;
-  d.calls = Object.fromEntries(Object.entries(d.calls && typeof d.calls === 'object' ? d.calls : {}).filter(([c, l]) => /^\d+$/.test(c) && Array.isArray(l)).map(([c, l]) => [c, l.filter((x) => x && addr(x.to) && str(x.name, 60) && /^\d+$/.test(x.value) && /^0x([0-9a-f]{2})*$/.test(x.data) && str(x.sig, 2000) && str(x.human, 4000) && str(x.line, 4000) && Array.isArray(x.vals) && x.vals.every((v) => str(v, 20000))).map(({ name, to, value, data, sig, human, line, vals }) => ({ name, to, value, data, sig, human, line, vals }))]));
+  // A whole transaction saved from History may be a batch: DELEGATECALL only into the canonical MultiSendCallOnly.
+  const op = (x) => x.operation === undefined || x.operation === 0 || (x.operation === 1 && MULTISEND.includes(x.to));
+  const hints = (x) => x.hints === undefined || (Array.isArray(x.hints) && x.hints.length <= 50 && x.hints.every((v) => str(v, 4000)));
+  d.calls = Object.fromEntries(Object.entries(d.calls && typeof d.calls === 'object' ? d.calls : {}).filter(([c, l]) => /^\d+$/.test(c) && Array.isArray(l)).map(([c, l]) => [c, l.filter((x) => x && addr(x.to) && str(x.name, 60) && /^\d+$/.test(x.value) && /^0x([0-9a-f]{2})*$/.test(x.data) && str(x.sig, 2000) && str(x.human, 4000) && str(x.line, 4000) && Array.isArray(x.vals) && x.vals.every((v) => str(v, 20000)) && op(x) && hints(x)).map(({ name, to, value, data, sig, human, line, vals, operation, hints }) => ({ name, to, value, data, sig, human, line, vals, ...(operation ? { operation } : {}), ...(hints && hints.length ? { hints } : {}) }))]));
   d.tree = Array.isArray(d.tree) ? d.tree : [];
   return d;
 }
