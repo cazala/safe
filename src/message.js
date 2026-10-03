@@ -126,9 +126,13 @@ export function describe(m) {
   throw Error('Unknown message kind.');
 }
 
-/** SafeMessage hash for this Safe (what owners sign), over message = the 32-byte hash. */
-export const safeMessageHash = (chainId, safe, hash) =>
-  keccakHex('0x1901' + strip(keccakHex('0x' + encode([T.Domain, chainId, safe]))) + strip(keccakHex('0x' + encode([T.SafeMessage, keccakHex(hash)]))));
+/** The EIP-712 parts of a SafeMessage over message = the 32-byte hash: domain hash, message hash, and their hash. */
+export function safeMessageParts(chainId, safe, hash) {
+  const domain = keccakHex('0x' + encode([T.Domain, chainId, safe])), message = keccakHex('0x' + encode([T.SafeMessage, keccakHex(hash)]));
+  return { domain, message, hash: keccakHex('0x1901' + strip(domain) + strip(message)) };
+}
+/** SafeMessage hash for this Safe (what owners sign). */
+export const safeMessageHash = (chainId, safe, hash) => safeMessageParts(chainId, safe, hash).hash;
 
 /** Typed data for eth_signTypedData_v4 (an owner signing the Safe's message). */
 export const safeMessageTypedData = (chainId, safe, hash) => ({

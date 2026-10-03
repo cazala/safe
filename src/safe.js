@@ -63,14 +63,19 @@ export const newTx = (s, { to, value = 0n, data = '0x', operation = 0, nonce = s
 
 const fields = (t) => [t.to, t.value, B(t.data), t.operation, t.safeTxGas, t.baseGas, t.gasPrice, t.gasToken, t.refundReceiver, t.nonce];
 
-/** EIP-712 SafeTx hash computed locally (identical for v1.3.0 and v1.4.1). */
-export function safeTxHash(t) {
+/**
+ * The EIP-712 parts of a SafeTx: the domain hash and the message (struct) hash, which a hardware wallet signing
+ * blind shows, and the SafeTx hash they make. Identical for v1.3.0 and later.
+ */
+export function safeTxParts(t) {
   const domain = keccakHex('0x' + encode([T.Domain, t.chainId, t.safe]));
-  const struct = keccakHex(
+  const message = keccakHex(
     '0x' + encode([T.SafeTx, t.to, t.value, keccakHex(t.data), t.operation, t.safeTxGas, t.baseGas, t.gasPrice, t.gasToken, t.refundReceiver, t.nonce]),
   );
-  return keccakHex('0x1901' + strip(domain) + strip(struct));
+  return { domain, message, hash: keccakHex('0x1901' + strip(domain) + strip(message)) };
 }
+/** EIP-712 SafeTx hash computed locally. */
+export const safeTxHash = (t) => safeTxParts(t).hash;
 
 /** The Safe's own getTransactionHash for the same fields. */
 export const chainTxHash = (t) => call(t.safe, cd(S.getTransactionHash, ...fields(t))).then((r) => '0x' + strip(r).slice(0, 64));

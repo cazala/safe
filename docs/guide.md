@@ -233,13 +233,14 @@ Every transaction, however it was built or opened, ends on the review screen.
 | Anyone, once enough owners approved | **Execute**, and **Copy link**: anyone with the link can open it and execute. |
 | Queued behind an earlier nonce | Waits; it can execute once the earlier nonce has. |
 
-3. **Approvals**: each owner with ✓ signed, ✓ approved onchain, or waiting, and **Refresh**.
+3. **What your wallet must show** (for an owner who has not signed): the **domain hash**, **message hash** and **SafeTx hash**, in full with copy buttons. A hardware wallet signing blind (a Ledger, say) shows the domain and message hashes; other wallets and tools show the SafeTx hash. Messages show the same three for their SafeMessage.
+4. **Approvals**: each owner with ✓ signed, ✓ approved onchain, or waiting, and **Refresh**.
 - **Simulation**: a transaction is simulated before any action. A call runs as an `eth_call` from the Safe. A batch, or any DELEGATECALL, runs inside the Safe with its `simulateAndRevert` (Safe 1.3.0 and later), so the calls of a batch see each other's effects, as when executed. A batch that reverts is flagged, with each call also simulated on its own to point at the failing one. A token that returns `false` is flagged too. Simulation warns; it never blocks.
 - **Modules and guards**: enabling a module or setting a guard shows what the contract is (e.g. "Zodiac Roles 2.1.1"), whether Zodiac lists that version as faulty, and who owns it: this Safe, an owner, or someone else, which is flagged. An address with no code yet shows "No contract here yet".
 - **Deploying a Zodiac module** (the ModuleProxyFactory's `deployModule`, as roles.wei's setup batch does) is decoded: which module and version (faulty versions flagged), the address it will be deployed at, and, for Roles and Delay, its owner, avatar and target. An owner other than this Safe is flagged as dangerous (it could change what the module allows); an avatar or target other than this Safe is warned about. When the same batch enables the module, the enabled address must be the one deployed: it shows "Deployed by call N", and any other address is flagged.
 - **Values**: a `bytes32` that is short text padded with zeros (a role key, for example) also shows as that text.
 
-4. **Transaction details** (collapsed): Safe, chain, nonce, to, value, operation, decoded action (per call for batches), calldata, gas fields, SafeTx hash and the Safe's own hash.
+5. **Transaction details** (collapsed): Safe, chain, nonce, to, value, operation, decoded action (per call for batches), calldata, gas fields, SafeTx hash and the Safe's own hash.
 
 ### Calls safe.wei cannot decode by itself
 

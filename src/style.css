@@ -522,3 +522,9 @@ p.rolessetup { margin: 8px 0 10px; font-size: 13px; }
 .meter { height: 3px; margin: 8px 0; border-radius: 2px; background: var(--line); overflow: hidden; }
 .meter span { display: block; width: 0; height: 100%; background: var(--fg); transition: width .2s; }
 .srow.saved .sa { margin-left: 10px; }
+/* The hashes a wallet shows when signing: label, the full hash, copy. */
+.hashes { margin: 12px 0 24px; }
+.hashes .fhint { margin: 0 0 6px; }
+.hrow { display: grid; grid-template-columns: 110px 1fr auto; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
+.hrow code { word-break: break-all; }
+@media (max-width: 600px) { .hrow { grid-template-columns: 1fr auto; } .hrow > span { grid-column: 1 / -1; } }
