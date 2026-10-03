@@ -99,3 +99,10 @@ test('extra &key=value parameters after a #tx= / #msg= payload are ignored (the 
   const F = messageFragment({ chainId: 1, safe: plain.safe, kind: 3, content: '0x' + 'ab'.repeat(32) }, []);
   assert.deepEqual(importMessage('https://safe.caza.la/#' + F + '&app=roles.wei'), importMessage('https://safe.caza.la/#' + F));
 });
+
+test('backups: saved calls (optional key) are kept when well formed, dropped otherwise; old backups get none', async () => {
+  const good = { name: 'Stake', to: '0xae7ab96520de3a18e5e111b5eaab095312d7fe84', value: '10000000000000000000', data: '0xa1903eab' + '0'.repeat(64), sig: 'submit(address)', human: 'submit(address _referral)', line: 'function submit(address _referral) payable', vals: ['0x0000000000000000000000000000000000000000', '10'] };
+  const d = await parse(JSON.stringify({ app: 'safe.wei', v: 1, safes: [], calls: { 1: [good, { ...good, to: 'nope' }, { ...good, data: '0xzz' }, { ...good, extra: 'x' }], x: [good] } }));
+  assert.deepEqual(d.calls, { 1: [good, good] });
+  assert.deepEqual((await parse(JSON.stringify({ app: 'safe.wei', v: 1, safes: [] }))).calls, {});
+});
