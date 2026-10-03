@@ -5,7 +5,7 @@ import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review, signMessageOf } from './review.js';
 import * as rpc from './rpc.js';
 import { reader, rpcs, addRpc, removeRpc, explorerAbi, explorerKey, setExplorerKey } from './endpoints.js';
-import { create, createCall, modules, newTx, predict, readSafe, safeTxHash, SENTINEL } from './safe.js';
+import { create, createCall, modules, newTx, predict, readSafe, safeTxHash, safeTxParts, SENTINEL } from './safe.js';
 import { compact, fragment, importMessage, importPayload, messageFragment, toJSON } from './share.js';
 import { payloadGas, scan } from './pending.js';
 import { decode } from './decode.js';
@@ -23,7 +23,7 @@ import * as backup from './backup.js';
 import * as recent from './recent.js';
 import { add, discover, get, list, remember, remembered } from './wallets.js';
 import { identify } from './zodiac.js';
-import { checkMessage, combine, isValid, KINDS, onchainSignCall, signMessage } from './message.js';
+import { checkMessage, combine, isValid, KINDS, onchainSignCall, safeMessageParts, signMessage } from './message.js';
 import { connector, provider, create as wcCreate } from './wc.js';
 import { qr, qrPath } from './qr.js';
 import { load, store } from './store.js';
@@ -943,6 +943,11 @@ function bulkForm(s, q) {
   );
 }
 
+/** What the wallet shows when signing, to compare: a hardware wallet signing blind shows the domain and message hashes. */
+const hashes = (p, name) =>
+  h('div.hashes', h('p.fhint', 'Your wallet must show the same. A hardware wallet signing blind shows the domain and message hashes; others show the ' + name + '.'),
+    [['Domain hash', p.domain], ['Message hash', p.message], [name, p.hash]].map(([k, v]) => h('div.hrow', h('span.mut', k), h('code', v), copy(v, 'Copy ' + k.toLowerCase()))));
+
 /** A row of Pending or History: nonce and status, what it does, where it came from; the actions on the right. */
 const txRow = (head, main, meta, acts, out = null) =>
   h('div.card.txrow', h('div.txmain', h('div.txhead', ...head), h('div.txwhat', ...main), h('div.txmeta', ...meta), out), h('div.txacts', ...acts));
@@ -1788,7 +1793,6 @@ function nextStep(r) {
           ),
         ),
         out,
-        h('p.fhint', 'Your wallet will show the SafeTx hash ', h('code', r.local), '. It must match.'),
       );
     } else if (owner)
       step = h('div.step', h('h3', h('span.ok', '✓ '), 'You approved · ' + (thr - got) + ' more needed'), h('p', 'Send this link to the other owners. Each one opens it, checks it and approves with their wallet.'), txShare(r, true));
@@ -1802,6 +1806,7 @@ function nextStep(r) {
     put(
       box,
       step,
+      owner && !mine && hashes(safeTxParts(t), 'SafeTx hash'),
       h(
         'section.rvapprovals',
         h('div.rvsec', h('h3', 'Approvals · ' + count), h('span.grow'), button('Refresh', () => showReview(t, st.sigs, 'replace'), out, '.link')),
@@ -2042,7 +2047,8 @@ function messageStep(m, c) {
           ),
       ),
       out,
-      h('p.fhint', 'To sign, your wallet shows a SafeMessage for this Safe whose message is ', h('code', c.hash), '. It must match.'),
+      h('p.fhint', 'To sign, your wallet shows a SafeMessage for this Safe whose message is ', h('code', c.hash), '.'),
+      hashes(safeMessageParts(m.chainId, m.safe, c.hash), 'SafeMessage hash'),
     );
   else if (owner) step = h('div.step', h('h3', h('span.ok', '✓ '), 'You signed · ' + (thr - got) + ' more needed'), h('p', 'Send this link to the other owners. Each one opens it, checks it and signs with their wallet.'), share(true));
   else
