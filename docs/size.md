@@ -34,8 +34,9 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 300 KB raw (raise
 | hide tokens | 197,553 | 69,714 | 166,204 | 29,985 | per-Safe hidden tokens in Assets (eye on the row, Show / Hide them under the table) |
 | saved calls | 200,443 | — | — | — | Save… on a method card, Saved calls in Custom (Review, Add to batch, Edit, delete), in backups |
 | Etherscan key, scan progress | 204,319 | — | — | — | optional Etherscan key in Settings (logs from its index, each block checked against the chain), progress and a tip while scanning block by block |
+| transaction history | 208,658 | — | — | — | executed transactions kept and found onchain (ExecutionSuccess, execTransaction decoded and hash-checked), Review again, Add to batch |
 
-The page is now about 192 KB (196,599 bytes): under the 300 KB limit (307,200 bytes), with about 108 KB left. Each extra 24,575-byte chunk adds roughly 5M gas to the deploy. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 9 chunks of up to 24,575 bytes plus the config chunk (~44M gas, docs/deploy.md → Cost).
+The page is now about 204 KB (208,658 bytes): under the 300 KB limit (307,200 bytes), with about 96 KB left. Each extra 24,575-byte chunk adds roughly 5M gas to the deploy. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 9 chunks of up to 24,575 bytes plus the config chunk (~44M gas, docs/deploy.md → Cost).
 
 ## Major contributors
 

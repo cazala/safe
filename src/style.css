@@ -120,16 +120,20 @@ table.assets code { font-size: 12px; }
 .num { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
 a.btn { white-space: nowrap; overflow-wrap: normal; display: inline-block; padding: 5px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--fg); text-decoration: none; font-size: 14px; }
 a.callout { display: block; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-left: 3px solid var(--fg); border-radius: 6px; background: var(--card); color: var(--fg); text-decoration: none; }
-.card.txrow { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; }
-.card.txrow > button { grid-row: 1 / span 3; grid-column: 2; }
-.card.txrow .chip { margin-left: 8px; }
+/* Pending / History rows: the details on the left (status, what it does, where it came from), actions on the right. */
+.card.txrow { display: flex; align-items: center; gap: 16px; margin: 0 0 8px; padding: 14px 16px; }
+.txmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.txhead { display: flex; align-items: center; gap: 8px; }
+.txwhat { font-size: 15px; }
+.txmeta { color: var(--mut); font-size: 13px; }
+.txacts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
 @media (max-width: 600px) {
   nav.tabs a { padding: 10px 7px; font-size: 14px; }
   nav.tabs { overflow: visible; }
   nav.tabs a.extra { display: none; }
   nav.tabs .tabmore { display: block; }
-  .card.txrow { grid-template-columns: 1fr; }
-  .card.txrow > button { grid-row: auto; grid-column: auto; justify-self: start; }
+  .card.txrow { flex-direction: column; align-items: stretch; gap: 12px; }
+  .txacts { justify-content: flex-start; }
 }
 button { overflow-wrap: normal; }
 select { appearance: none; -webkit-appearance: none; padding-right: 36px; background-image: linear-gradient(45deg, transparent 50%, var(--mut) 50%), linear-gradient(135deg, var(--mut) 50%, transparent 50%); background-position: calc(100% - 19px) 55%, calc(100% - 14px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }

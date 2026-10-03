@@ -13,6 +13,7 @@ import { balances, listed, meta, save, saved } from './tokens.js';
 import { S } from './sel.js';
 import { checkName, isName, nameOf, resolveName } from './names.js';
 import { batch, unpack } from './multisend.js';
+import { record, saved as historyOf, scanHistory, toTx } from './history.js';
 import { parseCSV } from './csv.js';
 import { encodeCall, humanSig, matchCall, parseAbi, parseValue } from './abicoder.js';
 import { $, act, addr, bad, copy, copyButton, h, icon, iconButton, ICONS, kv, NS, labelDialog, put, setName, setResolver, toClipboard, sheet, short, warn } from './ui.js';
@@ -375,7 +376,7 @@ function settingsDialog() {
   draw();
   put(body, gws.length > 0 && [h('div.bsec', h('b', 'roles.wei gateway')), h('p.mut.small', 'Where “Open in roles.wei” and the footer link go.'), h('div.gwpick', pick, custom), gwOut],
     h('div.bsec', h('b', 'RPC endpoints')), h('p.mut.small', 'Reads on an endpoint’s chain go there instead of your wallet’s RPC. Your wallet still signs. Kept in this browser.'), list, h('div.row', url, add), out,
-    h('div.bsec', h('b', 'Etherscan API key'), h('span.mut.small', ' · optional, faster history')), h('p.mut.small', 'Searches a Safe’s history (pending transactions) in a few requests instead of block by block, on every chain Etherscan indexes; each result is checked against the chain. Free at etherscan.io/apis. Kept in this browser, sent only to Etherscan.'), h('div.row', key, saveKey), keyOut);
+    h('div.bsec', h('b', 'Etherscan API key'), h('span.mut.small', ' · optional, faster history')), h('p.mut.small', 'Searches a Safe’s history (pending and executed transactions) in a few requests instead of block by block, on every chain Etherscan indexes; each result is checked against the chain. Free at etherscan.io/apis. Kept in this browser, sent only to Etherscan.'), h('div.row', key, saveKey), keyOut);
 }
 
 function labelsSheet() {
@@ -942,6 +943,54 @@ function bulkForm(s, q) {
   );
 }
 
+/** A row of Pending or History: nonce and status, what it does, where it came from; the actions on the right. */
+const txRow = (head, main, meta, acts, out = null) =>
+  h('div.card.txrow', h('div.txmain', h('div.txhead', ...head), h('div.txwhat', ...main), h('div.txmeta', ...meta), out), h('div.txacts', ...acts));
+
+/** What a transaction does, in a few words (the rows of Pending and History). */
+function what(t) {
+  const b = unpack(t), d = !b && decode(t), hm = !b && !d && hintOf(t.data);
+  return b ? 'Batch of ' + b.length + ' calls' : d ? d.label : hm ? hm.f.name : t.data === '0x' ? fmt(t.value) + ' ' + chain().sym + ' transfer' : 'Contract call';
+}
+
+/** History: executed transactions, kept here and found onchain; each can be reviewed again or added to the batch. */
+function historyView(s) {
+  const list = h('div'), status = h('p.mut'), fill = h('span'), meter = h('div.meter', fill);
+  let r = { entries: historyOf(s) };
+  const row = (e) => {
+    addHints(e.hints);
+    const t = toTx(s, e), calls = unpack(t) || (t.operation === 0 && [t]), o = h('div');
+    return txRow(
+      [h('b', 'Nonce ' + e.nonce), chip('executed', '.ok')],
+      [what(t), ' → ', addr(t.to, null, short(t.to))],
+      ['Executed in ', addr(e.txHash, null, short(e.txHash))],
+      [button('Review again', async () => ((st.named = {}), showReview(newTx(s, { to: t.to, value: t.value, data: t.data, operation: t.operation }))), o),
+        calls && chain().canBatch && button('Add to batch', async () => calls.forEach((c) => queue({ to: c.to, value: c.value, data: c.data })), o)],
+      o,
+    );
+  };
+  const tip = () => !r.wide && r.next >= 0 && h('span', ' ', h('button.link', { onclick: settingsDialog }, 'Add an Etherscan key'), ' to search the whole history at once.');
+  const draw = () => {
+    put(list, r.entries.length ? r.entries.map(row) : h('p.empty', 'No executed transactions found yet.'));
+    put(status, r.head == null ? 'Executed here, kept in this browser.' : r.wide ? (r.error ? '' : 'Searched the whole history, through Etherscan.') : 'Searched the last ' + (r.head - r.next).toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.'),
+      r.error && [r.wide ? 'Etherscan could not finish the search.' : ' This RPC does not serve older logs.', h('details.err', h('summary', 'Details'), h('code', r.error.slice(0, 300)))], tip());
+    more.disabled = r.head == null || r.next < 0 || !!r.error;
+  };
+  const busy = (p) => (put(status, (explorerKey() ? 'Searching the whole history through Etherscan' : 'Searching executed transactions') + ' · ' + Math.floor(100 * p) + '%', meter, !explorerKey() && h('div', tip())), (fill.style.width = 100 * p + '%'));
+  let top; // where the first search started: the status counts from there
+  const run = async (end) => {
+    const x = await scanHistory(s, { end, progress: busy });
+    top = top ?? x.head;
+    r = { ...x, head: top };
+    draw();
+  };
+  const more = button('Search older blocks', () => run(r.next), status);
+  draw();
+  // After the pending scan, so the two do not compete for the RPC.
+  loadPending(s).catch(() => {}).then(() => run()).catch((e) => put(status, warn('Could not search executed transactions: ' + e.message)));
+  return [h('h2', 'History'), h('p.mut', 'Executed transactions: those executed here, and those found onchain (each checked against its SafeTx hash). Review one again, or add its calls to the batch.'), list, status, h('div.actions', more)];
+}
+
 function transactionsTab(s) {
   const list = h('div'), status = h('p.mut', 'Scanning recent ApproveHash events…'), seen = new Set();
   const draw = (r) => {
@@ -949,14 +998,12 @@ function transactionsTab(s) {
       if (seen.has(p.hash)) continue;
       seen.add(p.hash);
       addHints(p.abi);
-      const d = decode(p.tx), c = chain(), hm = !d && hintOf(p.tx.data);
       list.append(
-        h(
-          'div.card.txrow',
-          h('div', h('b', 'Nonce ' + p.tx.nonce), p.tx.nonce > s.nonce ? chip('queued') : chip('next', '.ok')),
-          h('div', d ? d.label : hm ? hm.f.name : p.tx.data === '0x' ? fmt(p.tx.value) + ' ' + c.sym + ' transfer' : 'Contract call', ' → ', addr(p.tx.to, null, short(p.tx.to))),
-          h('div.mut', 'Proposed by ', addr(p.proposer, null, short(p.proposer)), ' · SafeTx ', addr(p.hash, null, short(p.hash))),
-          h('button', { onclick: () => ((st.named = {}), showReview(p.tx)) }, 'Review'),
+        txRow(
+          [h('b', 'Nonce ' + p.tx.nonce), p.tx.nonce > s.nonce ? chip('queued') : chip('next', '.ok')],
+          [what(p.tx), ' → ', addr(p.tx.to, null, short(p.tx.to))],
+          ['Proposed by ', addr(p.proposer, null, short(p.proposer)), ' · SafeTx ', addr(p.hash, null, short(p.hash))],
+          [h('button', { onclick: () => ((st.named = {}), showReview(p.tx)) }, 'Review')],
         ),
       );
     }
@@ -987,6 +1034,7 @@ function transactionsTab(s) {
     list,
     status,
     h('div.actions', more),
+    historyView(s),
     h('h2', 'Import'),
     importer(),
   ];
@@ -1645,6 +1693,7 @@ function nextStep(r) {
       rv.append(h('p.ok', msg + ' ', addr(rc.transactionHash)));
     };
     const executed = async (rc) => {
+      record(s, t, rc.transactionHash, hintsFor(t));
       if (wcFor(t)) wcAnswer(rc.transactionHash);
       if (r.batch) (st.batch = []), (st.batchNames = {});
       st.stale = true;
