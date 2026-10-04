@@ -921,12 +921,6 @@ function bulkForm(s, q) {
     preview,
     h(
       'div.actions',
-      button('Preview', check, out),
-      chain().canBatch && button('Add to batch', async () => {
-        const p = await need();
-        st.named = p.names;
-        p.calls.forEach(queue);
-      }, out),
       button(
         'Review',
         async () => {
@@ -938,6 +932,12 @@ function bulkForm(s, q) {
         out,
         '.primary',
       ),
+      chain().canBatch && button('Add to batch', async () => {
+        const p = await need();
+        st.named = p.names;
+        p.calls.forEach(queue);
+      }, out),
+      button('Preview', check, out),
     ),
     out,
   );

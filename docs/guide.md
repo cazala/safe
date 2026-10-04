@@ -159,7 +159,7 @@ Paste one transfer per line: `recipient,amount[,token]`.
 - Separators: comma, semicolon, tab or spaces. A header row and `#` comments are ignored.
 - Recipient: 0x address or `.eth` / `.wei` name.
 - Token: empty (or the native symbol) for the native coin, a TokenList symbol (must be unambiguous), or a token address.
-- **Preview** checks every row, with its line number, resolves names, and shows per-token totals against the Safe's balance, between the text box and the buttons (Preview · Add to batch · Review).
+- **Preview** checks every row, with its line number, resolves names, and shows per-token totals against the Safe's balance, between the text box and the buttons (Review · Add to batch · Preview).
 - All rows run as one Safe transaction (a MultiSendCallOnly batch, or a plain transfer for a single row), at most **200 rows**.
 - **Review** or **Add to batch**.
 
