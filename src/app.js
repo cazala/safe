@@ -1760,7 +1760,7 @@ function nextStep(r) {
       step = h(
         'div.step.go',
         h('h3', owner && !mine ? 'Your approval completes it' : 'Ready to execute'),
-        h('p', owner && !mine ? count + ' so far. Sign (free; your wallet shows the hashes below), then execute: that submits it onchain and costs gas, from any wallet. Or switch to Execute (▾) to send it from your wallet in one step.' : count + ' collected. Executing submits it onchain: it costs gas, and any wallet can do it.'),
+        h('p', owner && !mine ? count + (load('signmode', 'sign') === 'exec' ? ' so far. Executing sends it from your wallet and costs gas.' : ' so far. Sign to check the hashes below, then execute.') : count + ' collected. Executing submits it onchain: it costs gas, and any wallet can do it.'),
         h(
           'div.actions',
           owner && !mine ? signSplit(t, me, out, executed) : button('Execute', () => recheck().then(() => execute(t, me, st.sigs)).then(executed), out, '.primary'),
