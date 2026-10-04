@@ -338,7 +338,7 @@ Once enough owners have approved:
 - sort signatures by signer address
 - call `execTransaction(...)`
 
-The executing owner does NOT need to call `approveHash` first. Safe's `checkNSignatures` accepts a v=1 signature for an owner when `msg.sender == owner`. The executor therefore adds its own prevalidated signature and executes in a single transaction. A 1-of-1 Safe executes with exactly one transaction. The final approver of an n-of-m Safe should be offered "Approve and execute".
+The executing owner does NOT need to call `approveHash` first. Safe's `checkNSignatures` accepts a v=1 signature for an owner when `msg.sender == owner`. An executing owner without a signature is therefore counted through its own prevalidated signature. The final approver is offered **Sign ▾** instead (since October 2026): an EIP-712 signature first, which a hardware wallet can check by its domain and message hashes, then Execute; or **Execute** at once (chosen in the ▾ menu, remembered in this browser): one prompt, the sender counted through its prevalidated signature, as before. When the executor's own offchain signature is collected, it is sent instead of the prevalidated one, so the execution carries what the owner checked. Only an executor that is not an owner fully binds the execution to the checked signature: an owner's transaction could always carry the prevalidated form instead, so the review says to execute from another wallet when that matters.
 
 Prevalidated Safe signature format:
 
@@ -613,7 +613,7 @@ Actions:
 - Share transaction (link / JSON)
 - Import transaction
 - Approve onchain
-- Approve and execute (when this approval reaches threshold)
+- Sign, or Execute at once (when this approval reaches threshold)
 - Sign offchain
 - Import signature
 - Execute
@@ -1058,7 +1058,7 @@ Implement:
 - query owner approvals
 - build prevalidated signatures
 - threshold detection
-- executor's own prevalidated signature ("Approve and execute")
+- executor's own prevalidated signature (an owner executing without a signature of its own; a signature it made is preferred)
 - `execTransaction`
 - nonce revalidation
 - inner-call `eth_call` simulation

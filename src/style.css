@@ -342,6 +342,16 @@ label.sfield input { padding: 10px 12px 10px 36px; border-radius: 10px; backgrou
 .split.solo > button.splitcaret { border-radius: 9px; }
 .split > a.splitmain:hover, .split > button.splitcaret:hover { background: var(--bg); color: var(--fg); }
 .split svg { width: 16px; height: 16px; }
+/* Sign ▾ in the review: the filled variant, a button on the left. */
+.split.primary { border-color: var(--fg); background: var(--fg); border-radius: 6px; }
+.split.primary > button.splitmain, .split.primary > button.splitcaret { border: 0; background: none; color: var(--bg); font-weight: 600; }
+.split.primary > button.splitmain { padding: 7px 14px; border-radius: 5px 0 0 5px; }
+.split.primary > button.splitcaret { padding: 0 9px; border-left: 1px solid color-mix(in srgb, var(--bg) 25%, transparent); border-radius: 0 5px 5px 0; }
+.split.primary > button:hover { background: color-mix(in srgb, var(--bg) 12%, transparent); }
+.hmenu .mcheck { flex: none; width: 16px; line-height: 20px; color: var(--ok); }
+.hmenu button:has(.mtext) { align-items: flex-start; }
+.hmenu .mtext { display: flex; flex-direction: column; gap: 2px; line-height: 20px; }
+.hmenu .mtext .small { line-height: 16px; }
 .gearwrap { position: relative; }
 .hmenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; min-width: 180px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
 .hmenu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 6px; background: none; color: var(--fg); font-size: 14px; text-align: left; }
@@ -539,3 +549,4 @@ p.rolessetup { margin: 8px 0 10px; font-size: 13px; }
 @media (max-width: 600px) { .hrow { grid-template-columns: 1fr auto; } .hrow > span { grid-column: 1 / -1; } }
 .meter.wait span { width: 30%; animation: meterwait 1.2s ease-in-out infinite; }
 @keyframes meterwait { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.split.primary .hmenu { left: 0; right: auto; min-width: 290px; }

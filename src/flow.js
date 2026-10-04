@@ -15,8 +15,10 @@ export async function collect(s, hash, executor, offchain = []) {
   const approved = await approvedBy(s, hash);
   const by = new Map(approved.map((o) => [o, { signer: o, sig: prevalidated(o), kind: 'onchain' }]));
   const me = executor && executor.toLowerCase();
-  if (me && s.owners.includes(me) && !by.has(me)) by.set(me, { signer: me, sig: prevalidated(me), kind: 'executor' });
+  // Signatures first: an owner who signed and then executes sends that signature, not the "approved by the sender"
+  // marker, so the execution carries what the owner checked on their wallet.
   for (const x of offchain) if (s.owners.includes(x.signer) && !by.has(x.signer)) by.set(x.signer, { ...x, kind: 'offchain' });
+  if (me && s.owners.includes(me) && !by.has(me)) by.set(me, { signer: me, sig: prevalidated(me), kind: 'executor' });
   return { approved, sigs: [...by.values()] };
 }
 
