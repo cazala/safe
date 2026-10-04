@@ -118,6 +118,7 @@ function explorer(e, chain, q) {
   return next;
 }
 const hx = (v) => '0x' + BigInt(!v || v === '0x' ? 0 : v).toString(16); // Etherscan writes zero as "0x"; RPCs refuse leading zeros
+const bytes = (v) => (!v ? '0x' : String(v).startsWith('0x') ? v : '0x' + v); // Routescan writes empty data as ""
 /** eth_getLogs from an explorer's index: the whole range, in pages of 1,000, as RPC logs. */
 async function explorerLogs(e, chain, { address, topics, fromBlock, toBlock }) {
   const out = [], seen = new Set(), to = toBlock === 'latest' ? toBlock : Number(toBlock);
@@ -129,7 +130,7 @@ async function explorerLogs(e, chain, { address, topics, fromBlock, toBlock }) {
     if (r.status !== '1' && !/no (records|logs)/i.test(r.message || '')) throw Error(e.name + ': ' + (typeof r.result === 'string' ? r.result : r.message || 'request failed') + '. Check the block explorer in ▾ → Settings.');
     const list = Array.isArray(r.result) ? r.result : [];
     for (const l of list) {
-      const log = { address: l.address.toLowerCase(), topics: l.topics.filter(Boolean), data: l.data, blockNumber: hx(l.blockNumber), blockHash: l.blockHash, transactionHash: l.transactionHash, logIndex: hx(l.logIndex) };
+      const log = { address: l.address.toLowerCase(), topics: l.topics.filter(Boolean), data: bytes(l.data), blockNumber: hx(l.blockNumber), blockHash: l.blockHash, transactionHash: l.transactionHash, logIndex: hx(l.logIndex) };
       const k = log.transactionHash + ':' + Number(log.logIndex);
       if (!seen.has(k)) seen.add(k), out.push(log);
     }
