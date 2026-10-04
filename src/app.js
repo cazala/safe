@@ -1759,15 +1759,14 @@ function nextStep(r) {
     else if (ready && current)
       step = h(
         'div.step.go',
-        h('h3', owner && !mine ? 'Your approval completes it' : 'Ready to execute'),
-        h('p', owner && !mine ? count + ' so far; executing adds yours. It submits the transaction onchain and costs gas. You can also just sign and let someone else execute.' : count + ' collected. Executing submits it onchain: it costs gas, and any wallet can do it.'),
+        h('h3', owner && !mine ? 'Your signature completes it' : 'Ready to execute'),
+        h('p', owner && !mine ? count + ' so far. Sign (free; your wallet shows the hashes below), then execute: that submits it onchain and costs gas, from any wallet.' : count + ' collected. Executing submits it onchain: it costs gas, and any wallet can do it.'),
         h(
           'div.actions',
-          button(owner && !mine ? 'Approve and execute' : 'Execute', () => recheck().then(() => execute(t, me, st.sigs)).then(executed), out, '.primary'),
-          owner && !mine && button('Sign only', async () => (await recheck(), showReview(t, [...st.sigs, await sign(t, me)], 'replace')), out),
+          owner && !mine ? signSplit(t, me, out, executed) : button('Execute', () => recheck().then(() => execute(t, me, st.sigs)).then(executed), out, '.primary'),
           copyLink(txUrl(r)),
         ),
-        h('p.fhint', 'Copy link shares it with all the signatures so far: anyone can open it and execute.'),
+        h('p.fhint', owner && mine ? 'To be sure what executes is what you signed, execute from a wallet that is not an owner: open the link there. An owner executing counts as its approval by itself.' : 'Copy link shares it with all the signatures so far: anyone can open it and execute.'),
         out,
       );
     else if (ready) step = h('div.step', h('h3', 'Approved · waiting for nonce ' + s.nonce), h('p', 'This transaction is queued: it can execute once nonce ' + s.nonce + ' has.'), txShare(r, false));
@@ -1821,6 +1820,24 @@ function nextStep(r) {
   return box;
 }
 
+/**
+ * Sign ▾: sign the SafeTx (EIP-712: the wallet shows the domain and message hashes), or, chosen in the menu and
+ * remembered in this browser, sign and then execute in a row.
+ */
+function signSplit(t, me, out, executed) {
+  const mode = load('signmode', 'sign') === 'exec' ? 'exec' : 'sign';
+  const m = h('div.hmenu', { hidden: true });
+  const pick = (v, text, sub) => h('button', { 'aria-checked': String(v === mode), role: 'menuitemradio', onclick: () => (store('signmode', v), showReview(t, st.sigs, 'replace')) }, h('span.mcheck', v === mode ? '✓' : ''), h('span.mtext', h('b', text), h('span.mut.small', sub)));
+  put(m, pick('sign', 'Sign', 'then execute when you choose'), pick('exec', 'Sign and execute', 'two wallet prompts in a row'));
+  const main = button(mode === 'exec' ? 'Sign and execute' : 'Sign', async () => {
+    await recheck();
+    const sig = await sign(t, me);
+    if (mode === 'exec') return executed(await execute(t, me, [...st.sigs, sig]));
+    showReview(t, [...st.sigs, sig], 'replace');
+  }, out, '.splitmain');
+  const caret = h('button.splitcaret', { 'aria-label': 'Sign options', 'aria-haspopup': 'menu', onclick: () => (m.hidden = !m.hidden) }, icon(...CARET));
+  return h('div.split.primary.gearwrap', main, caret, m);
+}
 const copyLink = (url, primary) => copyButton('Copy link', url, primary ? '.primary' : '');
 /** A share link (carrying the signatures so far) with Copy link as its action, plus the rarer extras. */
 function shareBlock(url, primary, { what = 'transaction', json, merge } = {}) {
