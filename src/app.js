@@ -1108,7 +1108,7 @@ function whatIs(contract, s) {
         z.name ? [h('span.chip.ok', 'Zodiac ' + z.name), z.faulty && [' ', h('span.chip.bad', 'faulty version')]] : h('span.chip', z.empty ? 'No contract here yet' : z.proxy ? 'Unknown contract (proxy to ' + short(z.impl) + ')' : 'Unknown contract'),
         z.owner && h('span', h('span.mut', 'Owner '), z.owner === s.address ? 'this Safe' : s.owners.includes(z.owner) ? [addr(z.owner, null, short(z.owner)), ' (an owner)'] : [h('b.bad', addr(z.owner, null, short(z.owner))), ' (not this Safe or an owner: it can reconfigure this module)']),
         z.faulty && warn('Zodiac lists ' + z.name + ' as a faulty version. Consider replacing it.'),
-        rolesGateway() && z.name === 'Roles 2.1.1' && h('div', h('a.btn.rolesweb', { href: rolesGateway() + '#/' + contract + '?chain=' + st.chainId, target: '_blank', rel: 'noopener' }, 'Open in roles.wei ↗')),
+        rolesGateway() && z.name === 'Roles 2.1.1' && h('a.btn.rolesweb', { href: rolesGateway() + '#/' + contract + '?chain=' + st.chainId, target: '_blank', rel: 'noopener' }, 'Open in roles.wei ↗'),
       ),
     () => {},
   );
