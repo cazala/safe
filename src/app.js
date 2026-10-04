@@ -948,6 +948,19 @@ const hashes = (p, name) =>
   h('div.hashes', h('p.fhint', 'Your wallet must show the same. A hardware wallet signing blind shows the domain and message hashes; others show the ' + name + '.'),
     [['Domain hash', p.domain], ['Message hash', p.message], [name, p.hash]].map(([k, v]) => h('div.hrow', h('span.mut', k), h('code', v), copy(v, 'Copy ' + k.toLowerCase()))));
 
+/** The transaction last reviewed here, to continue it, or to discard it (asked in place: it only forgets it here). */
+function inProgress() {
+  const r = st.review, box = h('div.callout.inprog'), n = st.sigs.length;
+  const shown = () =>
+    put(box, h('a', { href: '#' + fragment(r.tx, st.sigs, hintsFor(r.tx)) }, h('b', 'In progress: '), 'nonce ' + r.tx.nonce + ' · ' + short(r.local) + ' · Continue ›'), h('span.grow'),
+      h('button.ib', { title: 'Discard', 'aria-label': 'Discard this transaction', onclick: ask }, icon(...ICONS.close)));
+  const ask = () =>
+    put(box, h('span', h('b', 'Discard nonce ' + r.tx.nonce + '?'), ' ', h('span.mut', n ? 'Its ' + (n > 1 ? n + ' signatures' : 'signature') + ' here are lost unless you shared the link. Nothing changes onchain.' : 'Nothing was signed; nothing changes onchain.')), h('span.grow'),
+      h('button', { onclick: () => ((st.review = null), (st.sigs = []), box.remove()) }, 'Discard'), h('button.link', { onclick: shown }, 'Keep'));
+  shown();
+  return box;
+}
+
 /** A row of Pending or History: nonce and status, what it does, where it came from; the actions on the right. */
 const txRow = (head, main, meta, acts, out = null) =>
   h('div.card.txrow', h('div.txmain', h('div.txhead', ...head), h('div.txwhat', ...main), h('div.txmeta', ...meta), out), h('div.txacts', ...acts));
@@ -1067,8 +1080,7 @@ function transactionsTab(s) {
   st.onScan = busy;
   loadPending(s).then(draw, (e) => put(status, warn('Could not scan logs through the wallet RPC: ' + e.message)));
   return [
-    st.review && st.review.tx.safe === s.address && st.review.tx.nonce >= s.nonce &&
-      h('a.callout', { href: '#' + fragment(st.review.tx, st.sigs, hintsFor(st.review.tx)) }, h('b', 'In progress: '), 'nonce ' + st.review.tx.nonce + ' · ' + short(st.review.local) + ' · Continue ›'),
+    st.review && st.review.tx.safe === s.address && st.review.tx.nonce >= s.nonce && inProgress(),
     h('h2', 'Pending'),
     h('p.mut', 'Transactions a proposer published onchain together with its approval. Transactions shared only by link are not listed; import them below.'),
     list,

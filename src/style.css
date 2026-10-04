@@ -119,6 +119,10 @@ table.assets td { padding: 10px 8px 10px 0; border-bottom: 1px solid var(--line)
 table.assets code { font-size: 12px; }
 .num { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
 a.btn { white-space: nowrap; overflow-wrap: normal; display: inline-block; padding: 5px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--fg); text-decoration: none; font-size: 14px; }
+.callout.inprog { display: flex; align-items: center; gap: 10px; margin: 12px 0; padding: 6px 6px 6px 12px; border: 1px solid var(--line); border-left: 3px solid var(--fg); border-radius: 6px; background: var(--card); }
+.callout.inprog > a { color: var(--fg); text-decoration: none; padding: 4px 0; }
+.callout.inprog > span:first-child { padding: 4px 0; }
+.callout.inprog .grow { flex: 1; }
 a.callout { display: block; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-left: 3px solid var(--fg); border-radius: 6px; background: var(--card); color: var(--fg); text-decoration: none; }
 /* Pending / History rows: the details on the left (status, what it does, where it came from), actions on the right. */
 .card.txrow { display: flex; align-items: center; gap: 16px; margin: 0 0 8px; padding: 14px 16px; }
