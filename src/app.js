@@ -1759,8 +1759,8 @@ function nextStep(r) {
     else if (ready && current)
       step = h(
         'div.step.go',
-        h('h3', owner && !mine ? 'Your signature completes it' : 'Ready to execute'),
-        h('p', owner && !mine ? count + ' so far. Sign (free; your wallet shows the hashes below), then execute: that submits it onchain and costs gas, from any wallet.' : count + ' collected. Executing submits it onchain: it costs gas, and any wallet can do it.'),
+        h('h3', owner && !mine ? 'Your approval completes it' : 'Ready to execute'),
+        h('p', owner && !mine ? count + ' so far. Sign (free; your wallet shows the hashes below), then execute: that submits it onchain and costs gas, from any wallet. Or switch to Execute (▾) to send it from your wallet in one step.' : count + ' collected. Executing submits it onchain: it costs gas, and any wallet can do it.'),
         h(
           'div.actions',
           owner && !mine ? signSplit(t, me, out, executed) : button('Execute', () => recheck().then(() => execute(t, me, st.sigs)).then(executed), out, '.primary'),
@@ -1821,19 +1821,18 @@ function nextStep(r) {
 }
 
 /**
- * Sign ▾: sign the SafeTx (EIP-712: the wallet shows the domain and message hashes), or, chosen in the menu and
- * remembered in this browser, sign and then execute in a row.
+ * Sign ▾: sign the SafeTx (EIP-712: the wallet shows the domain and message hashes), then Execute; or, chosen in the
+ * menu and remembered in this browser, Execute at once: one prompt, the owner sending it counts as its approval.
  */
 function signSplit(t, me, out, executed) {
   const mode = load('signmode', 'sign') === 'exec' ? 'exec' : 'sign';
   const m = h('div.hmenu', { hidden: true });
   const pick = (v, text, sub) => h('button', { 'aria-checked': String(v === mode), role: 'menuitemradio', onclick: () => (store('signmode', v), showReview(t, st.sigs, 'replace')) }, h('span.mcheck', v === mode ? '✓' : ''), h('span.mtext', h('b', text), h('span.mut.small', sub)));
-  put(m, pick('sign', 'Sign', 'then execute when you choose'), pick('exec', 'Sign and execute', 'two wallet prompts in a row'));
-  const main = button(mode === 'exec' ? 'Sign and execute' : 'Sign', async () => {
+  put(m, pick('sign', 'Sign', 'shows the hashes below; execute after'), pick('exec', 'Execute', 'one prompt, from your wallet'));
+  const main = button(mode === 'exec' ? 'Execute' : 'Sign', async () => {
     await recheck();
-    const sig = await sign(t, me);
-    if (mode === 'exec') return executed(await execute(t, me, [...st.sigs, sig]));
-    showReview(t, [...st.sigs, sig], 'replace');
+    if (mode === 'exec') return executed(await execute(t, me, st.sigs));
+    showReview(t, [...st.sigs, await sign(t, me)], 'replace');
   }, out, '.splitmain');
   const caret = h('button.splitcaret', { 'aria-label': 'Sign options', 'aria-haspopup': 'menu', onclick: () => (m.hidden = !m.hidden) }, icon(...CARET));
   return h('div.split.primary.gearwrap', main, caret, m);

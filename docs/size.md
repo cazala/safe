@@ -41,7 +41,7 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 300 KB raw (raise
 | Etherscan ABIs in Custom (#122) | 212,736 | 74,822 | 180,764 | 30,608 | a contract’s verified ABI (merged with its implementation’s for a proxy) when you added a key |
 | hashes for hardware wallets (#123) | 213,441 | 75,076 | 181,176 | 30,901 | domain, message and SafeTx / SafeMessage hashes in the review, for an owner who has not signed |
 | batch popover (#124) | 214,202 | 75,231 | 181,305 | 31,533 | header with a count, numbered calls with ×, a footer with the actions |
-| Sign ▾ in the review | 215,821 | — | — | — | the final approver signs first (Sign, or Sign and execute, remembered); an executor's own signature preferred to the prevalidated one |
+| Sign ▾ in the review | 215,821 | — | — | — | the final approver signs first (Sign; or Execute at once, chosen in ▾ and remembered); an executor's own signature preferred to the prevalidated one |
 
 The page is now about 209 KB (214,202 bytes, 75,231 gzip): under the 300 KB limit (307,200 bytes), with about 91 KB left. The rows from hide tokens on were measured at each merge on `main`. Each extra 24,575-byte chunk adds roughly 5M gas to the deploy. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 9 chunks of up to 24,575 bytes plus the config chunk (~44M gas, docs/deploy.md → Cost).
 

@@ -338,7 +338,7 @@ Once enough owners have approved:
 - sort signatures by signer address
 - call `execTransaction(...)`
 
-The executing owner does NOT need to call `approveHash` first. Safe's `checkNSignatures` accepts a v=1 signature for an owner when `msg.sender == owner`. An executing owner without a signature is therefore counted through its own prevalidated signature. The final approver is offered **Sign ▾** instead (since October 2026): an EIP-712 signature first, which a hardware wallet can check by its domain and message hashes, then Execute, or both in a row (**Sign and execute**, remembered in this browser). When the executor's own offchain signature is collected, it is sent instead of the prevalidated one, so the execution carries what the owner checked. Only an executor that is not an owner fully binds the execution to the checked signature: an owner's transaction could always carry the prevalidated form instead, so the review says to execute from another wallet when that matters.
+The executing owner does NOT need to call `approveHash` first. Safe's `checkNSignatures` accepts a v=1 signature for an owner when `msg.sender == owner`. An executing owner without a signature is therefore counted through its own prevalidated signature. The final approver is offered **Sign ▾** instead (since October 2026): an EIP-712 signature first, which a hardware wallet can check by its domain and message hashes, then Execute; or **Execute** at once (chosen in the ▾ menu, remembered in this browser): one prompt, the sender counted through its prevalidated signature, as before. When the executor's own offchain signature is collected, it is sent instead of the prevalidated one, so the execution carries what the owner checked. Only an executor that is not an owner fully binds the execution to the checked signature: an owner's transaction could always carry the prevalidated form instead, so the review says to execute from another wallet when that matters.
 
 Prevalidated Safe signature format:
 
@@ -613,7 +613,7 @@ Actions:
 - Share transaction (link / JSON)
 - Import transaction
 - Approve onchain
-- Sign, or Sign and execute (when this signature reaches threshold)
+- Sign, or Execute at once (when this approval reaches threshold)
 - Sign offchain
 - Import signature
 - Execute
