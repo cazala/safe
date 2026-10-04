@@ -540,7 +540,6 @@ p.wcfrom { margin: 0 0 10px; padding: 8px 12px; border-radius: 8px; background: 
 .slist.rpcs { margin: 12px 0; }
 footer#foot a { color: inherit; }
 footer#foot a:hover { color: var(--fg); }
-a.btn.rolesweb { margin-top: 8px; }
 .gwpick { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 4px; }
 /* Settings → Block explorer: the choice, its URL (Custom) and its key, stacked. */
 .xpick { display: grid; gap: 8px; margin: 8px 0 4px; }
