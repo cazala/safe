@@ -156,3 +156,13 @@ test('explorers: still rate-limited after retries, reads go to the RPC for a min
   globalThis.setTimeout = realTimeout;
   setExplorer({ id: 'none' });
 });
+
+test('explorers: empty log data (Routescan writes "") comes back as 0x', async () => {
+  setExplorer({ id: 'routescan' });
+  const real = globalThis.fetch, hash = '0x' + 'ab'.repeat(32);
+  globalThis.fetch = async () => ({ json: async () => ({ status: '1', message: 'OK', result: [{ address: safe.address, topics: ['0x' + '11'.repeat(32)], data: '', blockNumber: '0x10', blockHash: hash, transactionHash: '0x' + '22'.repeat(32), logIndex: '0x0' }] }) });
+  const r = reader({ request: async () => ({ hash }) }, () => 1);
+  assert.equal((await r.request({ method: 'eth_getLogs', params: [{ address: safe.address, fromBlock: '0x0', toBlock: '0x20' }] }))[0].data, '0x');
+  globalThis.fetch = real;
+  setExplorer({ id: 'none' });
+});

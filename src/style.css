@@ -544,6 +544,8 @@ footer#foot a:hover { color: var(--fg); }
 /* Settings → Block explorer: the choice, its URL (Custom) and its key, stacked. */
 .xpick { display: grid; gap: 8px; margin: 8px 0 4px; }
 .xpick .bsec { margin: 4px 0 6px; padding-top: 0; border-top: 0; }
+.xline { margin-top: 8px; }
+.xflash { white-space: nowrap; }
 p.rolessetup { margin: 8px 0 10px; font-size: 13px; }
 .meter { height: 3px; margin: 8px 0; border-radius: 2px; background: var(--line); overflow: hidden; }
 .meter span { display: block; width: 0; height: 100%; background: var(--fg); transition: width .2s; }
