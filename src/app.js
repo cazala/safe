@@ -918,9 +918,9 @@ function bulkForm(s, q) {
     q.get('csv') && prefilled(),
     h('p.mut', 'One transfer per line: recipient,amount[,token]. The token is a TokenList symbol or a token address; leave it empty for ' + c.sym + '. All rows run in one Safe transaction.'),
     csv,
+    preview,
     h(
       'div.actions',
-      button('Preview', check, out),
       button(
         'Review',
         async () => {
@@ -937,8 +937,8 @@ function bulkForm(s, q) {
         st.named = p.names;
         p.calls.forEach(queue);
       }, out),
+      button('Preview', check, out),
     ),
-    preview,
     out,
   );
 }
