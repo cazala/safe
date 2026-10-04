@@ -3,7 +3,7 @@
 // decoded (also inside a relayer's or multicall's calldata). An entry is kept only if its fields hash to the
 // event's SafeTx hash, the nonce being the one that makes it match: nothing is guessed. docs/spec.md §27g.
 import { a, dbytes, strip, u } from './abi.js';
-import { explorerKey } from './endpoints.js';
+import { explorerFor } from './endpoints.js';
 import { rpc } from './rpc.js';
 import { safeTxHash } from './safe.js';
 import { S, T } from './sel.js';
@@ -44,22 +44,30 @@ function fromExec(s, d, hash, guess) {
 
 /**
  * Find this Safe's executions: ExecutionSuccess logs backwards from `end` (default: latest) over `blocks` blocks
- * (all of them at once with an Etherscan key), newest first. Nothing is read yet: see readExecutions. Returns
+ * (all of them at once from a block explorer), newest first. Nothing is read yet: see readExecutions. Returns
  * { logs, head, next, wide, error }; each log gets `guess`, the nonce it most likely had. `progress(share)`.
  */
 export async function findExecutions(s, { blocks = 50000, step = 5000, end, progress } = {}) {
   end = end ?? Number(await rpc('eth_blockNumber'));
-  const head = end, wide = !!explorerKey(), found = [];
+  const head = end, found = [], near = { blocks, step };
+  let wide = !!explorerFor(s.chainId);
   if (wide) blocks = step = end + 1;
-  const stop = Math.max(0, end - blocks + 1);
-  let win = step, error;
+  let stop = Math.max(0, end - blocks + 1), win = step, error;
   while (end >= stop) {
     const start = Math.max(stop, end - win + 1);
     let logs;
     try {
-      // From Etherscan these are not checked against the chain here: readExecutions checks each one it reads.
+      // From a block explorer these are not checked against the chain here: readExecutions checks each one it reads.
       logs = await rpc('eth_getLogs', [{ address: s.address, topics: [T.ExecutionSuccess], fromBlock: hx(start), toBlock: hx(end), checked: false }]);
     } catch (e) {
+      // The explorer does not cover this chain: scan block by block through the RPC instead.
+      if (wide && e.refused) {
+        wide = false;
+        ({ blocks, step } = near);
+        stop = Math.max(0, end - blocks + 1);
+        win = step;
+        continue;
+      }
       if (win > 16 && !wide) {
         win = Math.floor(win / 2);
         continue;
@@ -94,7 +102,8 @@ export async function readExecutions(s, logs, { limit = 25, progress } = {}) {
       skipped++;
       continue;
     }
-    if (tx.blockHash !== l.blockHash) throw Error('An execution in block ' + Number(l.blockNumber) + ' does not match the chain. If it came from Etherscan, remove the key in ▾ → Settings and try again.');
+    // Blockscout gives no block hash: then the block number must match (the call is still checked against the log's hash).
+    if (l.blockHash ? tx.blockHash !== l.blockHash : Number(tx.blockNumber) !== Number(l.blockNumber)) throw Error('An execution in block ' + Number(l.blockNumber) + ' does not match the chain. If it came from a block explorer, pick another one (or None) in ▾ → Settings and try again.');
     const d = strip(tx.input || '').toLowerCase();
     let t = null;
     for (let i = d.indexOf(S.execTransaction); i >= 0 && !t; i = d.indexOf(S.execTransaction, i + 1)) if (i % 2 === 0) t = fromExec(s, d.slice(i), hash, l.guess);

@@ -4,7 +4,7 @@ import { chainInfo, gatewayOf, handlerName, KNOWN_IDS, label } from './chains.js
 import { approve, checkSigs, collect, execute, sign } from './flow.js';
 import { review, signMessageOf } from './review.js';
 import * as rpc from './rpc.js';
-import { reader, rpcs, addRpc, removeRpc, explorerAbi, explorerKey, setExplorerKey } from './endpoints.js';
+import { reader, rpcs, addRpc, removeRpc, explorerAbi, explorerFor, explorerChoice, explorerProviders, explorerDefaults, explorerSuggestion, explorerRefused, setExplorer } from './endpoints.js';
 import { create, createCall, modules, newTx, predict, readSafe, safeTxHash, safeTxParts, SENTINEL } from './safe.js';
 import { compact, fragment, importMessage, importPayload, messageFragment, toJSON } from './share.js';
 import { payloadGas, scan } from './pending.js';
@@ -370,13 +370,37 @@ function settingsDialog() {
   };
   pick.onchange = () => { custom.hidden = !!pick.value; if (pick.value) choose(pick.value); else custom.focus(); };
   custom.onchange = () => custom.value.trim() && choose(custom.value.trim());
-  // Etherscan: history scans (pending, history) in a few requests instead of block by block.
-  const key = h('input', { value: explorerKey(), placeholder: 'Etherscan API key', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Etherscan API key' }), saveKey = h('button', 'Save'), keyOut = h('div');
-  saveKey.onclick = act(saveKey, async () => (setExplorerKey(key.value), (st.pendingFor = null), put(keyOut, h('p.ok', key.value.trim() ? 'Saved.' : 'Removed.'))), keyOut);
+  // Block explorer: history in a few requests instead of block by block, and verified ABIs in Custom. The choices
+  // come from the config chunk (config/explorers.json); Default follows it, so a later config change reaches you.
+  const ch = explorerChoice(), provs = explorerProviders(), byId = (id) => provs.find((p) => p.id === id);
+  const defs = explorerDefaults().map((id) => byId(id).name);
+  const xpick = h('select', { 'aria-label': 'Block explorer' }, h('option', { value: 'default' }, defs.length ? 'Default (' + defs.join(', ') + ')' : 'Default (none)'), h('option', { value: 'none' }, 'None'), provs.map((p) => h('option', { value: p.id }, p.name)), h('option', { value: 'custom' }, 'Custom…'));
+  const xurl = h('input', { value: ch.url, placeholder: 'https://explorer.example/api?chainid={chain}', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Block explorer API URL' });
+  const xkey = h('input', { spellcheck: 'false', autocomplete: 'off' }), keyName = h('b'), keyNote = h('span.mut.small'), keyBox = h('div.xkey', h('div.bsec', keyName, keyNote), xkey);
+  const covers = h('p.mut.small'), xsave = h('button', 'Save'), xout = h('div');
+  // Which chains load through the explorer: the ones it covers, by name; the rest read block by block through the RPC.
+  const names = (ids) => ids.map((c) => label(Number(c)).name).join(', ');
+  const chainsOf = (p) => (p ? [...Object.keys(p.urls || {}), ...(p.chains || [])].map(Number) : []);
+  const shape = () => {
+    const id = xpick.value, p = byId(id), named = p ? p.name + ' API key' : 'Block explorer API key';
+    xurl.hidden = id !== 'custom';
+    keyBox.hidden = id === 'default' || id === 'none';
+    put(keyName, named);
+    put(keyNote, p && p.key === 'required' ? ' · required' : ' · optional');
+    xkey.value = ch.keys[id] || '';
+    xkey.placeholder = p && p.keyUrl ? 'Get one at ' + p.keyUrl.replace(/^https:\/\/(www\.)?/, '') : named;
+    xkey.setAttribute('aria-label', named);
+    const ids = id === 'default' ? [...new Set(explorerDefaults().flatMap((d) => chainsOf(byId(d))))] : chainsOf(p);
+    put(covers, p && p.note ? p.note : id === 'none' ? 'History reads every block through your RPC.' : id === 'custom' ? 'Used on every chain; {chain} becomes the chain ID.' : ids.length ? 'Covers ' + names(ids) + '. Other chains read block by block through your RPC.' : '');
+  };
+  xpick.value = byId(ch.id) || ['default', 'none', 'custom'].includes(ch.id) ? ch.id : 'default';
+  xpick.onchange = () => (shape(), put(xout), xpick.value === 'custom' ? xurl.focus() : !keyBox.hidden && xkey.focus());
+  shape();
+  xsave.onclick = act(xsave, async () => (setExplorer({ id: xpick.value, url: xurl.value, key: xkey.value }), Object.assign(ch, explorerChoice()), (st.pendingFor = null), put(xout, h('p.ok', 'Saved.'))), xout);
   draw();
   put(body, gws.length > 0 && [h('div.bsec', h('b', 'roles.wei gateway')), h('p.mut.small', 'Where “Open in roles.wei” and the footer link go.'), h('div.gwpick', pick, custom), gwOut],
     h('div.bsec', h('b', 'RPC endpoints')), h('p.mut.small', 'Reads on an endpoint’s chain go there instead of your wallet’s RPC. Your wallet still signs. Kept in this browser.'), list, h('div.row', url, add), out,
-    h('div.bsec', h('b', 'Etherscan API key'), h('span.mut.small', ' · optional')), h('p.mut.small', 'Faster history searches, and verified ABIs in Custom. Free at etherscan.io/apis; kept in this browser.'), h('div.row', key, saveKey), keyOut);
+    h('div.bsec', h('b', 'Block explorer')), h('p.mut.small', 'Speeds up history and loads verified ABIs. Each result is checked against the chain; a missing one can’t be detected, so pick an explorer you trust.'), h('div.xpick', xpick, xurl, keyBox), covers, h('div.actions', xsave), xout);
 }
 
 function labelsSheet() {
@@ -971,6 +995,14 @@ function what(t) {
   return b ? 'Batch of ' + b.length + ' calls' : d ? d.label : hm ? hm.f.name : t.data === '0x' ? fmt(t.value) + ' ' + chain().sym + ' transfer' : 'Contract call';
 }
 
+/** While history scans block by block: a block explorer's index would load it at once (or why none did). */
+function indexTip() {
+  const no = explorerRefused(st.chainId), x = explorerSuggestion(st.chainId);
+  if (no) return h('span', ' ' + no.name + (no.busy ? ' is busy right now' : ' doesn’t cover this chain') + ', so this reads the blocks through your RPC.');
+  return h('span', ' Slow? ', h('button.link', { onclick: settingsDialog }, 'Use ' + (x ? x + '’s' : 'a block explorer’s') + ' index'), ' to load the whole history in seconds. Every event is still checked against the chain.');
+}
+const via = () => (explorerFor(st.chainId) || {}).name || 'the block explorer';
+
 /** History: executed transactions, kept here and found onchain; each can be reviewed again or added to the batch. */
 function historyView(s) {
   const list = h('div'), status = h('p.mut'), fill = h('span'), meter = h('div.meter', fill);
@@ -999,11 +1031,11 @@ function historyView(s) {
       o,
     );
   };
-  const tip = () => !r.wide && r.next >= 0 && h('span', ' ', h('button.link', { onclick: settingsDialog }, 'Add an Etherscan key'), ' to search the whole history at once.');
+  const tip = () => !r.wide && r.next >= 0 && indexTip();
   const draw = () => {
     put(list, r.entries.length ? r.entries.map(row) : h('p.empty', searching ? 'Searching for executed transactions…' : 'No executed transactions found.'));
-    put(status, r.head == null ? 'Executed here, kept in this browser.' : r.wide ? (r.error ? '' : 'Searched the whole history, through Etherscan.') : 'Searched the last ' + (r.head - r.next).toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.'),
-      r.error && [r.wide ? 'Etherscan could not finish the search.' : ' This RPC does not serve older logs.', h('details.err', h('summary', 'Details'), h('code', r.error.slice(0, 300)))],
+    put(status, r.head == null ? 'Executed here, kept in this browser.' : r.wide ? (r.error ? '' : 'Searched the whole history, through ' + via() + '.') : 'Searched the last ' + (r.head - r.next).toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.'),
+      r.error && [r.wide ? via() + ' could not finish the search.' : ' This RPC does not serve older logs.', h('details.err', h('summary', 'Details'), h('code', r.error.slice(0, 300)))],
       r.skipped > 0 && ' ' + r.skipped + (r.skipped > 1 ? ' executions' : ' execution') + ' could not be read: no RPC served the transaction.', tip());
     more.disabled = r.head == null || r.next < 0 || !!r.error;
     more.hidden = r.wide || r.rest.length > 0;
@@ -1011,7 +1043,7 @@ function historyView(s) {
   };
   // While it searches: what it is doing, and a bar (moving while there is no share to show yet).
   const busy = (p, x) => {
-    put(status, x ? 'Reading executions · ' + x.read + ' of ' + x.of : p == null ? (explorerKey() ? 'Searching the whole history through Etherscan…' : 'Searching for executed transactions…') : 'Searching executed transactions · ' + Math.floor(100 * p) + '%', meter, !explorerKey() && !x && h('div', tip()));
+    put(status, x ? 'Reading executions · ' + x.read + ' of ' + x.of : p == null ? (explorerFor(st.chainId) ? 'Searching the whole history through ' + via() + '…' : 'Searching for executed transactions…') : 'Searching executed transactions · ' + Math.floor(100 * p) + '%', meter, !explorerFor(st.chainId) && !x && h('div', indexTip()));
     meter.classList.toggle('wait', !x && p == null);
     fill.style.width = x ? (100 * x.read) / x.of + '%' : p == null ? '' : 100 * p + '%';
   };
@@ -1065,18 +1097,17 @@ function transactionsTab(s) {
     put(
       status,
       seen.size ? '' : 'No pending transactions found',
-      r.wide ? (r.error ? '' : (seen.size ? 'Searched' : ' in') + ' the whole history, through Etherscan.') : blocks > 0 ? (seen.size ? 'Searched' : ' in') + ' the last ' + blocks.toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.') : '',
-      r.error && [r.wide ? ' Etherscan could not finish the search.' : blocks > 0 ? ' This wallet’s RPC does not serve older logs.' : ' This wallet’s RPC could not be searched for pending transactions.', h('details.err', h('summary', 'Details'), h('code', r.error.slice(0, 300)))],
-      !r.wide && r.next >= 0 && tip(),
+      r.wide ? (r.error ? '' : (seen.size ? 'Searched' : ' in') + ' the whole history, through ' + via() + '.') : blocks > 0 ? (seen.size ? 'Searched' : ' in') + ' the last ' + blocks.toLocaleString() + ' blocks' + (r.next < 0 ? ' (to genesis).' : '.') : '',
+      r.error && [r.wide ? ' ' + via() + ' could not finish the search.' : blocks > 0 ? ' This wallet’s RPC does not serve older logs.' : ' This wallet’s RPC could not be searched for pending transactions.', h('details.err', h('summary', 'Details'), h('code', r.error.slice(0, 300)))],
+      !r.wide && r.next >= 0 && h('span.mut', indexTip()),
     );
     more.disabled = r.next < 0 || !!r.error;
   };
   const more = button('Scan older blocks', async () => draw((st.pending = { ...(await scan(s, { end: st.pending.next, progress: busy })), head: st.pending.head })), status);
   more.disabled = true; // until the first scan finishes
-  // While it scans block by block: how far it got, and the fast path (an Etherscan key searches all of it at once).
-  const tip = () => h('span.mut', ' ', h('button.link', { onclick: settingsDialog }, 'Add an Etherscan key'), ' to search the whole history at once.');
+  // While it scans block by block: how far it got, and the fast path (a block explorer's index searches all of it at once).
   const fill = h('span'), meter = h('div.meter', fill);
-  const busy = (p) => (put(status, (explorerKey() ? 'Searching the whole history through Etherscan' : 'Scanning recent blocks') + ' · ' + Math.floor(100 * p) + '%', meter, !explorerKey() && h('div', tip())), (fill.style.width = 100 * p + '%'));
+  const busy = (p) => (put(status, (explorerFor(st.chainId) ? 'Searching the whole history through ' + via() : 'Scanning recent blocks') + ' · ' + Math.floor(100 * p) + '%', meter, !explorerFor(st.chainId) && h('div.mut', indexTip())), (fill.style.width = 100 * p + '%'));
   st.onScan = busy;
   loadPending(s).then(draw, (e) => put(status, warn('Could not scan logs through the wallet RPC: ' + e.message)));
   return [
@@ -1450,12 +1481,13 @@ function builder(s, q = new URLSearchParams()) {
       await loadBalances(s).catch(() => {}); // token metadata, for decimals-aware amount inputs
       contract = to.value.trim() ? await target(to.value) : null;
       if (contract && !abiText.value.trim() && loadAbi(contract)) abiText.value = loadAbi(contract); // remembered for this contract
-      // With an Etherscan key: its verified ABI (and the implementation's, for a proxy).
-      else if (contract && !abiText.value.trim() && explorerKey() && mode.value === 'abi') {
-        put(out, h('p.mut', 'Loading the verified ABI from Etherscan…'));
-        const abi = await explorerAbi(st.chainId, contract).catch((e) => (put(out, warn(e.message)), undefined));
-        if (abi) (abiText.value = abi), put(out, h('p.ok.small', '✓ Verified ABI from Etherscan.'));
-        else if (abi === null) put(out, h('p.mut', 'Not verified on Etherscan: paste its ABI below.'));
+      // From the block explorer: its verified ABI (and the implementation's, for a proxy).
+      else if (contract && !abiText.value.trim() && explorerFor(st.chainId) && mode.value === 'abi') {
+        const e = explorerFor(st.chainId);
+        put(out, h('p.mut', 'Loading the verified ABI from ' + e.name + '…'));
+        const abi = await explorerAbi(e, st.chainId, contract).catch((x) => (put(out, warn(x.message)), undefined));
+        if (abi) (abiText.value = abi), put(out, h('p.ok.small', '✓ Verified ABI from ' + e.name + '.'));
+        else if (abi === null) put(out, h('p.mut', 'Not verified on ' + e.name + ': paste its ABI below.'));
       }
     } catch (e) {
       contract = null;
@@ -1473,7 +1505,7 @@ function builder(s, q = new URLSearchParams()) {
   drawSaved();
   return h(
     'div.form.wide',
-    h('p.mut', 'Call any contract from its ABI (loaded from Etherscan if you added a key in Settings), or send raw calldata. Review each call, or add several to a batch.'),
+    h('p.mut', 'Call any contract from its ABI (loaded from the block explorer set in Settings, when it has one), or send raw calldata. Review each call, or add several to a batch.'),
     savedBox,
     h('label', 'Type'),
     mode,

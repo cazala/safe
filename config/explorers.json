@@ -1,0 +1,31 @@
+{
+  "default": ["blockscout", "routescan"],
+  "providers": {
+    "etherscan": {
+      "name": "Etherscan",
+      "key": "required",
+      "keyUrl": "https://etherscan.io/apis",
+      "note": "The free plan covers Ethereum, Polygon, Arbitrum One, Linea and Sepolia; on other chains it refuses, and history reads through your RPC.",
+      "api": "https://api.etherscan.io/v2/api?chainid={chain}",
+      "chains": [1, 10, 56, 100, 137, 8453, 42161, 43114, 59144, 11155111]
+    },
+    "blockscout": {
+      "name": "Blockscout",
+      "key": "optional",
+      "urls": {
+        "1": "https://eth.blockscout.com/api",
+        "10": "https://explorer.optimism.io/api",
+        "137": "https://polygon.blockscout.com/api",
+        "8453": "https://base.blockscout.com/api",
+        "42161": "https://arbitrum.blockscout.com/api",
+        "11155111": "https://eth-sepolia.blockscout.com/api"
+      }
+    },
+    "routescan": {
+      "name": "Routescan",
+      "key": "optional",
+      "api": "https://api.routescan.io/v2/network/mainnet/evm/{chain}/etherscan/api",
+      "chains": [1, 43114]
+    }
+  }
+}

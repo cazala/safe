@@ -36,7 +36,7 @@ A minimal interface for [Safe](https://safe.global) multisig accounts that lives
 
 **Yours, in the browser**
 - Address labels, remembered ABIs and added tokens, stored locally, and moved between devices with Backup & sync (roles.wei reads these backups too).
-- **Settings**: your own RPC endpoints (reads on their chain go there; your wallet still signs), an optional Etherscan key (history searches in one request, each result checked against the chain, and verified ABIs in Custom) and which roles.wei gateway to link to.
+- **Settings**: your own RPC endpoints (reads on their chain go there; your wallet still signs), a block explorer (Blockscout or Routescan by default, Etherscan with a key, any Etherscan-compatible API, or None: history searches in a few requests, each result checked against the chain, and verified ABIs in Custom) and which roles.wei gateway to link to.
 - Links that open any screen or prefill a send, a CSV batch, any contract call or a new Safe ([docs/links.md](docs/links.md)).
 - Use the Safe in other dapps through WalletConnect: requests go through the same review.
 - Sign as an owner with a wallet on your phone: **Connect → WalletConnect** shows a QR code.

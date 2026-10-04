@@ -2,7 +2,7 @@
 // payload to its approveHash calldata. Other owners find it from ApproveHash logs.
 // Every payload is untrusted: it is accepted only if it hashes to the approved hash.
 import { strip } from './abi.js';
-import { explorerKey } from './endpoints.js';
+import { explorerFor } from './endpoints.js';
 import { rpc } from './rpc.js';
 import { safeTxHash } from './safe.js';
 import { S, T } from './sel.js';
@@ -30,21 +30,29 @@ export function fromApproval(s, tx) {
  * Scan ApproveHash logs backwards from `end` (default: latest) over `blocks` blocks, in
  * windows that shrink when the RPC refuses a range. Returns { found, next, error } where
  * `next` is the block to continue from (older), or -1 at genesis. If the RPC keeps
- * refusing, whatever was found so far is returned together with `error`. With an Etherscan
- * key the whole history is one request (`wide`). `progress(share 0–1)` follows the windows.
+ * refusing, whatever was found so far is returned together with `error`. With a block
+ * explorer the whole history is one request (`wide`). `progress(share 0–1)` follows the windows.
  */
 export async function scan(s, { blocks = 50000, step = 5000, end, progress } = {}) {
   end = end ?? Number(await rpc('eth_blockNumber'));
-  const head = end, wide = !!explorerKey();
+  const head = end, found = new Map(), near = { blocks, step };
+  let wide = !!explorerFor(s.chainId);
   if (wide) blocks = step = end + 1;
-  const stop = Math.max(0, end - blocks + 1), found = new Map();
-  let win = step, error;
+  let stop = Math.max(0, end - blocks + 1), win = step, error;
   while (end >= stop) {
     const start = Math.max(stop, end - win + 1);
     let logs;
     try {
       logs = await rpc('eth_getLogs', [{ address: s.address, topics: [T.ApproveHash], fromBlock: hx(start), toBlock: hx(end) }]);
     } catch (e) {
+      // The explorer does not cover this chain: scan block by block through the RPC instead.
+      if (wide && e.refused) {
+        wide = false;
+        ({ blocks, step } = near);
+        stop = Math.max(0, end - blocks + 1);
+        win = step;
+        continue;
+      }
       if (win > 16 && !wide) {
         win = Math.floor(win / 2);
         continue;
