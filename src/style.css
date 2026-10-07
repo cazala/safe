@@ -326,8 +326,7 @@ p.importhint button.link { font-size: 13px; color: var(--fg); }
 .newsafe .owho code { color: var(--mut); font-size: 12px; }
 .newsafe .orow .grow { flex: 1; }
 .newsafe .oadd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.newsafe .oadd input:first-child { flex: 2 1 260px; }
-.newsafe .oadd input + input { flex: 1 1 140px; }
+.newsafe .oadd > input { flex: 1 1 140px; width: auto; min-width: 0; }
 .newsafe .oknown { flex: 1 1 140px; font-size: 14px; }
 .newsafe .oknown:empty { display: none; }
 .newsafe .sumhead { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
@@ -583,3 +582,16 @@ p.rolessetup { margin: 8px 0 10px; font-size: 13px; }
 .meter.wait span { width: 30%; animation: meterwait 1.2s ease-in-out infinite; }
 @keyframes meterwait { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 .split.primary .hmenu { left: 0; right: auto; min-width: 290px; }
+
+/* Address suggestions (your labels) under an address input; in a dialog they float over it (suggestInput). */
+.combo { position: relative; }
+.combo > input { width: 100%; }
+.suggest { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20; max-height: 232px; overflow-y: auto; display: flex; flex-direction: column; padding: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); }
+.suggest[hidden] { display: none; }
+.suggest.float { position: fixed; right: auto; z-index: 30; box-sizing: border-box; }
+button.sopt { display: flex; align-items: baseline; gap: 10px; padding: 8px 10px; border: 0; border-radius: 6px; background: none; text-align: left; color: var(--fg); }
+button.sopt b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+button.sopt code { flex: none; color: var(--mut); font-size: 12px; }
+button.sopt:hover, button.sopt.on { background: var(--bg); }
+.suggest p { margin: 4px 10px 6px; }
+.newsafe .oadd .combo { flex: 2 1 260px; }

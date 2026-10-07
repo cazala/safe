@@ -43,9 +43,9 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 300 KB raw (raise
 | batch popover (#124) | 214,202 | 75,231 | 181,305 | 31,533 | header with a count, numbered calls with ×, a footer with the actions |
 | Sign ▾ in the review | 215,821 | — | — | — | the final approver signs first (Sign; or Execute at once, chosen in ▾ and remembered); an executor's own signature preferred to the prevalidated one |
 | block explorers | 223,972 | 78,639 | 188,902 | 32,828 | providers in the config chunk (config/explorers.json), Blockscout / Routescan by default, Settings → Block explorer, refusals fall back to the RPC, receipts check logs without a block hash, ABIs from any of them |
-| Create a Safe: one by one or a list, review as a step | 227,943 | 79,741 | 191,595 | 34,106 | owners added one by one with labels (known labels shown), or pasted as address[,label] lines; the summary as its own step, owners by name over their full address |
+| Create a Safe: one by one or a list, review as a step | 230,459 | 80,624 | 193,298 | 34,919 | owners added one by one with labels (known labels shown, your labels suggested), or pasted as address[,label] lines; the summary as its own step, owners by name over their full address |
 
-The page is now about 223 KB (227,943 bytes, 79,741 gzip): under the 300 KB limit (307,200 bytes), with about 77 KB left. The rows from hide tokens on were measured at each merge on `main`. Each extra 24,575-byte chunk adds roughly 5M gas to the deploy. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 9 chunks of up to 24,575 bytes plus the config chunk (~44M gas, docs/deploy.md → Cost).
+The page is now about 225 KB (230,459 bytes, 80,624 gzip): under the 300 KB limit (307,200 bytes), with about 75 KB left. The rows from hide tokens on were measured at each merge on `main`. Each extra 24,575-byte chunk adds roughly 5M gas to the deploy. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 9 chunks of up to 24,575 bytes plus the config chunk (~44M gas, docs/deploy.md → Cost).
 
 ## Major contributors
 

@@ -305,7 +305,7 @@ The **Dapps** tab connects the Safe to any dapp that supports WalletConnect.
 **New** on Home (or the Create link on the first visit):
 
 - **Owners**, two ways (switch at the top right; the owners carry over):
-  - **One by one** (the default): your wallet is already in the list. Type an address or a `.eth` / `.wei` name and an optional label, then **Add owner** (or Enter). An address you have already labeled shows its label instead of the label field. Each owner shows its label, the name it was typed as, or its ENS / WNS name, with **×** to remove it.
+  - **One by one** (the default): your wallet is already in the list. Type an address or a `.eth` / `.wei` name and an optional label, then **Add owner** (or Enter). Your labeled addresses are suggested as you focus and type (by label or address, not ones already added); picking one, by click or arrows and Enter, adds it at once. An address you have already labeled shows its label instead of the label field. Each owner shows its label, the name it was typed as, or its ENS / WNS name, with **×** to remove it.
   - **Paste a list**: one owner per line, an address or a name, optionally followed by a comma and a label (`0x…, Alice`). Lines without a label are added without one. A prefill link (`#/new?owners=…`) opens here, with a warning to check it.
 - **Threshold**: "N of M owners must approve each transaction", updated as you add owners.
 - **Advanced**: the salt nonce (the new address depends on it; a random one is prefilled).

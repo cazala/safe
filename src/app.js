@@ -16,7 +16,7 @@ import { batch, unpack } from './multisend.js';
 import { findExecutions, readExecutions, record, saved as historyOf, toTx } from './history.js';
 import { parseCSV } from './csv.js';
 import { encodeCall, humanSig, matchCall, parseAbi, parseValue } from './abicoder.js';
-import { $, act, addr, bad, copy, copyButton, h, icon, iconButton, ICONS, kv, NS, labelDialog, nameFor, put, setName, setResolver, toClipboard, sheet, short, warn } from './ui.js';
+import { $, act, addr, bad, copy, copyButton, h, icon, iconButton, ICONS, kv, NS, labelDialog, nameFor, put, setName, setResolver, suggestInput, toClipboard, sheet, short, warn } from './ui.js';
 import { mountSafes } from './homeview.js';
 import * as labels from './labels.js';
 import * as backup from './backup.js';
@@ -588,7 +588,7 @@ function createView(q = new URLSearchParams()) {
   const out = h('div'), step1 = h('div.panel'), step2 = h('div'), ofN = h('span.mut');
 
   // One by one: the owners so far, then an address (and an optional label) and Add owner.
-  const rows = h('div.olist'), who = h('input', { placeholder: '0x address or name.eth / name.wei', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Owner address' });
+  const rows = h('div.olist'), who = h('input', { placeholder: '0x address, name.eth / name.wei, or a label', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Owner address' });
   const label = h('input', { placeholder: 'Label (optional)', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Owner label' });
   const known = h('span.oknown'), addBtn = h('button', 'Add owner'), addOut = h('div');
   // An address you already labeled shows its label instead of the label field.
@@ -615,8 +615,13 @@ function createView(q = new URLSearchParams()) {
     who.focus();
   }, addOut);
   // A block, not `e.key === 'Enter' && …`: an on-handler returning false cancels the keystroke, so nothing could be typed.
-  who.onkeydown = label.onkeydown = (e) => { if (e.key === 'Enter') (e.preventDefault(), addBtn.click()); };
-  const form = h('div', rows, h('div.oadd', who, label, known, addBtn), addOut);
+  // Enter adds, unless the suggestions used it to pick one (they handle it later in the same keypress).
+  label.onkeydown = (e) => { if (e.key === 'Enter') (e.preventDefault(), addBtn.click()); };
+  who.onkeydown = (e) => { if (e.key === 'Enter') setTimeout(() => e.defaultPrevented || addBtn.click()); };
+  // Your labeled addresses, not owners yet: picking one adds it at once.
+  const mine = () => Object.entries(labels.all()).filter(([a]) => !list.some((o) => o.addr === a));
+  const whoBox = suggestInput(who, mine, (a) => ((who.value = a), knownLabel(), addBtn.click()));
+  const form = h('div', rows, h('div.oadd', whoBox, label, known, addBtn), addOut);
 
   // A list: one owner per line, an address or a name, optionally followed by a comma and a label.
   const area = h('textarea', { placeholder: '0x… or name.eth, one per line\nOptionally a label after a comma: 0x…, Alice', spellcheck: 'false' });
