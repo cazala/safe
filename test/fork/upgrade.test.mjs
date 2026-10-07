@@ -95,3 +95,19 @@ test('a custom fallback handler is kept with migrateSingleton', async () => {
   assert.equal(s.version, '1.4.1');
   assert.equal(s.fallback, EFH);
 });
+
+// The review: an upgrade that fits is recognized and simulated afterwards; one that skips a version, or uses the
+// other function, is refused before anything is signed.
+test('review: the offered upgrade passes, a skipped version or the wrong function is refused', async () => {
+  const { review } = await import('../../src/review.js');
+  const { upgradeOf, MIGRATIONS } = await import('../../src/upgrade.js');
+  const safe = await oldSafe(false), s = await readSafe(safe), u = upgradeOf(s);
+  const ok = await review(newTx(s, { to: u.migration, value: 0n, data: u.data, operation: 1 }), s, 1);
+  assert.deepEqual(ok.errors, []);
+  assert.equal(ok.after.version, '1.4.1');
+  assert.equal(ok.after.guard, GUARD);
+  const skip = await review(newTx(s, { to: MIGRATIONS['1.5.0'], value: 0n, data: u.data, operation: 1 }), s, 1);
+  assert.match(skip.errors.join(), /one version at a time/);
+  const wrong = await review(newTx(s, { to: u.migration, value: 0n, data: sel('migrateL2WithFallbackHandler()'), operation: 1 }), s, 1);
+  assert.match(wrong.errors.join(), /does not fit this Safe/);
+});
