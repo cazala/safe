@@ -101,6 +101,8 @@ export function copy(text, what = 'Copy') {
 // ENS / WNS names seen for addresses (typed and resolved, or reverse-resolved), set by the app.
 const names = new Map();
 /** Remember a name for `a` and update every rendered occurrence (labels still win). */
+/** The name shown for an address: your label, else its ENS / WNS name, else ''. */
+export const nameFor = (a) => (a && a.length === 42 && (labels.get(a) || names.get(a.toLowerCase()))) || '';
 export function setName(a, n) {
   a = a.toLowerCase();
   if (!n || names.get(a) === n) return;
@@ -266,4 +268,49 @@ export function iconButton(name, title, fn, on) {
   b.append(icon(...ICONS[name]));
   b.onclick = (e) => (e.preventDefault(), e.stopPropagation(), fn());
   return b;
+}
+
+/**
+ * An address input that suggests your labeled addresses: all of them on focus (the list scrolls past a few),
+ * filtered by label or address as you type; arrows and Enter pick one. `list()` gives [address, label] pairs;
+ * `pick(address)` is what picking does (default: fill the input). In a dialog, the list floats over it.
+ */
+export function suggestInput(input, list, pick = (a) => ((input.value = a), input.dispatchEvent(new Event('input')))) {
+  const box = h('div.suggest', { hidden: true, role: 'listbox' });
+  let rows = [], at = -1;
+  const choose = (a) => ((box.hidden = true), pick(a));
+  const draw = () => {
+    const q = input.value.trim().toLowerCase(), all = list();
+    const found = all.filter(([a, l]) => !q || l.toLowerCase().includes(q) || a.includes(q)).sort((x, y) => x[1].localeCompare(y[1]));
+    rows = found.slice(0, 100);
+    at = -1;
+    put(box, rows.map(([a, l]) => h('button.sopt', { type: 'button', role: 'option', onpointerdown: (e) => e.preventDefault(), onclick: () => choose(a) }, h('b', l), h('code', short(a)))),
+      found.length > rows.length && h('p.mut.small', found.length - rows.length + ' more: type to filter'));
+    box.hidden = !rows.length || (/^0x[0-9a-fA-F]{40}$/.test(input.value.trim()) && rows.some(([a]) => a === input.value.trim().toLowerCase()));
+    place();
+  };
+  // In a dialog (which scrolls), the list floats over it, fixed under the input, instead of growing or scrolling it.
+  const place = () => {
+    const d = input.closest('dialog');
+    if (!d || box.hidden) return;
+    const r = input.getBoundingClientRect();
+    box.classList.add('float');
+    Object.assign(box.style, { left: r.left + 'px', top: r.bottom + 4 + 'px', width: r.width + 'px', maxHeight: Math.max(120, Math.min(232, innerHeight - r.bottom - 16)) + 'px' });
+  };
+  const move = (d) => {
+    if (!rows.length) return;
+    at = (at + d + rows.length) % rows.length;
+    box.querySelectorAll('.sopt').forEach((b, i) => b.classList.toggle('on', i === at));
+    box.querySelectorAll('.sopt')[at].scrollIntoView({ block: 'nearest' });
+  };
+  input.addEventListener('focus', draw);
+  input.addEventListener('input', draw);
+  input.addEventListener('blur', () => setTimeout(() => (box.hidden = true), 100));
+  input.addEventListener('keydown', (e) => {
+    if (box.hidden) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') e.preventDefault(), move(e.key === 'ArrowDown' ? 1 : -1);
+    else if (e.key === 'Enter' && at >= 0) e.preventDefault(), choose(rows[at][0]);
+    else if (e.key === 'Escape') e.stopPropagation(), e.preventDefault(), (box.hidden = true);
+  });
+  return h('div.combo', input, box);
 }
