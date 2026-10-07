@@ -304,10 +304,12 @@ The **Dapps** tab connects the Safe to any dapp that supports WalletConnect.
 
 **New** on Home (or the Create link on the first visit):
 
-- **Owners**: one per line, addresses or names; your wallet is filled in.
+- **Owners**, two ways (switch at the top right; the owners carry over):
+  - **One by one** (the default): your wallet is already in the list. Type an address or a `.eth` / `.wei` name and an optional label, then **Add owner** (or Enter). An address you have already labeled shows its label instead of the label field. Each owner shows its label, the name it was typed as, or its ENS / WNS name, with **×** to remove it.
+  - **Paste a list**: one owner per line, an address or a name, optionally followed by a comma and a label (`0x…, Alice`). Lines without a label are added without one. A prefill link (`#/new?owners=…`) opens here, with a warning to check it.
 - **Threshold**: "N of M owners must approve each transaction", updated as you add owners.
 - **Advanced**: the salt nonce (the new address depends on it; a random one is prefilled).
-- **Review** shows the deployment summary: the predicted address, chain, owners in full, threshold, singleton and version (SafeL2 outside Ethereum mainnet), factory, fallback handler and salt, with a warning if your wallet is not an owner. **Deploy Safe** sends it and opens the new Safe.
+- **Review** is the second step: the first one is replaced by the deployment summary, so only one button is on screen at a time. It shows the predicted address, chain, each owner by name (label or ENS / WNS) over its full address, threshold, singleton and version (SafeL2 outside Ethereum mainnet), factory, fallback handler and salt, with a warning if your wallet is not an owner. Labels typed here are saved as yours at this point. **‹ Edit owners** goes back; **Deploy Safe** sends it and opens the new Safe.
 
 New Safes use v1.5.0 where deployed, else v1.4.1.
 

@@ -101,6 +101,8 @@ export function copy(text, what = 'Copy') {
 // ENS / WNS names seen for addresses (typed and resolved, or reverse-resolved), set by the app.
 const names = new Map();
 /** Remember a name for `a` and update every rendered occurrence (labels still win). */
+/** The name shown for an address: your label, else its ENS / WNS name, else ''. */
+export const nameFor = (a) => (a && a.length === 42 && (labels.get(a) || names.get(a.toLowerCase()))) || '';
 export function setName(a, n) {
   a = a.toLowerCase();
   if (!n || names.get(a) === n) return;

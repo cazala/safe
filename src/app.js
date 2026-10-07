@@ -16,7 +16,7 @@ import { batch, unpack } from './multisend.js';
 import { findExecutions, readExecutions, record, saved as historyOf, toTx } from './history.js';
 import { parseCSV } from './csv.js';
 import { encodeCall, humanSig, matchCall, parseAbi, parseValue } from './abicoder.js';
-import { $, act, addr, bad, copy, copyButton, h, icon, iconButton, ICONS, kv, NS, labelDialog, put, setName, setResolver, toClipboard, sheet, short, warn } from './ui.js';
+import { $, act, addr, bad, copy, copyButton, h, icon, iconButton, ICONS, kv, NS, labelDialog, nameFor, put, setName, setResolver, toClipboard, sheet, short, warn } from './ui.js';
 import { mountSafes } from './homeview.js';
 import * as labels from './labels.js';
 import * as backup from './backup.js';
@@ -559,39 +559,124 @@ function labelsView() {
   return el;
 }
 
+/**
+ * The name to show for an owner, kept current: a label (yours, or one typed here), else the name it was typed as,
+ * else its reverse ENS / WNS name, looked up once. Empty when there is none.
+ */
+function ownerName(a, pending = '') {
+  const el = h('b.oname');
+  const draw = () => put(el, pending || nameFor(a) || st.named[a] || '');
+  draw();
+  if (!pending && !nameFor(a) && !st.named[a]) nameOf(a, st.chainId).then((n) => n && (setName(a, n), el.isConnected && draw()), () => {});
+  const on = (e) => (el.isConnected ? String(e.detail).toLowerCase() === a && draw() : removeEventListener('labels', on));
+  addEventListener('labels', on);
+  return el;
+}
+
 // q: link prefills (docs/links.md): owners (comma-separated addresses or names) and threshold.
+// Two steps, one call to action each: owners and threshold (Review), then the deployment summary (Deploy Safe).
 function createView(q = new URLSearchParams()) {
   const c = chain(), fromLink = q.has('owners') || q.has('threshold');
-  const owners = h('textarea', { placeholder: 'One owner per line: 0x address or name.eth / name.wei', spellcheck: 'false' }, q.has('owners') ? q.get('owners').split(',').map((x) => x.trim()).filter(Boolean).join('\n') : st.account || '');
-  const threshold = h('input', { value: /^\d+$/.test(q.get('threshold') || '') ? q.get('threshold') : '1', inputmode: 'numeric' });
+  st.named = {}; // only the names typed here (re-checked before deploying), not ones left from an earlier screen
+  // The owners: { addr, label } (label: typed here, saved with Review); one by one, or pasted as a list.
+  let list = [], mode = fromLink ? 'list' : 'form';
+  if (!fromLink && st.account) list.push({ addr: st.account.toLowerCase(), label: '' });
+  const threshold = h('input', { value: /^\d+$/.test(q.get('threshold') || '') ? q.get('threshold') : '1', inputmode: 'numeric', 'aria-label': 'Threshold' });
   const rand = crypto.getRandomValues(new Uint8Array(8)).reduce((n, b) => n * 256n + BigInt(b), 0n);
-  const salt = h('input', { value: String(rand) });
-  const out = h('div'), plan = h('div');
-  const btn = h('button.primary', 'Review');
-  btn.onclick = act(
-    btn,
-    async () => {
-      put(plan);
-      st.named = {}; // only the names typed here, not ones left from an earlier screen (or chain)
-      if (!st.account) throw Error('Connect a wallet first.');
-      if (!/^\d+$/.test(threshold.value.trim()) || !/^\d+$/.test(salt.value.trim())) throw Error('Threshold and salt must be whole numbers.');
-      const list = await Promise.all(owners.value.split(/[\s,]+/).filter(Boolean).map(target));
-      const k = createCall(c, list, threshold.value.trim(), BigInt(salt.value.trim()));
-      const at = await predict(k, st.account);
-      const deploy = h('button.primary', 'Deploy Safe');
-      deploy.onclick = act(deploy, async () => {
-        await recheck();
-        const s = await create(k, st.account);
-        location.hash = '/' + s.address;
-      });
-      put(
-        plan,
-        h('h2', 'Deployment summary'),
-        h('div.panel.summary.fulladdr',
+  const salt = h('input', { value: String(rand), 'aria-label': 'Salt nonce' });
+  const out = h('div'), step1 = h('div.panel'), step2 = h('div'), ofN = h('span.mut');
+
+  // One by one: the owners so far, then an address (and an optional label) and Add owner.
+  const rows = h('div.olist'), who = h('input', { placeholder: '0x address or name.eth / name.wei', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Owner address' });
+  const label = h('input', { placeholder: 'Label (optional)', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Owner label' });
+  const known = h('span.oknown'), addBtn = h('button', 'Add owner'), addOut = h('div');
+  // An address you already labeled shows its label instead of the label field.
+  const knownLabel = () => {
+    const l = isAddr(who.value.trim()) && labels.get(who.value.trim());
+    label.hidden = !!l;
+    put(known, l ? [h('span.mut', 'Label '), h('b', l)] : null);
+  };
+  who.oninput = knownLabel;
+  const drawRows = () => {
+    put(rows, list.length ? list.map((o, i) => h('div.orow', h('span.onum', String(i + 1)), h('div.owho', ownerName(o.addr, o.label), h('code', { title: o.addr }, short(o.addr))), st.account && o.addr === st.account.toLowerCase() && h('b.ok', 'you'), h('span.grow'),
+      iconButton('close', 'Remove owner', () => ((list = list.filter((x) => x !== o)), drawRows())))) : h('p.empty', 'No owners yet.'));
+    count();
+  };
+  addBtn.onclick = act(addBtn, async () => {
+    const v = who.value.trim();
+    if (!v) throw Error('Enter an address or a name.');
+    const a = await target(v);
+    if (list.some((o) => o.addr === a)) throw Error(short(a) + ' is already an owner.');
+    list.push({ addr: a, label: labels.get(a) ? '' : label.value.trim() });
+    who.value = label.value = '';
+    knownLabel();
+    drawRows();
+    who.focus();
+  }, addOut);
+  who.onkeydown = label.onkeydown = (e) => e.key === 'Enter' && (e.preventDefault(), addBtn.click());
+  const form = h('div', rows, h('div.oadd', who, label, known, addBtn), addOut);
+
+  // A list: one owner per line, an address or a name, optionally followed by a comma and a label.
+  const area = h('textarea', { placeholder: '0x… or name.eth, one per line\nOptionally a label after a comma: 0x…, Alice', spellcheck: 'false' });
+  area.value = fromLink ? (q.get('owners') || '').split(',').map((x) => x.trim()).filter(Boolean).join('\n') : '';
+  const lines = () => area.value.split('\n').map((l) => l.trim()).filter(Boolean);
+  async function parse() {
+    const got = [];
+    for (const [i, l] of lines().entries()) {
+      const [v, ...rest] = l.split(','), lbl = rest.join(',').trim();
+      let a;
+      try { a = await target(v.trim()); } catch (e) { throw Error('Line ' + (i + 1) + ': ' + e.message); }
+      if (got.some((o) => o.addr === a)) throw Error('Line ' + (i + 1) + ': ' + short(a) + ' is listed twice.');
+      got.push({ addr: a, label: labels.get(a) ? '' : lbl });
+    }
+    return got;
+  }
+  const toText = () => list.map((o) => (st.named[o.addr] || o.addr) + (o.label ? ', ' + o.label : '')).join('\n');
+  area.oninput = () => count();
+
+  // "N of M owners", kept in sync with whichever view is open.
+  function count() {
+    const n = mode === 'form' ? list.length : lines().length;
+    ofN.textContent = 'of ' + n + (n === 1 ? ' owner' : ' owners') + ' must approve each transaction';
+  }
+  const seg = h('div.seg.oseg'), body = h('div');
+  const show = async (m) => {
+    put(out);
+    if (m === 'form' && mode === 'list') {
+      try { list = await parse(); } catch (e) { return put(out, bad(e.message)); }
+    }
+    if (m === 'list' && mode === 'form') area.value = toText();
+    mode = m;
+    put(seg, [['form', 'One by one'], ['list', 'Paste a list']].map(([k, t]) => h('a', { href: '#', class: k === mode ? 'on' : null, onclick: (e) => (e.preventDefault(), show(k)) }, t)));
+    put(body, mode === 'form' ? form : [area, h('p.fhint', 'Lines without a label are added without one.')]);
+    mode === 'form' ? drawRows() : count();
+  };
+
+  const review = h('button.primary', 'Review');
+  review.onclick = act(review, async () => {
+    if (!st.account) throw Error('Connect a wallet first.');
+    if (mode === 'list') list = await parse();
+    if (!list.length) throw Error('Add at least one owner.');
+    if (!/^\d+$/.test(threshold.value.trim()) || !/^\d+$/.test(salt.value.trim())) throw Error('Threshold and salt must be whole numbers.');
+    const k = createCall(c, list.map((o) => o.addr), threshold.value.trim(), BigInt(salt.value.trim()));
+    const at = await predict(k, st.account);
+    // Labels typed here are yours from now on (they show everywhere, the summary included).
+    for (const o of list) if (o.label && !labels.get(o.addr)) labels.set(o.addr, o.label);
+    const deploy = h('button.primary', 'Deploy Safe');
+    deploy.onclick = act(deploy, async () => {
+      await recheck();
+      const s = await create(k, st.account);
+      location.hash = '/' + s.address;
+    });
+    const back = h('button.link.oback', { onclick: () => (put(step2), (step1.hidden = false), window.scrollTo(0, 0)) }, '‹ Edit owners');
+    put(step2,
+      h('div.panel.summary.fulladdr',
+        h('div.sumhead', h('h2', 'Review and deploy'), h('span.grow'), back),
         kv([
           ['Predicted address', h('b', addr(at))],
           ['Chain', c.name + ' · chainId ' + st.chainId],
-          ['Owners', h('ol.owners', k.owners.map((o) => h('li', named(o), o === st.account.toLowerCase() && [' ', h('b.ok', 'you')])))],
+          // Each owner by name (your label, the name it was typed as, or its ENS / WNS) over its full address.
+          ['Owners', h('ol.owners', k.owners.map((o) => h('li', h('div.osum', ownerName(o), h('span.ofull', addr(o, null, null, true), o === st.account.toLowerCase() && h('b.ok', 'you'))))))],
           ['Threshold', k.threshold + ' of ' + k.owners.length],
           ['Singleton', [addr(c.singleton), (c.mainnet ? ' (Safe v' : ' (SafeL2 v') + c.version + ')']],
           ['Factory', addr(c.factory)],
@@ -600,37 +685,29 @@ function createView(q = new URLSearchParams()) {
         ]),
         !k.owners.includes(st.account.toLowerCase()) && warn('The connected wallet is not one of the owners.'),
         h('div.actions', deploy),
-        ),
-      );
-      plan.scrollIntoView({ block: 'start' });
-    },
+      ),
+    );
+    step1.hidden = true;
+    window.scrollTo(0, 0);
+  }, out);
+
+  put(step1,
+    fromLink && warn('Prefilled from a link. Check every owner and the threshold before reviewing.'),
+    h('div.ohead', h('label', 'Owners'), h('span.grow'), seg),
+    body,
+    h('label', 'Threshold'),
+    h('div.thresh', threshold, ofN),
+    h('details', h('summary', 'Advanced'), h('label', 'Salt nonce (the address depends on it)'), salt),
     out,
+    h('div.actions', review),
   );
-  // "N of M owners", kept in sync with the owners list.
-  const ofN = h('span.mut');
-  const count = () => {
-    const n = owners.value.split(/[\s,]+/).filter(Boolean).length;
-    ofN.textContent = 'of ' + n + (n === 1 ? ' owner' : ' owners') + ' must approve each transaction';
-  };
-  owners.addEventListener('input', count);
-  count();
+  show(mode);
   return h(
     'div.home.newsafe',
     h('a.homeback', { href: '#/' }, icon('m15 6-6 6 6 6'), 'Home'),
     h('div.hero', h('span.mark', icon(...ICONS.shield)), h('h1', 'Create a Safe'), h('p', 'A shared account on ' + c.name + ' that moves funds only with enough owner approvals.')),
-    h(
-      'div.panel',
-      fromLink && warn('Prefilled from a link. Check every owner and the threshold before reviewing.'),
-      h('label', 'Owners'),
-      h('p.fhint', 'One per line: a 0x address or a name.eth / name.wei.' + (fromLink ? '' : ' Your wallet is filled in.')),
-      owners,
-      h('label', 'Threshold'),
-      h('div.thresh', threshold, ofN),
-      h('details', h('summary', 'Advanced'), h('label', 'Salt nonce (the address depends on it)'), salt),
-      h('div.actions', btn),
-      out,
-    ),
-    plan,
+    step1,
+    step2,
   );
 }
 

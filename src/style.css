@@ -312,6 +312,30 @@ p.importhint button.link { font-size: 13px; color: var(--fg); }
 .newsafe > h2 { margin-top: 24px; }
 .newsafe .summary .actions { margin-top: 12px; }
 .newsafe > div > h2 { margin: 24px 0 0; font-size: 16px; }
+/* Create a Safe: owners one by one (a numbered list, then address · label · Add owner) or pasted as a list. */
+.newsafe .ohead { display: flex; align-items: center; gap: 10px; }
+.newsafe .ohead label { margin: 0; color: var(--fg); font-size: 14px; font-weight: 600; }
+.newsafe .ohead .grow { flex: 1; }
+.newsafe .oseg { margin: 0 0 8px; }
+.newsafe .olist { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; }
+.newsafe .olist p.empty { margin: 0; padding: 12px; }
+.newsafe .orow { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 6px 4px 12px; font-size: 14px; }
+.newsafe .orow + .orow { border-top: 1px solid var(--line); }
+.newsafe .onum { width: 16px; color: var(--mut); font-size: 13px; }
+.newsafe .owho { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; min-width: 0; }
+.newsafe .owho code { color: var(--mut); font-size: 12px; }
+.newsafe .orow .grow { flex: 1; }
+.newsafe .oadd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.newsafe .oadd input:first-child { flex: 2 1 260px; }
+.newsafe .oadd input + input { flex: 1 1 140px; }
+.newsafe .oknown { flex: 1 1 140px; font-size: 14px; }
+.newsafe .oknown:empty { display: none; }
+.newsafe .sumhead { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.newsafe .sumhead h2 { margin: 0; font-size: 16px; }
+.newsafe .sumhead .grow { flex: 1; }
+.newsafe .osum { display: flex; flex-direction: column; gap: 2px; }
+.newsafe .osum b.oname:empty { display: none; }
+.newsafe .ofull { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 span.addr > code, span.addr > b.lbl { cursor: pointer; }
 /* A name or address stays on one line with its copy and tag buttons. */
 span.addr { white-space: nowrap; }
