@@ -416,7 +416,8 @@ function settingsDialog() {
     if (!ready(id)) (id === 'custom' ? xurl : xkey).focus();
   };
   xkey.oninput = xurl.oninput = () => (dirty(), put(xsave, 'Save'));
-  xkey.onkeydown = xurl.onkeydown = (e) => e.key === 'Enter' && !xsave.disabled && xsave.click();
+  // A block, not `e.key === 'Enter' && …`: an on-handler returning false cancels the keystroke, so nothing could be typed.
+  xkey.onkeydown = xurl.onkeydown = (e) => { if (e.key === 'Enter' && !xsave.disabled) xsave.click(); };
   xsave.onclick = () => {
     put(xout);
     try { setExplorer({ id: xpick.value, url: xurl.value, key: xkey.value }); done(); shape(); put(xsave, 'Saved ✓'); }
@@ -613,7 +614,8 @@ function createView(q = new URLSearchParams()) {
     drawRows();
     who.focus();
   }, addOut);
-  who.onkeydown = label.onkeydown = (e) => e.key === 'Enter' && (e.preventDefault(), addBtn.click());
+  // A block, not `e.key === 'Enter' && …`: an on-handler returning false cancels the keystroke, so nothing could be typed.
+  who.onkeydown = label.onkeydown = (e) => { if (e.key === 'Enter') (e.preventDefault(), addBtn.click()); };
   const form = h('div', rows, h('div.oadd', who, label, known, addBtn), addOut);
 
   // A list: one owner per line, an address or a name, optionally followed by a comma and a label.
