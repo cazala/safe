@@ -1425,6 +1425,15 @@ Done since: owner, threshold and module management (Settings), any EVM chain (§
 
 ---
 
+
+## 27h. Post-MVP — upgrading a Safe
+
+Safes from 1.3.0 have no upgrade function: the only way is a DELEGATECALL from the Safe into Safe's **SafeMigration** contract (safe-deployments; one per target version, the same address on every supported chain: 1.4.1 `0x526643F6…`, 1.5.0 `0x6439e7AB…`), which writes the singleton slot and, in its `…WithFallbackHandler` functions, sets Safe's CompatibilityFallbackHandler of that version. The migration checks nothing about the Safe it runs in, so safe.wei does (`src/upgrade.js`):
+
+- **What is offered**: only the next tested version (1.3.0 → 1.4.1, 1.4.1 → 1.5.0), only for a Safe whose singleton is one of Safe's for its version (1.3.0's canonical and eip155 deployments, regular and L2). The function follows the singleton: `migrateL2…` for an L2 Safe, `migrate…` otherwise; and the handler: `…WithFallbackHandler` when the Safe uses Safe's standard CompatibilityFallbackHandler (any deployment), `…Singleton` otherwise, so a custom handler (CoW's ExtensibleFallbackHandler for TWAP orders) is kept.
+- **Review**: a migration call (a DELEGATECALL with no value into a migration contract, exactly one of its four selectors) is decoded as "Upgrade this Safe: 1.3.0 → 1.4.1" and must be exactly what would be offered for this Safe; a skipped version or the other function is an error. The migration contract's `SAFE_SINGLETON`, `SAFE_L2_SINGLETON` and `SAFE_FALLBACK_HANDLER` are read and must be Safe's for that version. The DELEGATECALL is simulated inside the Safe as any other (`simulateAndRevert`), and the Safe afterwards is read through the new singleton (`eth_call` with the singleton and handler slots overridden): its VERSION must be the new one and its owners, threshold, modules and guard what they are now. An RPC without state overrides gets a warning instead.
+- **Rehearsed** on a mainnet fork (`test/fork/upgrade.test.mjs`): a 2-of-3 1.3.0 Safe with a module and a guard, L1 and L2, upgraded 1.3.0 → 1.4.1 → 1.5.0 through safe.wei's own approve / execute (the hash checked against the Safe's each time); after each step the guard is still called (an existing guard keeps working: 1.5.0 checks ERC-165 only when a guard is set) and the module still executes. A custom handler is kept with `migrateSingleton`, and a migration called directly reverts.
+
 ## 29. Final guiding principle
 
 If there is a choice between:
