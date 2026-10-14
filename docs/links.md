@@ -175,4 +175,4 @@ Rules for changing safe.wei:
 
 ### Asset previews and local token discoveries
 
-Opening a transaction link runs the RPC-native asset preview when available, using the recipient's RPC and local token catalog. Preview results, block numbers and discovered-token caches are not serialized into transaction/message/import links, transaction JSON, or backups. All existing wire formats and golden vectors remain unchanged.
+Opening a transaction link runs the RPC-native asset preview when available, using the recipient's RPC and local token catalog. Balance/allowance preview results, block numbers and discovered-token caches are not serialized into transaction/message/import links, transaction JSON, or backups. All existing wire formats and golden vectors remain unchanged.

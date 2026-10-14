@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { encode, word } from '../../src/abi.js';
-import { candidates, decodePreview } from '../../src/assets.js';
+import { cd, encode, word } from '../../src/abi.js';
+import { approvalPairs, candidates, decodePreview } from '../../src/assets.js';
 import { discovered, forgetToken, mergeTokens, rememberTokens } from '../../src/tokens.js';
 const A = '0x' + 'ab'.repeat(20), B = '0x' + 'cd'.repeat(20);
 const envelope = (values) => { const b = encode([values]); return '0x' + word(1) + word(b.length / 2) + b; };
@@ -50,4 +50,14 @@ test('custom RPC receives discovery and state overrides, while signing stays wit
     assert.deepEqual(requests[1].params, params);
     assert.equal(wallet[0].method, 'eth_signTypedData_v4');
   } finally { globalThis.fetch = oldFetch; delete globalThis.localStorage; }
+});
+
+test('allowance probes use exact direct approval encodings and deduplicate batch pairs', async () => {
+  const { batch } = await import('../../src/multisend.js');
+  const { SAFE } = await import('../../src/chains.js');
+  const call = { to: A, data: cd('095ea7b3', B, 10n) };
+  assert.deepEqual(approvalPairs(call), [{ token: A, spender: B }]);
+  for (const selector of ['39509351', 'a457c2d7']) assert.deepEqual(approvalPairs({ to: A, data: cd(selector, B, 2n) }), [{ token: A, spender: B }]);
+  assert.deepEqual(approvalPairs(batch(SAFE.multiSendCallOnly, [call, call])), [{ token: A, spender: B }]);
+  for (const bad of [{ ...call, operation: 1 }, { ...call, data: call.data + '00' }, { ...call, data: '0x095ea7b3' + '1'.repeat(24) + B.slice(2) + word(10) }]) assert.deepEqual(approvalPairs(bad), []);
 });

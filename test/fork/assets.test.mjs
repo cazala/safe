@@ -93,3 +93,26 @@ test('gas-exhausting balance probes stay unknown without preventing the ETH prev
     assert.ok(!r.changes.some((x) => x.address === bad));
   } finally { delete globalThis.localStorage; }
 });
+
+test('allowances preview actual before/after, unlimited and revoke, without persisting changes', async () => {
+  const { execute } = await import('../../src/flow.js');
+  const s = await readSafe(await deploySafe(f.rpc, '1.4.1', [A], 1));
+  const approval = (amount) => ({ to: WETH, data: cd(S.approve, B, amount) });
+  const max = (1n << 256n) - 1n;
+  const initial = await assetChanges(newTx(s, approval(max)));
+  assert.equal(initial.status, 'success');
+  assert.equal(initial.allowances[0].spender, B);
+  assert.equal(initial.allowances[0].before, 0n);
+  assert.equal(initial.allowances[0].after, max);
+  assert.equal(BigInt(await f.rpc('eth_call', [{ to: WETH, data: cd('dd62ed3e', s.address, B) }, 'latest'])), 0n);
+  await execute(newTx(s, approval(100n)), A);
+  const next = await readSafe(s.address);
+  const revoke = await assetChanges(newTx(next, approval(0n)));
+  assert.equal(revoke.allowances[0].before, 100n);
+  assert.equal(revoke.allowances[0].after, 0n);
+  const repeated = await assetChanges(newTx(next, batch(SAFE.multiSendCallOnly, [approval(0n), approval(25n)])));
+  assert.equal(repeated.allowances.length, 1);
+  assert.equal(repeated.allowances[0].before, 100n);
+  assert.equal(repeated.allowances[0].after, 25n);
+  assert.equal(BigInt(await f.rpc('eth_call', [{ to: WETH, data: cd('dd62ed3e', s.address, B) }, 'latest'])), 100n);
+});

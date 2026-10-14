@@ -8,7 +8,7 @@ import { catalog, clean, rememberTokens } from './tokens.js';
 import { PROBE_CODE } from './probe-code.js';
 
 export const PROBE = '0x' + strip(keccakText('safe.wei asset probe v1')).slice(-40);
-const SELECTOR = strip(keccakText('preview(address,uint256,bytes,uint8,address[])')).slice(0, 8);
+const SELECTOR = strip(keccakText('preview(address,uint256,bytes,uint8,address[],address[],address[])')).slice(0, 8);
 const LIMIT = 128;
 
 /** Exact StorageAccessible revert envelope, then exact ABI uint256[] from our helper. */
@@ -38,6 +38,19 @@ export function candidates(t, access, known) {
   return [...new Set([...explicit, ...access, ...known.map((x) => x.address), ...words].filter(isAddr).map((a) => a.toLowerCase()))].filter((a) => a !== ZERO && a !== PROBE && a !== t.safe);
 }
 
+// Only canonical direct ERC-20 approval calls, including CALLs inside a decoded batch.
+// These identify probe pairs; only allowance() before/after determines the displayed result.
+export function approvalPairs(t) {
+  const pairs = new Map();
+  for (const c of unpack(t) || [t]) {
+    const d = (c.data || '').toLowerCase();
+    if (c.operation || !/^0x(095ea7b3|39509351|a457c2d7)0{24}[0-9a-f]{104}$/.test(d)) continue;
+    const token = c.to.toLowerCase(), spender = '0x' + d.slice(34, 74);
+    pairs.set(token + spender, { token, spender });
+  }
+  return [...pairs.values()];
+}
+
 async function tokenMeta(address, block) {
   const read = async (data) => rpc('eth_call', [{ to: address, data, gas: '0xea60' }, block]);
   const d = await read('0x' + S.decimals);
@@ -56,7 +69,7 @@ async function tokenMeta(address, block) {
 }
 
 export async function assetChanges(t) {
-  const result = { status: 'unavailable', changes: [], notes: [], block: null };
+  const result = { status: 'unavailable', changes: [], allowances: [], notes: [], block: null };
   try {
     const block = result.block = await rpc('eth_blockNumber');
     if (t.safe === PROBE || t.to === PROBE || await rpc('eth_getCode', [PROBE, block]) !== '0x') throw Error('Simulation helper address is occupied');
@@ -71,12 +84,15 @@ export async function assetChanges(t) {
       access = a.accessList.map((x) => x.address);
       // simulateAndRevert intentionally reverts; its access list remains useful.
       if (a.error && !t.operation) result.notes.push('Discovery stopped at a reverting call.');
-    } catch { result.notes.push('Access-list discovery unavailable; checking known tokens and transaction candidates.'); }
+    } catch { result.notes.push('Token discovery unavailable; checking known tokens.'); }
     const all = candidates(t, access, known), addresses = all.slice(0, LIMIT);
     if (all.length > LIMIT) result.notes.push('Token candidate limit reached (128).');
-    const data = cd(S.simulateAndRevert, PROBE, B(cd(SELECTOR, t.to, t.value, B(t.data), t.operation, addresses)));
+    const approvals = approvalPairs(t);
+    if (approvals.length > LIMIT) result.notes.push('Allowance candidate limit reached (128).');
+    const pairs = approvals.slice(0, LIMIT);
+    const data = cd(S.simulateAndRevert, PROBE, B(cd(SELECTOR, t.to, t.value, B(t.data), t.operation, addresses, pairs.map((p) => p.token), pairs.map((p) => p.spender))));
     const error = await rpc('eth_call', [{ from: t.safe, to: t.safe, data, gas: '0x1c9c380' }, block, { [PROBE]: { code: PROBE_CODE } }]).then(() => null, (e) => e);
-    const decoded = decodePreview(revertData(error), addresses.length);
+    const decoded = decodePreview(revertData(error), addresses.length + pairs.length);
     result.status = decoded.success ? 'success' : 'failed';
     if (!decoded.success) return result;
     if (decoded.native) result.changes.push({ address: ZERO, delta: decoded.native });
@@ -96,6 +112,14 @@ export async function assetChanges(t) {
       }
       if (!token.listed && (b.before || b.after)) found.push(token);
       if (b.after !== b.before) result.changes.push({ ...token, delta: b.after - b.before });
+    }
+    for (let i = 0; i < pairs.length; i++) {
+      const { token: address, spender } = pairs[i], b = decoded.tokens[addresses.length + i];
+      if (!b.ok) { result.notes.push('Allowance unreadable: ' + address); continue; }
+      if (b.before === b.after) continue;
+      const token = known.find((x) => x.address === address) || await tokenMeta(address, block).catch(() => null);
+      if (!token) { result.notes.push('Unclassified allowance changed: ' + address); continue; }
+      result.allowances.push({ ...token, spender, before: b.before, after: b.after });
     }
     rememberTokens(t.chainId, t.safe, found);
     return result;
