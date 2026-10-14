@@ -9,8 +9,9 @@ import { create, createCall, modules, newTx, predict, readSafe, safeTxHash, safe
 import { compact, fragment, importMessage, importPayload, messageFragment, toJSON } from './share.js';
 import { payloadGas, scan } from './pending.js';
 import { decode } from './decode.js';
-import { balances, listed, meta, save, saved } from './tokens.js';
+import { balances, catalog, forgetToken, meta, save, saved } from './tokens.js';
 import { S } from './sel.js';
+import { assetChanges } from './assets.js';
 import { checkName, isName, nameOf, resolveName } from './names.js';
 import { batch, unpack } from './multisend.js';
 import { findExecutions, readExecutions, record, saved as historyOf, toTx } from './history.js';
@@ -810,17 +811,18 @@ function page(s, tab, ...content) {
 
 // ---- data shared across tabs (cached per Safe) ----
 async function loadBalances(s) {
-  if (st.balFor === s.address) return st.bal;
-  const list = [...(await listed(st.chainId).catch(() => [])), ...saved(st.chainId)];
-  for (const t of list) st.tokens[t.address] = st.tokens[t.address] || t;
+  const key = s.chainId + ':' + s.address;
+  if (st.balFor === key) return st.bal;
+  const list = await catalog(s.chainId, s.address);
+  st.tokens = Object.fromEntries(list.map((t) => [t.address, t]));
   const tokens = Object.values(st.tokens), b = await balances(s.address, tokens);
   st.bal = {};
   tokens.forEach((t, i) => (st.bal[t.address] = b[i]));
-  st.balFor = s.address;
+  st.balFor = key;
   return st.bal;
 }
 const balanceOf = (t) => (t ? st.bal && st.bal[t.address] : st.safe.balance);
-const held = () => Object.values(st.tokens).filter((t) => (st.bal && st.bal[t.address]) || !t.listed);
+const held = () => Object.values(st.tokens).filter((t) => (st.bal && st.bal[t.address]) || t.added || (t.discovered && st.bal?.[t.address] == null));
 
 function loadPending(s) {
   if (st.pendingFor === s.address) return st.pendingJob;
@@ -875,7 +877,7 @@ function assetsTab(s) {
   };
   const asset = (name, sub, actions) => h('td', h('div.arow', h('div', name, sub), h('span.grow'), actions));
   const removeBtn = (t) =>
-    !t.listed && h('button.ib', { title: 'Remove from your token list', 'aria-label': 'Remove ' + t.symbol, onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), delete st.tokens[t.address], draw()) }, icon(...ICONS.close));
+    !t.listed && h('button.ib', { title: 'Remove from your token list', 'aria-label': 'Remove ' + t.symbol, onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), forgetToken(st.chainId, s.address, t.address), delete st.tokens[t.address], st.balFor = null, draw()) }, icon(...ICONS.close));
   const addIn = h('input', { placeholder: 'Token address 0x…', spellcheck: 'false' }), addOut = h('div');
   const add = button(
     'Add token',
@@ -905,7 +907,7 @@ function assetsTab(s) {
         held().filter((t) => showHidden || !hidden.has(t.address)).map((t) =>
           h(
             'tr' + (hidden.has(t.address) ? '.hid' : ''),
-            asset(h('b', t.symbol), h('div.mut', addr(t.address)), acts(st.bal[t.address] || 0n, link('send', { token: tokenSpec(t) }), [hideBtn(t), removeBtn(t)])),
+            asset(h('b', t.symbol), h('div.mut', addr(t.address), t.discovered && !t.added && !t.listed && ' · discovered'), acts(st.bal[t.address] || 0n, link('send', { token: tokenSpec(t) }), [hideBtn(t), removeBtn(t)])),
             h(
               'td.num',
               { title: st.bal[t.address] == null ? null : fmt(st.bal[t.address], t.decimals) + ' ' + t.symbol },
@@ -1801,9 +1803,11 @@ function importer() {
 }
 
 // ---- review screen ----
+let reviewSeq = 0;
 const rv = h('div.fulladdr'); // what gets signed: addresses in full
 /** Review a transaction on its own screen. `nav`: 'push' (from a form), 'replace' (refresh), 'none' (from the URL). */
 async function showReview(tx, sigs = [], nav = 'push') {
+  const ticket = ++reviewSeq, routeSeq = seq;
   // One back link: to the screen that opened this review, else the Transactions tab.
   if (nav === 'push') st.backTo = location.hash && !location.hash.startsWith('#tx=') ? location.hash : null;
   else if (nav === 'none') st.backTo = null;
@@ -1811,7 +1815,14 @@ async function showReview(tx, sigs = [], nav = 'push') {
   setCrumb(st.safe);
   put(rv, h('p.mut', 'Checking the transaction…'));
   const r = await review(tx, st.safe, st.chainId);
+  if (ticket !== reviewSeq || routeSeq !== seq) return;
+  if (r.ok && !r.signMessage) {
+    r.assets = await assetChanges(tx);
+    st.balFor = null; // discoveries contain metadata only; the Assets tab reads real balances
+  }
+  if (ticket !== reviewSeq || routeSeq !== seq) return;
   const c = await checkSigs(st.safe, r.local, sigs);
+  if (ticket !== reviewSeq || routeSeq !== seq) return;
   st.review = r;
   st.off = c.valid;
   st.sigs = c.valid.map((x) => x.sig); // only valid signatures are kept and re-shared
@@ -1829,6 +1840,21 @@ const button = (label, fn, out, cls = '') => {
   b.onclick = act(b, fn, out);
   return b;
 };
+
+function assetPreview(a) {
+  const label = a.status === 'success' ? 'Inner call succeeded' : a.status === 'failed' ? 'Inner call failed' : 'Unavailable';
+  return h('section.panel', h('h3', 'Expected asset changes'),
+    h('p', label, a.block && ' · block ' + BigInt(a.block)),
+    a.status === 'success' && (a.changes.length ? h('table.assets',
+      h('tr', h('th', 'Asset'), h('th.num', 'Change')),
+      a.changes.map((t) => h('tr',
+        h('td', t.address === ZERO ? chain().sym : [h('b', t.symbol), h('div', addr(t.address))]),
+        h('td.num', (t.delta > 0n ? '+' : '−') + fmt(t.delta < 0n ? -t.delta : t.delta, t.address === ZERO ? 18 : t.decimals)),
+      ))) : h('p.mut', 'No balance changes found among checked assets.')),
+    a.notes.map((n) => h('p.warn', n)),
+    h('p.mut', 'Partial asset coverage: ETH and checked ERC-20 candidates. NFTs and allowances are not included. This previews the inner call at current state, not Safe signatures, guards, refunds, or execution fees.'),
+  );
+}
 
 /** An empty transaction from the Safe to itself: what replaces (cancels) another one at the same nonce. */
 const isCancel = (t) => t.to === t.safe && t.data === '0x' && !t.value && !t.operation;
@@ -1872,6 +1898,7 @@ function reviewHead(r) {
     r.danger.map((d) => h('p.bad.danger', d)),
     r.errors.map((e) => bad(e)),
     r.warnings.map((w) => warn(w)),
+    r.assets && assetPreview(r.assets),
     r.chain === r.local && h('p.rvhash', h('b.ok', '✓'), ' Hash matches the Safe’s own ', h('code', short(r.local)), ' · see details below'),
   );
 }

@@ -48,7 +48,7 @@ export async function simulate(t) {
     // each call on its own as well, to point at a failing call and catch tokens that return false.
     const w = (await Promise.all(calls.map((c) => simulate({ ...t, ...c, operation: 0 })))).map((x, i) => x && 'Call ' + (i + 1) + ' (simulated on its own): ' + x);
     if (whole === true) return w.filter((x) => x && x.includes('FALSE')).join('\n') || null;
-    return [whole === false && 'Simulation: this batch REVERTS if executed now.', ...w].filter(Boolean).join('\n') || null; // one line per call
+    return [whole === null && 'Whole-batch simulation unavailable; calls checked individually.', whole === false && 'Simulation: this batch REVERTS if executed now.', ...w].filter(Boolean).join('\n') || null; // one line per call
   }
   if (t.operation) return whole === true ? null : whole === false ? 'Simulation: this DELEGATECALL REVERTS if executed now.' : 'DELEGATECALL is not simulated.';
   const [code, ret] = await Promise.all([

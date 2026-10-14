@@ -45,7 +45,9 @@ Budget (spec §19): ideal < 50 KB, good < 100 KB, acceptable < 300 KB raw (raise
 | block explorers | 223,972 | 78,639 | 188,902 | 32,828 | providers in the config chunk (config/explorers.json), Blockscout / Routescan by default, Settings → Block explorer, refusals fall back to the RPC, receipts check logs without a block hash, ABIs from any of them |
 | Create a Safe: one by one or a list, review as a step | 230,459 | 80,624 | 193,298 | 34,919 | owners added one by one with labels (known labels shown, your labels suggested), or pasted as address[,label] lines; the summary as its own step, owners by name over their full address |
 
-The page is now about 225 KB (230,459 bytes, 80,624 gzip): under the 300 KB limit (307,200 bytes), with about 75 KB left. The rows from hide tokens on were measured at each merge on `main`. Each extra 24,575-byte chunk adds roughly 5M gas to the deploy. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 9 chunks of up to 24,575 bytes plus the config chunk (~44M gas, docs/deploy.md → Cost).
+| RPC-native asset previews and token discovery | 238,725 | 83,836 | 201,564 | 34,919 | temporary Safe-context helper, access-list candidates, shared token catalog and per-Safe discovery |
+
+The page is now about 233 KB (238,725 bytes, 83,836 gzip): under the 300 KB limit (307,200 bytes), with about 67 KB left. The rows from hide tokens on were measured at each merge on `main`. Each extra 24,575-byte chunk adds roughly 5M gas to the deploy. Recent growth: WalletConnect (about 25 KB with its crypto and the QR encoder), message signing, the ABI decoder. Onchain it takes 9 chunks of up to 24,575 bytes plus the config chunk (~44M gas, docs/deploy.md → Cost).
 
 ## Major contributors
 

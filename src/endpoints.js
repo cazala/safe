@@ -29,7 +29,7 @@ export async function addRpc(url) {
 export const removeRpc = (chain) => { const m = rpcs(); delete m[chain]; store('rpcs', m); };
 
 // Reads only: everything that signs, sends, or concerns the account or the chain stays with the wallet.
-const READS = new Set(['eth_call', 'eth_getBalance', 'eth_getCode', 'eth_getStorageAt', 'eth_getLogs', 'eth_blockNumber', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_getTransactionByHash', 'eth_getTransactionReceipt', 'eth_getTransactionCount', 'eth_estimateGas', 'eth_gasPrice', 'eth_feeHistory', 'eth_maxPriorityFeePerGas']);
+const READS = new Set(['eth_createAccessList', 'eth_call', 'eth_getBalance', 'eth_getCode', 'eth_getStorageAt', 'eth_getLogs', 'eth_blockNumber', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_getTransactionByHash', 'eth_getTransactionReceipt', 'eth_getTransactionCount', 'eth_estimateGas', 'eth_gasPrice', 'eth_feeHistory', 'eth_maxPriorityFeePerGas']);
 // A block explorer's index (docs/spec.md §27f): history scans read event logs in a few requests instead of block by
 // block, and Custom loads verified ABIs. The providers, the chains each covers and the default order come from the
 // config chunk (config/explorers.json, so they can change without touching the code); your choice in ▾ → Settings

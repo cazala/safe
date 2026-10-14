@@ -78,3 +78,35 @@ export async function meta(address, chainName = 'this chain') {
 // Unlisted tokens the viewer added: a per-browser convenience, never required.
 export const saved = (chainId) => load('tokens:' + chainId, []);
 export const save = (chainId, list) => store('tokens:' + chainId, list);
+
+// Discovery is scoped to a Safe; metadata is shared on its chain. Never store balances.
+const discoveredKey = (chainId, safe) => 'discovered:' + chainId + ':' + safe.toLowerCase();
+export function discovered(chainId, safe) {
+  const metadata = load('tokenmeta:' + chainId, {});
+  return load(discoveredKey(chainId, safe), []).map((a) => metadata[a]).filter(Boolean).map((t) => ({ ...t, listed: false, discovered: true }));
+}
+export function rememberTokens(chainId, safe, tokens) {
+  const metadata = load('tokenmeta:' + chainId, {}), addresses = new Set(load(discoveredKey(chainId, safe), []));
+  for (const t of tokens) {
+    const address = t.address.toLowerCase();
+    metadata[address] = { address, symbol: t.symbol, decimals: t.decimals };
+    addresses.add(address);
+  }
+  store('tokenmeta:' + chainId, metadata);
+  store(discoveredKey(chainId, safe), [...addresses].slice(-128));
+}
+export function forgetToken(chainId, safe, address) {
+  store(discoveredKey(chainId, safe), load(discoveredKey(chainId, safe), []).filter((a) => a !== address));
+}
+export function mergeTokens(...lists) {
+  const by = new Map();
+  for (const t of lists.flat()) {
+    const address = t.address.toLowerCase(), previous = by.get(address);
+    // Registry metadata wins; manual addition remains an independent preference.
+    by.set(address, { ...previous, ...t, ...(previous?.listed ? previous : {}), address, added: !!(previous?.added || t.added) });
+  }
+  return [...by.values()];
+}
+export async function catalog(chainId, safe) {
+  return mergeTokens(discovered(chainId, safe), saved(chainId).map((t) => ({ ...t, added: true })), await listed(chainId).catch(() => []));
+}
