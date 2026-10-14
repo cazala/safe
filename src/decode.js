@@ -4,6 +4,7 @@ import { strip } from './abi.js';
 import { handlerName } from './chains.js';
 import { S } from './sel.js';
 import { deployModuleOf } from './zodiac.js';
+import { migrationOf } from './upgrade.js';
 
 const MAX = (1n << 256n) - 1n;
 const A = 'address', U = 'uint256';
@@ -27,6 +28,9 @@ const D = {
 export function decode(t) {
   const z = deployModuleOf(t);
   if (z) return deployModule(z, t);
+  // Safe's SafeMigration: an upgrade (checked against the Safe in review.js).
+  const m = migrationOf(t);
+  if (m) return { label: 'Upgrade this Safe to ' + m.to, args: [{ name: 'migration', type: 'function', value: m.fn }], warnings: [], danger: [], upgrade: m };
   const d = strip(t.data).toLowerCase(), spec = D[d.slice(0, 8)];
   if (!spec) return null;
   const [label, self, ...params] = spec;

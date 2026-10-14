@@ -31,6 +31,7 @@ A minimal interface for [Safe](https://safe.global) multisig accounts that lives
 - Every transaction's hash is checked against the Safe's own `getTransactionHash`; calls are simulated and risky ones flagged.
 
 **Zodiac Roles, with roles.wei**
+- Upgrade a Safe one version at a time (1.3.0 → 1.4.1 → 1.5.0) through Safe's official migration, with the result simulated before anyone signs.
 - Settings → Modules recognizes a Roles modifier and opens it in roles.wei (**Open in roles.wei**), or, on a Safe without one, offers **Set up Zodiac Roles in roles.wei**, which opens its create wizard on this Safe.
 - Permission changes made in roles.wei come back as a safe.wei link the owners review and sign like any transaction.
 

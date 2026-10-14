@@ -15,6 +15,7 @@ import { assetChanges } from './assets.js';
 import { checkName, isName, nameOf, resolveName } from './names.js';
 import { batch, unpack } from './multisend.js';
 import { findExecutions, readExecutions, record, saved as historyOf, toTx } from './history.js';
+import { upgradeOf } from './upgrade.js';
 import { parseCSV } from './csv.js';
 import { encodeCall, humanSig, matchCall, parseAbi, parseValue } from './abicoder.js';
 import { $, act, addr, bad, copy, copyButton, h, icon, iconButton, ICONS, kv, NS, labelDialog, nameFor, put, setName, setResolver, suggestInput, toClipboard, sheet, short, warn } from './ui.js';
@@ -907,7 +908,7 @@ function assetsTab(s) {
         held().filter((t) => showHidden || !hidden.has(t.address)).map((t) =>
           h(
             'tr' + (hidden.has(t.address) ? '.hid' : ''),
-            asset(h('b', t.symbol), h('div.mut', addr(t.address), t.discovered && !t.added && !t.listed && ' · discovered'), acts(st.bal[t.address] || 0n, link('send', { token: tokenSpec(t) }), [hideBtn(t), removeBtn(t)])),
+            asset(h('b', t.symbol), h('div.mut', addr(t.address)), acts(st.bal[t.address] || 0n, link('send', { token: tokenSpec(t) }), [hideBtn(t), removeBtn(t)])),
             h(
               'td.num',
               { title: st.bal[t.address] == null ? null : fmt(st.bal[t.address], t.decimals) + ' ' + t.symbol },
@@ -1259,6 +1260,8 @@ function whatIs(contract, s) {
 }
 
 function settingsTab(s) {
+  // The next version this Safe can move to through Safe's official migration (one step at a time), or null.
+  const up = upgradeOf(s), upOut = h('div');
   const me = st.account && st.account.toLowerCase(), n = s.owners.length;
   const self = (data) => ({ to: s.address, value: 0n, data });
   // The fallback handler, with a shortcut to Safe's canonical one when it is missing or unknown.
@@ -1367,12 +1370,14 @@ function settingsTab(s) {
       : h('p.mut', 'No guard. A guard is an optional contract that checks every transaction before and after execution.'),
     h('h2', 'Contract'),
     kv([
-      ['Version', s.version || '(unreadable)'],
+      ['Version', [s.version || '(unreadable)', up && [h('span.mut', ' · '), button('Upgrade to ' + up.to, async () => showReview(newTx(s, { to: up.migration, value: 0n, data: up.data, operation: 1 })), upOut, '.link')]]],
       ['Nonce', String(s.nonce) + ' (next transaction)'],
       ['Singleton', addr(s.singleton)],
       ['Fallback handler', fallbackView()],
       ['Chain', chain().name + ' · chainId ' + s.chainId],
     ]),
+    up && h('p.mut.small', 'Upgrading to ' + up.to + ' runs Safe’s official migration from this Safe (a delegatecall), reviewed and signed like any transaction. Owners, threshold, modules, guard and funds stay' + (up.handler ? '; the fallback handler moves to ' + up.to + '’s.' : '; the fallback handler is kept.') + ' One version at a time.'),
+    upOut,
   ];
 }
 
@@ -1451,6 +1456,7 @@ const callLabel = (x, names = st.batchNames) => {
   if (d && x.to === st.safe.address)
     return [d.label, ' · ', d.args.map((a, i) => [i ? ', ' : '', a.name + ' ', a.type === 'address' ? named(a.value, names) : String(a.value)])];
   if (d && d.proxy) return [d.label, ' at ', named(d.proxy, names)]; // "Deploy module: Zodiac Roles 2.1.1 at 0x…"
+  if (d && d.upgrade) return ['Upgrade this Safe: ' + st.safe.version + ' → ' + d.upgrade.to]; // through Safe's official migration
   const m = !d && hintOf(x.data);
   if (m) return [h('b', m.f.name), ' on ', named(x.to, names), x.value ? ' · ' + fmt(x.value) + ' ' + chain().sym : ''];
   return d
@@ -1848,7 +1854,7 @@ function assetPreview(a) {
     a.status === 'success' && (a.changes.length ? h('table.assets',
       h('tr', h('th', 'Asset'), h('th.num', 'Change')),
       a.changes.map((t) => h('tr',
-        h('td', t.address === ZERO ? chain().sym : [h('b', t.symbol), h('div', addr(t.address))]),
+        h('td', t.address === ZERO ? chain().sym : [h('b', t.symbol), h('div', addr(t.address, null, short(t.address)))]),
         h('td.num', (t.delta > 0n ? '+' : '−') + fmt(t.delta < 0n ? -t.delta : t.delta, t.address === ZERO ? 18 : t.decimals)),
       ))) : h('p.mut', 'No balance changes found among checked assets.')),
     a.notes.map((n) => h('p.warn', n)),
@@ -1899,6 +1905,8 @@ function reviewHead(r) {
     r.errors.map((e) => bad(e)),
     r.warnings.map((w) => warn(w)),
     r.assets && assetPreview(r.assets),
+    // An upgrade: the Safe as it would be afterwards, read through the new singleton.
+    r.after && h('p.rvhash', h('b.ok', '✓'), ' Simulated after the upgrade: Safe ' + r.after.version + ' · ' + r.after.threshold + ' of ' + r.after.owners.length + ' owners · ' + (r.after.modules.length === 1 ? '1 module' : r.after.modules.length + ' modules') + (r.after.guard ? ' · guard kept' : '') + ', as now.'),
     r.chain === r.local && h('p.rvhash', h('b.ok', '✓'), ' Hash matches the Safe’s own ', h('code', short(r.local)), ' · see details below'),
   );
 }

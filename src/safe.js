@@ -5,8 +5,8 @@ import { call, chainId, rpc, send, wait } from './rpc.js';
 import { S, T } from './sel.js';
 
 // keccak256("guard_manager.guard.address") / keccak256("fallback_manager.handler.address")
-const GUARD_SLOT = '0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8';
-const FALLBACK_SLOT = '0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5';
+export const GUARD_SLOT = '0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8';
+export const FALLBACK_SLOT = '0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5';
 
 const slot = (addr, s) => rpc('eth_getStorageAt', [addr, s, 'latest']).then((r) => a(r));
 

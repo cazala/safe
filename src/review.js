@@ -8,6 +8,7 @@ import { unpack } from './multisend.js';
 import { rpc } from './rpc.js';
 import { chainTxHash, safeTxHash } from './safe.js';
 import { S } from './sel.js';
+import { afterUpgrade, checkMigration, migrationOf, upgradeOf } from './upgrade.js';
 
 const ERC20_BOOL = [S.transfer, S.approve, S.transferFrom];
 
@@ -81,7 +82,14 @@ export async function review(tx, s, walletChain) {
   // A DELEGATECALL into an address without code does nothing, yet succeeds and burns the nonce.
   if (tx.operation === 1 && (await rpc('eth_getCode', [tx.to, 'latest']).catch(() => '0x')) === '0x')
     err('DELEGATECALL target ' + tx.to + ' has no code on this chain: the Safe would do nothing and still consume the nonce.' + (batch ? ' MultiSendCallOnly is not deployed here.' : ''));
-  if (tx.operation === 1 && !batch && !r.signMessage) r.danger.push('DANGEROUS: DELEGATECALL. The target code runs with full control of the Safe (owners, modules, funds).');
+  // An upgrade through Safe's SafeMigration: checked against this Safe and the migration contract itself.
+  const mig = !batch && migrationOf(tx), up = mig && upgradeOf(s);
+  if (mig) for (const e of await checkMigration(tx, s)) err(e);
+  if (mig && up && !r.errors.length) {
+    r.upgrade = up;
+    r.danger.push('UPGRADE: this changes the code this Safe runs, from ' + up.from + ' to ' + (up.l2 ? 'SafeL2 ' : '') + up.to + ', through Safe’s official migration. Owners, threshold, modules, guard and funds stay. There is no way back, only further upgrades.');
+    if (!up.handler) warn(s.fallback ? 'The fallback handler is kept: ' + s.fallback + ' is not Safe’s standard one, so the upgrade leaves it as it is.' : 'This Safe has no fallback handler; the upgrade keeps it that way.');
+  } else if (tx.operation === 1 && !batch && !r.signMessage) r.danger.push('DANGEROUS: DELEGATECALL. The target code runs with full control of the Safe (owners, modules, funds).');
   if (r.decoded) r.danger.push(...r.decoded.danger), r.warnings.push(...r.decoded.warnings);
   if (batch)
     r.inner = batch.map((c, i) => {
@@ -103,6 +111,19 @@ export async function review(tx, s, walletChain) {
   if (r.ok = !r.errors.length) {
     const w = await simulate(tx).catch((e) => 'Simulation failed: ' + e.message);
     if (w) warn(w);
+  }
+  // The Safe after the upgrade, read through the new singleton: the version must be the new one, and owners,
+  // threshold, modules and guard what they are now.
+  if (r.upgrade && r.ok) {
+    const [now, a] = await Promise.all([afterUpgrade(s, { ...r.upgrade, singleton: s.singleton, fallback: s.fallback }), afterUpgrade(s, r.upgrade)]);
+    if (!a || !now) warn('This RPC cannot simulate the Safe after the upgrade (no state overrides). The migration call itself was simulated.');
+    else {
+      r.after = a;
+      const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+      if (a.version !== r.upgrade.to) err('Simulated after the upgrade, this Safe reports version ' + a.version + ' instead of ' + r.upgrade.to + '. Do not sign.');
+      if (!same(a.owners, now.owners) || a.threshold !== now.threshold || !same(a.modules, now.modules) || a.guard !== now.guard) err('Simulated after the upgrade, this Safe’s owners, threshold, modules or guard differ from now. Do not sign.');
+      r.ok = !r.errors.length;
+    }
   }
   return r;
 }
