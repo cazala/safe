@@ -9,8 +9,9 @@ import { create, createCall, modules, newTx, predict, readSafe, safeTxHash, safe
 import { compact, fragment, importMessage, importPayload, messageFragment, toJSON } from './share.js';
 import { payloadGas, scan } from './pending.js';
 import { decode } from './decode.js';
-import { balances, listed, meta, save, saved } from './tokens.js';
+import { balances, catalog, forgetToken, meta, save, saved } from './tokens.js';
 import { S } from './sel.js';
+import { assetChanges } from './assets.js';
 import { checkName, isName, nameOf, resolveName } from './names.js';
 import { batch, unpack } from './multisend.js';
 import { findExecutions, readExecutions, record, saved as historyOf, toTx } from './history.js';
@@ -811,17 +812,18 @@ function page(s, tab, ...content) {
 
 // ---- data shared across tabs (cached per Safe) ----
 async function loadBalances(s) {
-  if (st.balFor === s.address) return st.bal;
-  const list = [...(await listed(st.chainId).catch(() => [])), ...saved(st.chainId)];
-  for (const t of list) st.tokens[t.address] = st.tokens[t.address] || t;
+  const key = s.chainId + ':' + s.address;
+  if (st.balFor === key) return st.bal;
+  const list = await catalog(s.chainId, s.address);
+  st.tokens = Object.fromEntries(list.map((t) => [t.address, t]));
   const tokens = Object.values(st.tokens), b = await balances(s.address, tokens);
   st.bal = {};
   tokens.forEach((t, i) => (st.bal[t.address] = b[i]));
-  st.balFor = s.address;
+  st.balFor = key;
   return st.bal;
 }
 const balanceOf = (t) => (t ? st.bal && st.bal[t.address] : st.safe.balance);
-const held = () => Object.values(st.tokens).filter((t) => (st.bal && st.bal[t.address]) || !t.listed);
+const held = () => Object.values(st.tokens).filter((t) => (st.bal && st.bal[t.address]) || t.added || (t.discovered && st.bal?.[t.address] == null));
 
 function loadPending(s) {
   if (st.pendingFor === s.address) return st.pendingJob;
@@ -855,6 +857,24 @@ const tokenSpec = (t) => (t ? (t.listed ? t.symbol : t.address) : '');
 const transfer = (t, to, v) => (t ? { to: t.address, value: 0n, data: cd(S.transfer, to, v) } : { to, value: v, data: '0x' });
 const prefilled = () => warn('Prefilled from a link. Check every recipient, amount and token before reviewing.');
 
+function addTokenDialog(refresh) {
+  const { body, close } = sheet('plus', 'Add token');
+  const chainId = st.chainId, input = h('input', { placeholder: 'Token address 0x…', spellcheck: 'false', 'aria-label': 'Token address' }), out = h('div');
+  put(body, h('p.mut', 'Saved in this browser for every Safe on ' + chain().name + '.'), input,
+    h('div.actions', button('Add token', async () => {
+      const a = input.value.trim().toLowerCase();
+      if (!isAddr(a)) throw Error('Enter a token contract address.');
+      const t = await meta(a, chain().name);
+      if (st.chainId !== chainId) throw Error('Network changed. Reopen Add token.');
+      save(chainId, [...saved(chainId).filter((x) => x.address !== a), t]);
+      st.tokens[a] = st.tokens[a] || t;
+      st.balFor = null;
+      close();
+      await refresh();
+    }, out, '.primary')), out);
+  input.focus();
+}
+
 function assetsTab(s) {
   const c = chain(), rows = h('div', h('p.mut', 'Loading balances…')), pend = h('div');
   // Actions show on row hover (always on touch). Nothing to send: no Send.
@@ -876,24 +896,7 @@ function assetsTab(s) {
   };
   const asset = (name, sub, actions) => h('td', h('div.arow', h('div', name, sub), h('span.grow'), actions));
   const removeBtn = (t) =>
-    !t.listed && h('button.ib', { title: 'Remove from your token list', 'aria-label': 'Remove ' + t.symbol, onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), delete st.tokens[t.address], draw()) }, icon(...ICONS.close));
-  const addIn = h('input', { placeholder: 'Token address 0x…', spellcheck: 'false' }), addOut = h('div');
-  const add = button(
-    'Add token',
-    async () => {
-      const a = addIn.value.trim().toLowerCase();
-      if (!isAddr(a)) throw Error('Enter a token contract address.');
-      const t = await meta(a, chain().name);
-      save(st.chainId, [...saved(st.chainId).filter((x) => x.address !== a), t]);
-      st.tokens[a] = st.tokens[a] || t;
-      st.balFor = null;
-      addIn.value = '';
-      await loadBalances(s);
-      draw();
-    },
-    addOut,
-  );
-  const addBox = h('div.addtoken', { hidden: true }, h('p.mut', 'Added tokens are saved in this browser for every Safe on ' + c.name + '.'), h('div.row', addIn, add), addOut);
+    !t.listed && h('button.ib', { title: 'Remove from your token list', 'aria-label': 'Remove ' + t.symbol, onclick: () => (save(st.chainId, saved(st.chainId).filter((x) => x.address !== t.address)), forgetToken(st.chainId, s.address, t.address), delete st.tokens[t.address], st.balFor = null, draw()) }, icon(...ICONS.close));
   const draw = () => {
     const nHid = held().filter((t) => hidden.has(t.address)).length;
     const note = [c.mainnet && 'Zero balances hidden', nHid > 0 && nHid + (nHid > 1 ? ' tokens' : ' token') + ' hidden'].filter(Boolean).join(' · ');
@@ -919,13 +922,13 @@ function assetsTab(s) {
         'div.afoot',
         note && h('span.mut', note, nHid > 0 && [' · ', h('button.link', { onclick: () => ((showHidden = !showHidden), draw()) }, showHidden ? 'Hide them' : 'Show')]),
         h('span.grow'),
-        h('button.link.addlink', { onclick: () => ((addBox.hidden = !addBox.hidden), addBox.hidden || addIn.focus()) }, icon(...ICONS.plus), 'Add token'),
+        h('button.link.addlink', { onclick: () => addTokenDialog(async () => { await loadBalances(s); draw(); }) }, icon(...ICONS.plus), 'Add token'),
       ),
     );
   };
   loadBalances(s).then(draw, (e) => put(rows, warn('Could not read token balances: ' + e.message)));
   loadPending(s).then((r) => r.found.length && put(pend, h('a.callout', { href: link('transactions') }, h('b', r.found.length + ' pending transaction' + (r.found.length > 1 ? 's' : '')), ' published onchain · Review ›')), () => {});
-  return [pend, rows, addBox];
+  return [pend, rows];
 }
 
 /** Balance with two decimals when it has any fraction, so a column compares at a glance (exact on hover). */
@@ -1807,9 +1810,11 @@ function importer() {
 }
 
 // ---- review screen ----
+let reviewSeq = 0;
 const rv = h('div.fulladdr'); // what gets signed: addresses in full
 /** Review a transaction on its own screen. `nav`: 'push' (from a form), 'replace' (refresh), 'none' (from the URL). */
 async function showReview(tx, sigs = [], nav = 'push') {
+  const ticket = ++reviewSeq, routeSeq = seq;
   // One back link: to the screen that opened this review, else the Transactions tab.
   if (nav === 'push') st.backTo = location.hash && !location.hash.startsWith('#tx=') ? location.hash : null;
   else if (nav === 'none') st.backTo = null;
@@ -1817,7 +1822,14 @@ async function showReview(tx, sigs = [], nav = 'push') {
   setCrumb(st.safe);
   put(rv, h('p.mut', 'Checking the transaction…'));
   const r = await review(tx, st.safe, st.chainId);
+  if (ticket !== reviewSeq || routeSeq !== seq) return;
+  if (r.ok && !r.signMessage) {
+    r.assets = await assetChanges(tx);
+    st.balFor = null; // discoveries contain metadata only; the Assets tab reads real balances
+  }
+  if (ticket !== reviewSeq || routeSeq !== seq) return;
   const c = await checkSigs(st.safe, r.local, sigs);
+  if (ticket !== reviewSeq || routeSeq !== seq) return;
   st.review = r;
   st.off = c.valid;
   st.sigs = c.valid.map((x) => x.sig); // only valid signatures are kept and re-shared
@@ -1835,6 +1847,31 @@ const button = (label, fn, out, cls = '') => {
   b.onclick = act(b, fn, out);
   return b;
 };
+
+const allowanceAmount = (v, decimals) => v === (1n << 256n) - 1n ? 'Unlimited' : fmt(v, decimals);
+
+function assetPreview(a, r) {
+  const label = a.status === 'success' ? 'Inner call succeeded' : a.status === 'failed' ? 'Inner call failed' : 'Unavailable';
+  return h('section.panel', h('h3', 'Expected asset changes'),
+    h('p', label, a.block && ' · block ' + BigInt(a.block)),
+    a.status === 'success' && (a.changes.length ? h('table.assets',
+      h('tr', h('th', 'Asset'), h('th.num', 'Change')),
+      a.changes.map((t) => h('tr',
+        h('td', t.address === ZERO ? chain().sym : [h('b', t.symbol), h('div', addr(t.address, null, short(t.address)))]),
+        h('td.num', (t.delta > 0n ? '+' : '−') + fmt(t.delta < 0n ? -t.delta : t.delta, t.address === ZERO ? 18 : t.decimals)),
+      ))) : h('p.mut', 'No balance changes found among checked assets.')),
+    a.status === 'success' && a.allowances.length > 0 && [h('h3', 'Allowance changes'),
+      a.allowances.map((t) => h('div', h('b', t.symbol), ' ', addr(t.address, null, short(t.address)),
+        h('div', 'Spender ', addr(t.spender)),
+        h('p', allowanceAmount(t.before, t.decimals), ' → ', allowanceAmount(t.after, t.decimals))))],
+    h('p.mut', 'Asset coverage may be partial. ', h('button.link', { onclick: () => addTokenDialog(async () => {
+      if (st.review === r) await showReview(r.tx, st.sigs, 'replace');
+    }) }, 'Add token'), '.'),
+    h('details', h('summary', 'Preview details'),
+      a.notes.map((n) => h(a.status === 'success' ? 'p.mut' : 'p.warn', n)),
+      h('p.mut', 'Checks ETH, candidate ERC-20 tokens and direct approval calls (including batches). Other allowances and NFTs may be missed. Uses current state; Safe signatures, guards, refunds and execution fees are not checked.')),
+  );
+}
 
 /** An empty transaction from the Safe to itself: what replaces (cancels) another one at the same nonce. */
 const isCancel = (t) => t.to === t.safe && t.data === '0x' && !t.value && !t.operation;
@@ -1878,6 +1915,7 @@ function reviewHead(r) {
     r.danger.map((d) => h('p.bad.danger', d)),
     r.errors.map((e) => bad(e)),
     r.warnings.map((w) => warn(w)),
+    r.assets && assetPreview(r.assets, r),
     // An upgrade: the Safe as it would be afterwards, read through the new singleton.
     r.after && h('p.rvhash', h('b.ok', '✓'), ' Simulated after the upgrade: Safe ' + r.after.version + ' · ' + r.after.threshold + ' of ' + r.after.owners.length + ' owners · ' + (r.after.modules.length === 1 ? '1 module' : r.after.modules.length + ' modules') + (r.after.guard ? ' · guard kept' : '') + ', as now.'),
     r.chain === r.local && h('p.rvhash', h('b.ok', '✓'), ' Hash matches the Safe’s own ', h('code', short(r.local)), ' · see details below'),

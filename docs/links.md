@@ -172,3 +172,7 @@ Rules for changing safe.wei:
 2. Add capabilities only as **optional** additions: a new flag bit with a section appended after the existing ones, a new query parameter, a new JSON key. Readers keep rejecting unknown flag bits, so an old reader fails loudly on a new link instead of misreading it.
 3. A change that cannot be backward compatible needs a new magic/version byte **and** the old version must keep decoding.
 4. Golden vectors in `test/unit/links.test.mjs` pin the current encodings. If one fails, you broke a stable format: fix the code, not the vector. Add vectors for every new optional section.
+
+### Asset previews and local token discoveries
+
+Opening a transaction link runs the RPC-native asset preview when available, using the recipient's RPC and local token catalog. Balance/allowance preview results, block numbers and discovered-token caches are not serialized into transaction/message/import links, transaction JSON, or backups. All existing wire formats and golden vectors remain unchanged.

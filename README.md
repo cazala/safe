@@ -115,3 +115,9 @@ See [docs/deploy.md](docs/deploy.md): deterministic CREATE2 deployment of the pa
 ## License
 
 [MIT](LICENSE)
+
+### Asset-change previews
+
+Transaction review previews ETH and ERC-20 balance changes through the connected RPC, without a simulation service. A temporary helper runs inside the Safe through `simulateAndRevert`, preserving its code and real balances. Registry tokens, manually added tokens, per-Safe discoveries, and transaction access-list candidates share one catalog. Discovery is incomplete; unsupported RPCs retain the existing warning checks. Direct ERC-20 approval calls and batches show measured allowance changes. A short partial-coverage notice links to Add token; diagnostics live under Preview details. Other allowances, NFTs, signatures, guards and execution fees are outside this preview.
+
+The helper source is `contracts/AssetProbe.sol`; `npm run build:probe` regenerates its embedded runtime using the pinned compiler. `node scripts/build-probe.mjs --check` verifies reproducibility. No Solidity compiler ships in the HTML.

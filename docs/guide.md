@@ -136,7 +136,7 @@ Tabs: **Assets**, **Send**, **Transactions**, **Custom**, **Dapps**, **Settings*
 
 ## 5. Assets
 
-- The native balance, then the tokens: on Ethereum, every token of the zOrg TokenList with a non-zero balance ("Zero balances hidden" under the table); on every chain, the tokens you added, even at zero.
+- The native balance, then the tokens: on Ethereum, every token of the zOrg TokenList with a non-zero balance ("Zero balances hidden" under the table); on every chain, the tokens you added, even at zero, plus discovered tokens with non-zero current balances.
 - Balances use aligned figures and two decimals when fractional; hover for the exact amount.
 - Hover a row for **Send** (prefilled with that token), the eye to **hide** the token (dust, say) and, for tokens you added, **×** to remove them from your list. Send is disabled when the balance is zero.
 - Hidden tokens are left out of this Safe's list (other Safes are not affected) and counted under the table ("1 token hidden"); **Show** lists them dimmed, with the eye to unhide. Send still offers them.
@@ -353,7 +353,7 @@ Before any approval, signature or execution:
 
 - **Hash**: the SafeTx hash computed locally must equal the Safe's own `getTransactionHash`. A mismatch disables every action.
 - **Context**: the transaction must be for this Safe and the wallet's chain, with an unused nonce. Later nonces are marked as queued.
-- **Simulation**: the call is run from the Safe with `eth_call` (each call of a batch on its own). Reverts, a token returning `false`, and calldata sent to an address without code are reported.
+- **Simulation**: single calls use `eth_call`; batches run atomically inside the Safe, with individual checks as a fallback. Reverts, a token returning `false`, and calldata sent to an address without code are reported. Whole-batch fallback is explicit.
 - **Decoding**: only exact, canonical encodings of known calls are decoded (ERC-20 transfer / approve / transferFrom, owner and threshold changes, modules, guard, fallback handler). Anything else is shown raw, never guessed.
 - **Warnings** for: DELEGATECALL outside the canonical batch contract, enabling a module, setting a guard or fallback handler, unlimited approvals, owner and threshold changes, a Safe-management call aimed at another contract, non-zero gas refund fields, DELEGATECALL into an address without code, and untested Safe versions.
 - **Names** are re-resolved right before acting.
@@ -396,3 +396,13 @@ Clearing site data removes them; export a backup first.
 - **Copy does nothing on a LAN address**: browsers limit the clipboard on plain `http` pages; safe.wei falls back to an older copy method, which some browsers also block.
 
 Links can prefill the transaction builder with a call (`#/<safe>/custom?to=&value=&data=`, value in wei) and Create a Safe with owners and a threshold (`#/new?owners=&threshold=`); both show "Prefilled from a link" so you check them before reviewing. See [links.md](links.md).
+
+### Expected asset changes
+
+Transaction review shows exact positive and negative ETH/ERC-20 balance changes at the displayed block. Token addresses in the asset preview are shortened like those in Assets, with full addresses on hover and copy. It uses your connected RPC (or your configured endpoint), with no extra service, deployment, or artificial funding. Unsupported state overrides or unreadable results show “Unavailable”; access-list discovery failures fall back to known tokens and transaction candidates. A failed inner call shows no predicted transfers.
+
+A quiet “Asset coverage may be partial” notice links to **Add token**, which opens a dialog without leaving review and refreshes the preview after saving. Discovery diagnostics and scope limits are under **Preview details**.
+
+Coverage is partial: a successful preview does not guarantee all assets were found or that full Safe execution will succeed. The preview checks allowance changes for canonical direct `approve`, `increaseAllowance`, and `decreaseAllowance` calls, including batches, showing actual before/after amounts (or Unlimited). Other allowances, NFTs, signatures, guards, gas refunds, and execution fees are not included. A queued transaction is previewed against current state, without executing preceding nonces.
+
+Tokens discovered during successful previews are remembered locally for that Safe and chain, after balance and ERC-20 metadata checks. The Assets tab reads their actual onchain balances afresh; predicted receipts never become holdings. Discovered tokens hide at zero and can be removed; they use the same balance-row presentation as other tokens. Manually added tokens remain visible at zero. The token registry remains the source of listed metadata; discovery does not imply endorsement. No balances are stored in the discovery cache, and this cache is not included in backups.
